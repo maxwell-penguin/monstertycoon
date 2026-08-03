@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local Types = require(ReplicatedStorage.Types)
 local PlayerManager = require(script.Parent.PlayerManager)
+local EarnRateUpdater = require(script.Parent.EarnRateUpdater)
 
 type PlayerData = Types.PlayerData
 
@@ -76,6 +77,8 @@ local function onPlayerAdded(player: Player)
 	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 	local remote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
 	remote:FireClient(player, data)
+
+	EarnRateUpdater.StartUpdating(player)
 
 	print(`[DataStore] Loaded data for {player.Name}`)
 end
