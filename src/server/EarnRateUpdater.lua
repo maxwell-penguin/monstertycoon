@@ -4,7 +4,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(script.Parent.Economy)
 local PlayerManager = require(script.Parent.PlayerManager)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
-local BoostState = require(ReplicatedStorage.BoostState)
 
 local UPDATE_INTERVAL = 1
 local DEFAULT_INCOME_MULTIPLIER = 1
@@ -35,8 +34,7 @@ function EarnRateUpdater.StartUpdating(player: Player)
 		while activeLoops[userId] do
 			local data = PlayerManager.GetData(userId)
 			if data then
-				local boostState = BoostState.GetCurrentBoost()
-				local earnRate = Economy.GetEarnRate(data.monsterSlots, boostState, DEFAULT_INCOME_MULTIPLIER)
+				local earnRate = Economy.GetEarnRate(data.monsterSlots, DEFAULT_INCOME_MULTIPLIER)
 				updateEarnRateRemote:FireClient(player, earnRate)
 			end
 			task.wait(UPDATE_INTERVAL)

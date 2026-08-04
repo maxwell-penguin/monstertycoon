@@ -7,6 +7,7 @@ local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local BoostState = require(ReplicatedStorage.BoostState)
 local Types = require(ReplicatedStorage.Types)
 local PlayerManager = require(script.Parent.PlayerManager)
+local GlobalBoostMilestone = require(script.Parent.GlobalBoostMilestone)
 
 local Economy = {}
 
@@ -15,6 +16,7 @@ local DEFAULT_INCOME_MULTIPLIER = 1
 
 local LEVEL_MULTIPLIERS = { 1, 4, 12, 30, 100 }
 local STAR_MULTIPLIERS = { [0] = 1, [1] = 2, [2] = 4, [3] = 8 }
+local WATCHER_EMOTION = "Any"
 
 local UPGRADE_COST_TABLES = {
 	hall = Constants.HALL_UPGRADE_COSTS,
@@ -35,10 +37,32 @@ function Economy.GetRollCost(lifetimeRolls: number): number
 	return 500
 end
 
+-- Resolves the live boost multiplier for a given monster emotion, covering standard
+-- boosts, Void Storm ("All"), Double Surge (emotions array), Mystery Surge (secret
+-- real emotion, server-only), and The Watcher ("Any" always benefits from any boost).
+function Economy.GetBoostMultiplier(emotion: string): number
+	local boost = BoostState.GetCurrentBoost()
+	if not boost.isActive then
+		return 1
+	end
+
+	if emotion == WATCHER_EMOTION then
+		return boost.multiplier
+	end
+
+	if boost.emotion == "Mystery" then
+		if BoostState.GetRealEmotion() == emotion then
+			return boost.multiplier
+		end
+		return 1
+	end
+
+	return BoostState.GetMultiplierForEmotion(emotion)
+end
+
 function Economy.GetVialValue(
 	rarity: string,
 	emotion: string,
-	boostMultiplier: number,
 	incomeMultiplier: number,
 	monsterLevel: number,
 	monsterStars: number
@@ -48,6 +72,7 @@ function Economy.GetVialValue(
 		return 1
 	end
 
+	local boostMultiplier = Economy.GetBoostMultiplier(emotion)
 	local levelMultiplier = LEVEL_MULTIPLIERS[monsterLevel] or 1
 	local starMultiplier = STAR_MULTIPLIERS[monsterStars] or 1
 
@@ -56,26 +81,13 @@ function Economy.GetVialValue(
 	return math.max(math.floor(value), 1)
 end
 
-function Economy.GetEarnRate(slots: { Types.MonsterSlot }, boostState: Types.BoostState, incomeMultiplier: number): number
+function Economy.GetEarnRate(slots: { Types.MonsterSlot }, incomeMultiplier: number): number
 	local total = 0
 
 	for _, slot in slots do
 		if slot.isActive and slot.monster then
 			local monster = slot.monster
-			local boostMultiplier = 1
-			if boostState.isActive and boostState.emotion == monster.emotion then
-				boostMultiplier = boostState.multiplier
-			end
-
-			local value = Economy.GetVialValue(
-				monster.rarity,
-				monster.emotion,
-				boostMultiplier,
-				incomeMultiplier,
-				monster.level,
-				monster.stars
-			)
-
+			local value = Economy.GetVialValue(monster.rarity, monster.emotion, incomeMultiplier, monster.level, monster.stars)
 			total += value / 30
 		end
 	end
@@ -88,7 +100,6 @@ function Economy.ProcessSell(
 	vialCount: number,
 	vialRarity: string,
 	vialEmotion: string,
-	boostMultiplier: number,
 	monsterLevel: number,
 	monsterStars: number
 ): (boolean, number)
@@ -108,13 +119,14 @@ function Economy.ProcessSell(
 		return false, 0
 	end
 
-	local unitValue =
-		Economy.GetVialValue(vialRarity, vialEmotion, boostMultiplier, DEFAULT_INCOME_MULTIPLIER, monsterLevel, monsterStars)
+	local unitValue = Economy.GetVialValue(vialRarity, vialEmotion, DEFAULT_INCOME_MULTIPLIER, monsterLevel, monsterStars)
 	local totalValue = unitValue * vialCount
 
 	if not PlayerManager.IncrementCoins(userId, totalValue) then
 		return false, 0
 	end
+
+	GlobalBoostMilestone.IncrementGlobalEarnings(totalValue)
 
 	local updatedData = PlayerManager.GetData(userId)
 	local player = Players:GetPlayerByUserId(userId)
@@ -122,7 +134,7 @@ function Economy.ProcessSell(
 	if player and updatedData then
 		updateCoinsRemote:FireClient(player, updatedData.coins)
 
-		local earnRate = Economy.GetEarnRate(updatedData.monsterSlots, BoostState.GetCurrentBoost(), DEFAULT_INCOME_MULTIPLIER)
+		local earnRate = Economy.GetEarnRate(updatedData.monsterSlots, DEFAULT_INCOME_MULTIPLIER)
 		updateEarnRateRemote:FireClient(player, earnRate)
 	end
 

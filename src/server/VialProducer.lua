@@ -5,6 +5,7 @@ local HttpService = game:GetService("HttpService")
 local Constants = require(ReplicatedStorage.Constants)
 local Types = require(ReplicatedStorage.Types)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
+local BoostState = require(ReplicatedStorage.BoostState)
 local HallManager = require(script.Parent.HallManager)
 local SlotPositioner = require(script.Parent.SlotPositioner)
 local BagManager = require(script.Parent.BagManager)
@@ -67,7 +68,10 @@ function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot): string
 	end
 	vials[vialId] = vialData
 
-	vialSpawnedRemote:FireClient(player, vialId, position, monster.rarity, monster.emotion)
+	-- Visual intensity only; actual sale value is resolved fresh (and correctly,
+	-- including Mystery Surge's hidden emotion) by Economy at sell time.
+	local boostMultiplier = BoostState.GetMultiplierForEmotion(monster.emotion)
+	vialSpawnedRemote:FireClient(player, vialId, position, monster.rarity, monster.emotion, boostMultiplier)
 
 	return vialId
 end
