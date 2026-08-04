@@ -10,6 +10,7 @@ local PlotManager = require(script.Parent.PlotManager)
 local HallManager = require(script.Parent.HallManager)
 local VialProducer = require(script.Parent.VialProducer)
 local DropboxManager = require(script.Parent.DropboxManager)
+local WarehouseManager = require(script.Parent.WarehouseManager)
 
 type PlayerData = Types.PlayerData
 
@@ -27,11 +28,7 @@ local function defaultData(): PlayerData
 		totalPlaytime = 0,
 		lastOnlineTime = 0,
 		monsterSlots = {},
-		warehouse = {
-			tier = 0,
-			capacity = 0,
-			currentCount = 0,
-		},
+		warehouse = {},
 		sessionStartTime = 0,
 	}
 end
@@ -79,6 +76,8 @@ local function onPlayerAdded(player: Player)
 	PlayerManager.Load(player.UserId, data)
 	PlotManager.AssignPlot(player)
 	HallManager.InitHall(player)
+	WarehouseManager.InitWarehouse(player)
+	WarehouseManager.LoadWarehouseFromPlayerData(player)
 	VialProducer.StartProduction(player)
 	DropboxManager.InitDropbox(player)
 
@@ -96,6 +95,8 @@ local function onPlayerRemoving(player: Player)
 	HallManager.ClearHall(player)
 	VialProducer.StopProduction(player)
 	DropboxManager.CleanupDropbox(player)
+	WarehouseManager.SaveWarehouseToPlayerData(player)
+	WarehouseManager.ClearWarehouse(player)
 
 	local data = PlayerManager.Unload(player.UserId)
 	if not data then

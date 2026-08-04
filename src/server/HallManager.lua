@@ -1,12 +1,11 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
 
 local Constants = require(ReplicatedStorage.Constants)
 local Types = require(ReplicatedStorage.Types)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
 local Economy = require(script.Parent.Economy)
-local MonsterData = require(script.Parent.MonsterData)
+local WarehouseManager = require(script.Parent.WarehouseManager)
 
 local HallManager = {}
 
@@ -43,9 +42,7 @@ function HallManager.GetSlots(player: Player): { Types.MonsterSlot }
 	return playerSlots[player.UserId] or {}
 end
 
--- monsterName is a temporary stand-in for a real monster instance id until
--- WarehouseManager (Phase 8) exists to look up owned monster instances.
-function HallManager.SlotMonster(player: Player, slotIndex: number, monsterName: string): boolean
+function HallManager.SlotMonster(player: Player, slotIndex: number, instanceId: string): boolean
 	local slots = playerSlots[player.UserId]
 	if not slots then
 		return false
@@ -55,27 +52,19 @@ function HallManager.SlotMonster(player: Player, slotIndex: number, monsterName:
 		return false
 	end
 
-	if typeof(monsterName) ~= "string" then
+	if typeof(instanceId) ~= "string" then
 		return false
 	end
 
-	local monsterDef = MonsterData[monsterName]
-	if not monsterDef then
+	local monster = WarehouseManager.GetMonsterByInstanceId(player, instanceId)
+	if not monster then
 		return false
 	end
-
-	local monster: Types.Monster = {
-		id = HttpService:GenerateGUID(false),
-		name = monsterDef.name,
-		emotion = monsterDef.emotion,
-		rarity = monsterDef.rarity,
-		level = monsterDef.level,
-		stars = 0,
-		outputMultiplier = monsterDef.baseOutput,
-	}
 
 	slots[slotIndex].monster = monster
 	slots[slotIndex].isActive = true
+
+	WarehouseManager.RemoveMonster(player, instanceId)
 
 	updateHallRemote:FireClient(player, slots)
 
