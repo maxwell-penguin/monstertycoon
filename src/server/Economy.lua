@@ -19,6 +19,7 @@ local STAR_MULTIPLIERS = { [0] = 1, [1] = 2, [2] = 4, [3] = 8 }
 local UPGRADE_COST_TABLES = {
 	hall = Constants.HALL_UPGRADE_COSTS,
 	warehouse = Constants.WAREHOUSE_UPGRADE_COSTS,
+	plot = Constants.PLOT_UPGRADE_COSTS,
 }
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
@@ -129,10 +130,6 @@ function Economy.ProcessSell(
 end
 
 function Economy.GetUpgradeCost(upgradeType: string, currentTier: number): number
-	if upgradeType == "plot" then
-		return math.huge
-	end
-
 	if upgradeType == "bag" then
 		local nextTier = Constants.BAG_TIERS[currentTier + 1]
 		if not nextTier then

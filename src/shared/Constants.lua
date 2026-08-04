@@ -58,6 +58,22 @@ Constants.WAREHOUSE_CAPACITY = {
 	[5] = 180,
 }
 
+Constants.PLOT_UPGRADE_COSTS = {
+	[1] = 0,
+	[2] = 75000,
+	[3] = 7500000,
+	[4] = 750000000,
+	[5] = 75000000000,
+}
+
+Constants.PLOT_SIZES = {
+	[1] = { width = 60, depth = 80 },
+	[2] = { width = 80, depth = 100 },
+	[3] = { width = 100, depth = 120 },
+	[4] = { width = 120, depth = 140 },
+	[5] = { width = 140, depth = 160 },
+}
+
 Constants.BAG_TIERS = {
 	{ name = "Starter", capacity = 10, cost = 0, robux = false },
 	{ name = "Satchel", capacity = 25, cost = 500, robux = false },
