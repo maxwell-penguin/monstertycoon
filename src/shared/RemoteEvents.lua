@@ -43,6 +43,9 @@ RemoteEvents.EVENTS = {
 	SESSION_REWARD = "SessionReward",
 	PLAYER_DATA_LOADED = "PlayerDataLoaded",
 
+	-- Town
+	TOWN_UPDATED = "TownUpdated",
+
 	-- Events
 	SHARD_SPAWNED = "ShardSpawned",
 	SHARD_COLLECTED = "ShardCollected",

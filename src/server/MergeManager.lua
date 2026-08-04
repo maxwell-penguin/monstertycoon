@@ -2,8 +2,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Types)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
+local Constants = require(ReplicatedStorage.Constants)
 local MergeRules = require(ReplicatedStorage.MergeRules)
 local WarehouseManager = require(script.Parent.WarehouseManager)
+local TownManager = require(script.Parent.TownManager)
 
 local MAX_AUTO_MERGES = 50
 
@@ -76,6 +78,13 @@ function MergeManager.ExecuteMerge(player: Player, instanceIds: any): (boolean, 
 	end
 
 	local newMonster = WarehouseManager.GetMonsterByInstanceId(player, newInstanceId)
+
+	local rule = MergeRules[sourceMonster.name]
+	if rule and rule.isMaxLevel then
+		TownManager.AddXP(player, Constants.XP_REWARDS.mergeStar)
+	else
+		TownManager.AddXP(player, Constants.XP_REWARDS.mergeEvolve)
+	end
 
 	mergeMonstersRemote:FireClient(player, {
 		success = true,

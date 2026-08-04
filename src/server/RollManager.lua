@@ -5,6 +5,7 @@ local RollTable = require(ReplicatedStorage.RollTable)
 local PlayerManager = require(script.Parent.PlayerManager)
 local Economy = require(script.Parent.Economy)
 local WarehouseManager = require(script.Parent.WarehouseManager)
+local TownManager = require(script.Parent.TownManager)
 
 local MAX_PREMIUM_ROLL_ATTEMPTS = 100
 local VALID_BATCH_COUNTS = { [1] = true, [5] = true, [10] = true }
@@ -20,8 +21,7 @@ end
 local RollManager = {}
 
 function RollManager.GetTownLevel(player: Player): number
-	local data = PlayerManager.GetData(player.UserId)
-	return (data and data.townLevel) or 1
+	return TownManager.GetTownLevel(player)
 end
 
 function RollManager.GetRollCost(player: Player): number
@@ -57,6 +57,7 @@ function RollManager.PerformRoll(player: Player): (boolean, string, string, any)
 	end
 
 	PlayerManager.SetData(userId, "lifetimeRolls", data.lifetimeRolls + 1)
+	TownManager.AddXP(player, TownManager.GetEggOpenXP(rarity))
 
 	eggResultRemote:FireClient(player, {
 		success = true,
@@ -103,6 +104,8 @@ function RollManager.PerformPremiumRoll(
 		eggResultRemote:FireClient(player, { success = false, reason = "full" })
 		return false, "full", "", ""
 	end
+
+	TownManager.AddXP(player, TownManager.GetEggOpenXP(rarity))
 
 	eggResultRemote:FireClient(player, {
 		success = true,
