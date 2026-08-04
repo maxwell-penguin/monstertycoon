@@ -38,6 +38,7 @@ export type PlayerData = {
 	freeMerges: number,
 	hasBoostInsider: boolean,
 	ftueComplete: boolean,
+	eventTokens: number,
 }
 
 export type Plot = {

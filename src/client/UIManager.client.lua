@@ -15,6 +15,7 @@ local updateHallRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_H
 local mergeMonstersRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MERGE_MONSTERS) :: RemoteEvent
 local playerDataLoadedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
 local eggResultRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.EGG_RESULT) :: RemoteEvent
+local sessionRewardRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SESSION_REWARD) :: RemoteEvent
 
 -- BindableEvent so UIInput.client.lua (a separate LocalScript, can't be require()'d)
 -- can hear about button clicks without UIManager reaching into RemoteEvents itself.
@@ -391,6 +392,7 @@ createToggleButton("WAREHOUSE", 0, "WarehousePanel")
 createToggleButton("ROLL", 1, "RollPanel")
 createToggleButton("HALL", 2, "HallPanel")
 createToggleButton("SHOP", 3, "ShopPanel")
+createToggleButton("EVENT", 4, "EventStationPanel")
 
 --============================================================
 -- Warehouse Panel
@@ -684,9 +686,27 @@ probabilityLabel.Parent = rollPanel
 -- seeded from PLAYER_DATA_LOADED and incremented locally on each observed roll.
 local lifetimeRolls = 0
 
+-- eventTokens is also carried on this same full-snapshot payload; EventRemotes
+-- re-fires PLAYER_DATA_LOADED after a purchase so this stays current.
+local eventTokens = 0
+
 playerDataLoadedRemote.OnClientEvent:Connect(function(data: any)
-	if typeof(data) == "table" and typeof(data.lifetimeRolls) == "number" then
+	if typeof(data) ~= "table" then
+		return
+	end
+
+	if typeof(data.lifetimeRolls) == "number" then
 		lifetimeRolls = data.lifetimeRolls
+	end
+
+	if typeof(data.eventTokens) == "number" then
+		eventTokens = data.eventTokens
+	end
+end)
+
+sessionRewardRemote.OnClientEvent:Connect(function(reward: any)
+	if typeof(reward) == "table" and reward.type == "eventTokens" and typeof(reward.amount) == "number" then
+		eventTokens += reward.amount
 	end
 end)
 
@@ -1030,6 +1050,91 @@ for tier = 2, #Constants.BAG_TIERS do
 end
 
 --============================================================
+-- Event Station Panel
+--============================================================
+
+local eventStationPanel = Instance.new("Frame")
+eventStationPanel.Name = "EventStationPanel"
+eventStationPanel.Position = UDim2.new(0.5, -200, 0.5, -250)
+eventStationPanel.Size = UDim2.new(0, 400, 0, 500)
+eventStationPanel.BackgroundColor3 = PANEL_BG
+eventStationPanel.BorderSizePixel = 0
+eventStationPanel.Visible = false
+eventStationPanel.Parent = screenGui
+addCorner(eventStationPanel, 12)
+panels.EventStationPanel = eventStationPanel
+
+local eventStationTitle = Instance.new("TextLabel")
+eventStationTitle.Name = "Title"
+eventStationTitle.Size = UDim2.new(1, -40, 0, 36)
+eventStationTitle.Position = UDim2.new(0, 16, 0, 12)
+eventStationTitle.BackgroundTransparency = 1
+eventStationTitle.Font = Enum.Font.GothamBold
+eventStationTitle.TextSize = 20
+eventStationTitle.TextColor3 = WHITE
+eventStationTitle.TextXAlignment = Enum.TextXAlignment.Left
+eventStationTitle.Text = "EVENT STATION"
+eventStationTitle.Parent = eventStationPanel
+
+createCloseButton(eventStationPanel, "EventStationPanel")
+
+local eventTokenLabel = Instance.new("TextLabel")
+eventTokenLabel.Name = "TokenCount"
+eventTokenLabel.Size = UDim2.new(1, -32, 0, 24)
+eventTokenLabel.Position = UDim2.new(0, 16, 0, 48)
+eventTokenLabel.BackgroundTransparency = 1
+eventTokenLabel.Font = Enum.Font.GothamBold
+eventTokenLabel.TextSize = 16
+eventTokenLabel.TextColor3 = GOLD
+eventTokenLabel.TextXAlignment = Enum.TextXAlignment.Left
+eventTokenLabel.Text = "Event Tokens: 0"
+eventTokenLabel.Parent = eventStationPanel
+
+local nextEventLabel = Instance.new("TextLabel")
+nextEventLabel.Name = "NextEventTimer"
+nextEventLabel.Size = UDim2.new(1, -32, 0, 20)
+nextEventLabel.Position = UDim2.new(0, 16, 0, 72)
+nextEventLabel.BackgroundTransparency = 1
+nextEventLabel.Font = Enum.Font.Gotham
+nextEventLabel.TextSize = 13
+nextEventLabel.TextColor3 = GRAY
+nextEventLabel.TextXAlignment = Enum.TextXAlignment.Left
+nextEventLabel.Text = "NEXT EVENT IN: --"
+nextEventLabel.Parent = eventStationPanel
+
+local eventMonsterList = Instance.new("ScrollingFrame")
+eventMonsterList.Name = "EventMonsterList"
+eventMonsterList.Position = UDim2.new(0, 16, 0, 100)
+eventMonsterList.Size = UDim2.new(1, -32, 1, -116)
+eventMonsterList.BackgroundTransparency = 1
+eventMonsterList.BorderSizePixel = 0
+eventMonsterList.ScrollBarThickness = 6
+eventMonsterList.CanvasSize = UDim2.new(0, 0, 0, 0)
+eventMonsterList.Parent = eventStationPanel
+
+local eventMonsterListLayout = Instance.new("UIListLayout")
+eventMonsterListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+eventMonsterListLayout.Padding = UDim.new(0, 6)
+eventMonsterListLayout.Parent = eventMonsterList
+
+eventMonsterListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	eventMonsterList.CanvasSize = UDim2.new(0, 0, 0, eventMonsterListLayout.AbsoluteContentSize.Y + 8)
+end)
+
+for i, item in Constants.EVENT_MONSTERS do
+	local entry = createShopEntry(
+		item.name,
+		`{item.emotion} • {item.rarity}`,
+		`{item.tokenCost} token{item.tokenCost == 1 and "" or "s"}`,
+		function()
+			fireAction("EVENT_STATION_PURCHASE", { monsterName = item.name })
+		end
+	)
+	entry.LayoutOrder = i
+	entry.Parent = eventMonsterList
+end
+
+--============================================================
 -- Merge notification (transient, not a toggle panel)
 --============================================================
 
@@ -1316,6 +1421,16 @@ task.spawn(function()
 					end
 				end
 			end
+		end
+
+		-- Event Station: token count + next event countdown
+		eventTokenLabel.Text = `Event Tokens: {eventTokens}`
+
+		local eventState = shared.EventClient
+		if eventState and typeof(eventState.nextEventIn) == "number" then
+			local minutes = math.floor(eventState.nextEventIn / 60)
+			local seconds = eventState.nextEventIn % 60
+			nextEventLabel.Text = string.format("NEXT EVENT IN: %02d:%02d", minutes, seconds)
 		end
 	end
 end)

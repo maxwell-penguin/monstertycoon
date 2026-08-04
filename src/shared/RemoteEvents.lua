@@ -61,6 +61,10 @@ RemoteEvents.EVENTS = {
 	EVENT_CRATE_SPAWNED = "EventCrateSpawned",
 	EVENT_CRATE_CLAIMED = "EventCrateClaimed",
 	GLOBAL_MILESTONE_HIT = "GlobalMilestoneHit",
+	WORLD_EVENT_START = "WorldEventStart",
+	WORLD_EVENT_END = "WorldEventEnd",
+	WORLD_EVENT_COUNTDOWN = "WorldEventCountdown",
+	EVENT_STATION_PURCHASE = "EventStationPurchase",
 
 	-- Anti-cheat
 	SANITY_FAIL = "SanityFail",

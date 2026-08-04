@@ -43,6 +43,7 @@ local function defaultData(): PlayerData
 		freeMerges = 0,
 		hasBoostInsider = false,
 		ftueComplete = false,
+		eventTokens = 0,
 	}
 end
 
