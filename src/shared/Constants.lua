@@ -103,6 +103,16 @@ Constants.BOOST_ROTATION = {
 	{ emotion = "Nostalgia", duration = 240, multiplier = 8 },
 }
 
+Constants.SPECIAL_BOOST_CHANCE = 0.15
+
+Constants.SPECIAL_BOOSTS = {
+	VoidStorm = { emotion = "All", multiplier = 2, duration = 180, displayName = "VOID STORM" },
+	DoubleSurge = { multiplier = 3, duration = 300, displayName = "DOUBLE SURGE" },
+	MysterySurge = { multiplier = 6, duration = 300, displayName = "??? SURGE" },
+}
+
+Constants.WATCHER_BOOST_MULTIPLIER = 50
+
 Constants.EMOTION_COLORS = {
 	Joy = Color3.fromRGB(250, 199, 80),
 	Sadness = Color3.fromRGB(133, 183, 235),

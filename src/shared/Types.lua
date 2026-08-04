@@ -43,7 +43,9 @@ export type Plot = {
 
 export type BoostState = {
 	emotion: string,
+	emotions: { string }?,
 	multiplier: number,
+	startTime: number,
 	endTime: number,
 	isActive: boolean,
 }

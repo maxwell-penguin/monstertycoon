@@ -2,7 +2,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
-local BoostState = require(ReplicatedStorage.BoostState)
 local PlayerManager = require(script.Parent.PlayerManager)
 local PlotManager = require(script.Parent.PlotManager)
 local Economy = require(script.Parent.Economy)
@@ -49,16 +48,7 @@ function DropboxManager.ProcessDeposit(player: Player): (boolean, number)
 	local totalEarned = 0
 
 	for _, vial in bagContents do
-		local boostMultiplier = BoostState.GetMultiplierForEmotion(vial.emotion)
-		local success, earned = Economy.ProcessSell(
-			userId,
-			1,
-			vial.rarity,
-			vial.emotion,
-			boostMultiplier,
-			vial.monsterLevel,
-			vial.monsterStars
-		)
+		local success, earned = Economy.ProcessSell(userId, 1, vial.rarity, vial.emotion, vial.monsterLevel, vial.monsterStars)
 
 		if success then
 			totalEarned += earned
