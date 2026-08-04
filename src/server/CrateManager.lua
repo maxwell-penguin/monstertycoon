@@ -7,6 +7,7 @@ local RollTable = require(ReplicatedStorage.RollTable)
 local PlayerManager = require(script.Parent.PlayerManager)
 local PlotManager = require(script.Parent.PlotManager)
 local WarehouseManager = require(script.Parent.WarehouseManager)
+local TownManager = require(script.Parent.TownManager)
 
 export type CrateData = {
 	crateId: string,
@@ -133,8 +134,9 @@ function CrateManager.ClaimCrate(player: Player, crateId: string): (boolean, str
 
 	crate.claimed = true
 
-	local data = PlayerManager.GetData(userId)
-	local townLevel = (data and data.townLevel) or 1
+	-- TownManager is the live authority on town level during a session; PlayerManager's
+	-- copy is only synced at save time, so it lags behind mid-session XP-driven level-ups.
+	local townLevel = TownManager.GetTownLevel(player)
 
 	local rarity = RollTable.RollRarity(townLevel)
 	local boostedRarity = boostRarityTier(rarity)
@@ -145,6 +147,8 @@ function CrateManager.ClaimCrate(player: Player, crateId: string): (boolean, str
 		eggResultRemote:FireClient(player, { success = false, reason = "full", isCrate = true, crateId = crateId })
 		return false, "full", ""
 	end
+
+	TownManager.AddXP(player, TownManager.GetEggOpenXP(boostedRarity))
 
 	eggResultRemote:FireClient(player, {
 		success = true,

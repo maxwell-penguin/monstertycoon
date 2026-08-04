@@ -1,8 +1,17 @@
-local ServerScriptService = game:GetService("ServerScriptService")
+-- RollTable itself is safe to require from the client (TownClient uses GetProbabilities/
+-- FormatProbabilities for a dev console printout), but MonsterData lives in
+-- ServerScriptService and never replicates to clients. Load it lazily, only inside
+-- RollMonsterOfRarity, so merely requiring this module doesn't hang a client script
+-- waiting on a child that will never appear.
+local MonsterData: { [string]: any }? = nil
 
--- RollTable is only ever required from server-side code (RollManager, CrateManager),
--- so reaching into ServerScriptService here is safe even though this module lives in shared/.
-local MonsterData = require(ServerScriptService:WaitForChild("MonsterData"))
+local function getMonsterData(): { [string]: any }
+	if not MonsterData then
+		local ServerScriptService = game:GetService("ServerScriptService")
+		MonsterData = require(ServerScriptService:WaitForChild("MonsterData")) :: any
+	end
+	return MonsterData :: { [string]: any }
+end
 
 local RollTable = {}
 
@@ -70,7 +79,7 @@ end
 
 function RollTable.RollMonsterOfRarity(rarity: string): string
 	local matches = {}
-	for name, def in MonsterData do
+	for name, def in getMonsterData() do
 		if def.rarity == rarity then
 			table.insert(matches, name)
 		end
@@ -87,6 +96,15 @@ function RollTable.RollMonster(townLevel: number): (string, string)
 	local rarity = RollTable.RollRarity(townLevel)
 	local monsterName = RollTable.RollMonsterOfRarity(rarity)
 	return monsterName, rarity
+end
+
+function RollTable.FormatProbabilities(probabilities: { [string]: number }): string
+	local parts = {}
+	for _, rarity in RollTable.RARITY_ORDER do
+		local percent = (probabilities[rarity] or 0) * 100
+		table.insert(parts, string.format("%s: %.1f%%", rarity, percent))
+	end
+	return table.concat(parts, " | ")
 end
 
 return RollTable

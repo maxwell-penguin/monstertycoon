@@ -8,6 +8,7 @@ local BoostState = require(ReplicatedStorage.BoostState)
 local Types = require(ReplicatedStorage.Types)
 local PlayerManager = require(script.Parent.PlayerManager)
 local GlobalBoostMilestone = require(script.Parent.GlobalBoostMilestone)
+local TownManager = require(script.Parent.TownManager)
 
 local Economy = {}
 
@@ -128,8 +129,12 @@ function Economy.ProcessSell(
 
 	GlobalBoostMilestone.IncrementGlobalEarnings(totalValue)
 
-	local updatedData = PlayerManager.GetData(userId)
 	local player = Players:GetPlayerByUserId(userId)
+	if player then
+		TownManager.AddXP(player, Constants.XP_REWARDS.vialSell * vialCount)
+	end
+
+	local updatedData = PlayerManager.GetData(userId)
 
 	if player and updatedData then
 		updateCoinsRemote:FireClient(player, updatedData.coins)

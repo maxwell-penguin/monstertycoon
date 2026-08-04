@@ -24,6 +24,7 @@ export type PlayerData = {
 	coins: number,
 	lifetimeRolls: number,
 	townLevel: number,
+	townXP: number,
 	hallTier: number,
 	warehouseTier: number,
 	bagTier: number,

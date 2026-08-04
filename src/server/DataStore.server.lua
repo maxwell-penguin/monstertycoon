@@ -13,6 +13,7 @@ local DropboxManager = require(script.Parent.DropboxManager)
 local WarehouseManager = require(script.Parent.WarehouseManager)
 local CrateManager = require(script.Parent.CrateManager)
 local BagManager = require(script.Parent.BagManager)
+local TownManager = require(script.Parent.TownManager)
 
 type PlayerData = Types.PlayerData
 
@@ -25,6 +26,7 @@ local function defaultData(): PlayerData
 		coins = 0,
 		lifetimeRolls = 0,
 		townLevel = 1,
+		townXP = 0,
 		hallTier = 1,
 		warehouseTier = 1,
 		bagTier = 1,
@@ -76,12 +78,17 @@ local function onPlayerAdded(player: Player)
 	local data = loadData(player.UserId)
 	data.sessionStartTime = os.time()
 
+	-- Constants.SESSION_REWARDS milestones aren't wired to fire yet (Phase 16 FTUE).
+	-- When that system lands, each claimed milestone should also call
+	-- TownManager.AddXP(player, Constants.XP_REWARDS.sessionMilestone).
+
 	PlayerManager.Load(player.UserId, data)
 	PlotManager.AssignPlot(player)
 	HallManager.InitHall(player)
 	WarehouseManager.InitWarehouse(player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
 	BagManager.InitBag(player)
+	TownManager.InitTown(player)
 	VialProducer.StartProduction(player)
 	DropboxManager.InitDropbox(player)
 	CrateManager.StartCrateLoop(player)
@@ -106,6 +113,8 @@ local function onPlayerRemoving(player: Player)
 	WarehouseManager.ClearWarehouse(player)
 	BagManager.SaveBagToPlayerData(player)
 	BagManager.ClearBagState(player)
+	TownManager.SaveTownData(player)
+	TownManager.ClearTownState(player)
 
 	local data = PlayerManager.Unload(player.UserId)
 	if not data then

@@ -124,6 +124,19 @@ Constants.EMOTION_COLORS = {
 	Abyss = Color3.fromRGB(26, 33, 92),
 }
 
+Constants.XP_REWARDS = {
+	vialSell = 1, -- per vial sold
+	eggOpen = 10, -- per egg opened (any rarity)
+	eggRare = 25, -- bonus for Rare or above
+	eggLegendary = 100, -- bonus for Legendary or above
+	eggMythic = 500, -- bonus for Mythic
+	sessionMilestone = 50, -- per session milestone reward claimed
+	mergeEvolve = 5, -- per successful non-star merge (evolution)
+	mergeStar = 20, -- per star added to a max-level monster
+}
+
+Constants.MAX_TOWN_LEVEL = 50
+
 Constants.SESSION_REWARDS = {
 	{ seconds = 60, reward = "coins", amount = 1000 },
 	{ seconds = 120, reward = "egg", rarity = "Common" },
