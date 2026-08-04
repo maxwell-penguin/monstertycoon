@@ -11,17 +11,19 @@ local player = Players.LocalPlayer
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local depositBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.DEPOSIT_BAG) :: RemoteEvent
-local updateBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_BAG) :: RemoteEvent
 
--- Bag tracking is a Phase 12 stub server-side, so this starts optimistic (non-empty)
--- and only reflects real state once UPDATE_BAG actually fires (currently: after a deposit).
-local currentBagCount = 1
+-- BagClient.client.lua owns UPDATE_BAG and publishes shared.BagClient; its script may
+-- not have run its top-level code yet when this script starts, so poll briefly.
+local BAG_CLIENT_WAIT_TIMEOUT = 5
+local waited = 0
+while not shared.BagClient and waited < BAG_CLIENT_WAIT_TIMEOUT do
+	task.wait(0.1)
+	waited += 0.1
+end
 
-updateBagRemote.OnClientEvent:Connect(function(bagState: any)
-	if typeof(bagState) == "table" and typeof(bagState.currentCount) == "number" then
-		currentBagCount = bagState.currentCount
-	end
-end)
+local function getBagCount(): number
+	return (shared.BagClient and shared.BagClient.count) or 0
+end
 
 local function findDropbox(): BasePart?
 	local plotsFolder = Workspace:FindFirstChild("Plots")
@@ -161,9 +163,10 @@ while true do
 		billboard.Enabled = inRange
 
 		if inRange then
-			textLabel.Text = `DEPOSIT ({currentBagCount})`
+			local bagCount = getBagCount()
+			textLabel.Text = `DEPOSIT ({bagCount})`
 
-			if currentBagCount > 0 then
+			if bagCount > 0 then
 				depositBagRemote:FireServer()
 			end
 		end

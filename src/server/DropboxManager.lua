@@ -5,7 +5,7 @@ local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
 local PlotManager = require(script.Parent.PlotManager)
 local Economy = require(script.Parent.Economy)
-local BagManager = require(script.Parent.BagManager) -- Phase 12 will replace the stub calls below
+local BagManager = require(script.Parent.BagManager)
 
 local DropboxManager = {}
 
@@ -40,7 +40,7 @@ function DropboxManager.ProcessDeposit(player: Player): (boolean, number)
 		return false, 0
 	end
 
-	local bagContents = BagManager.GetBagContents(player) -- Phase 12 stub
+	local bagContents = BagManager.GetBagContents(player)
 	if #bagContents == 0 then
 		return false, 0
 	end
@@ -55,7 +55,7 @@ function DropboxManager.ProcessDeposit(player: Player): (boolean, number)
 		end
 	end
 
-	BagManager.ClearBag(player) -- Phase 12 stub
+	BagManager.ClearBag(player)
 
 	local updatedData = PlayerManager.GetData(userId)
 
