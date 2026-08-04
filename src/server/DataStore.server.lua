@@ -12,6 +12,7 @@ local VialProducer = require(script.Parent.VialProducer)
 local DropboxManager = require(script.Parent.DropboxManager)
 local WarehouseManager = require(script.Parent.WarehouseManager)
 local CrateManager = require(script.Parent.CrateManager)
+local BagManager = require(script.Parent.BagManager)
 
 type PlayerData = Types.PlayerData
 
@@ -80,6 +81,7 @@ local function onPlayerAdded(player: Player)
 	HallManager.InitHall(player)
 	WarehouseManager.InitWarehouse(player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
+	BagManager.InitBag(player)
 	VialProducer.StartProduction(player)
 	DropboxManager.InitDropbox(player)
 	CrateManager.StartCrateLoop(player)
@@ -102,6 +104,8 @@ local function onPlayerRemoving(player: Player)
 	CrateManager.StopCrateLoop(player)
 	WarehouseManager.SaveWarehouseToPlayerData(player)
 	WarehouseManager.ClearWarehouse(player)
+	BagManager.SaveBagToPlayerData(player)
+	BagManager.ClearBagState(player)
 
 	local data = PlayerManager.Unload(player.UserId)
 	if not data then

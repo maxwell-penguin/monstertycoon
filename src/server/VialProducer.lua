@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
@@ -25,6 +26,7 @@ export type VialData = {
 local VIAL_DROP_INTERVAL = 30
 local MAX_XZ_OFFSET = 3
 local Y_OFFSET = 1
+local VIAL_DESPAWN_TIME = 300
 
 local VialProducer = {}
 
@@ -104,6 +106,20 @@ function VialProducer.StartProduction(player: Player)
 					VialProducer.SpawnVial(player, slot)
 				end
 			end
+
+			local vials = playerVials[userId]
+			if vials then
+				local nowTime = os.time()
+				local staleVialIds = {}
+				for vialId, vialData in vials do
+					if nowTime - vialData.spawnTime > VIAL_DESPAWN_TIME then
+						table.insert(staleVialIds, vialId)
+					end
+				end
+				for _, vialId in staleVialIds do
+					VialProducer.DespawnVial(vialId)
+				end
+			end
 		end
 	end)
 end
@@ -123,6 +139,21 @@ function VialProducer.GetVialData(vialId: string): VialData?
 		end
 	end
 	return nil
+end
+
+function VialProducer.DespawnVial(vialId: string)
+	for userId, vials in playerVials do
+		if vials[vialId] then
+			vials[vialId] = nil
+
+			local player = Players:GetPlayerByUserId(userId)
+			if player then
+				vialRemovedRemote:FireClient(player, vialId)
+			end
+
+			return
+		end
+	end
 end
 
 function VialProducer.CollectVial(player: Player, vialId: string): boolean
@@ -153,10 +184,15 @@ function VialProducer.CollectVial(player: Player, vialId: string): boolean
 		return false
 	end
 
-	vials[vialId] = nil
+	-- Only remove the vial from the ground once the bag actually accepts it; if the
+	-- bag is full the vial stays collectible until space opens up or it despawns.
+	local added = BagManager.AddVial(player, vialData)
+	if not added then
+		return false
+	end
 
+	vials[vialId] = nil
 	vialRemovedRemote:FireClient(player, vialId)
-	BagManager.AddVial(player, vialData)
 
 	return true
 end
