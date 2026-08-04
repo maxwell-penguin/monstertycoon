@@ -1,31 +1,22 @@
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local DropboxManager = require(script.Parent.DropboxManager)
-
-local RATE_LIMIT_WINDOW = 2
+local RateLimiter = require(script.Parent.RateLimiter)
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local depositBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.DEPOSIT_BAG) :: RemoteEvent
 
-local lastDeposit: { [number]: number } = {}
+local depositLimiter = RateLimiter.CreateLimiter(1, 2)
 
 depositBagRemote.OnServerEvent:Connect(function(player: Player)
 	local userId = player.UserId
-	local now = os.clock()
-	local last = lastDeposit[userId]
+	RateLimiter.TrackRemoteCall(userId)
 
-	if last and (now - last) < RATE_LIMIT_WINDOW then
+	if not depositLimiter:Check(userId) then
 		warn(`[DropboxRemotes] Rate limit exceeded for user {userId}`)
 		return
 	end
 
-	lastDeposit[userId] = now
-
 	DropboxManager.ProcessDeposit(player)
-end)
-
-Players.PlayerRemoving:Connect(function(player: Player)
-	lastDeposit[player.UserId] = nil
 end)

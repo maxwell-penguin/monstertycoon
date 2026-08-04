@@ -1,44 +1,19 @@
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local BagManager = require(script.Parent.BagManager)
-
-local RATE_LIMIT_WINDOW = 10
-local RATE_LIMIT_COUNT = 3
+local RateLimiter = require(script.Parent.RateLimiter)
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local upgradeBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_BAG) :: RemoteEvent
 
-local requestTimes: { [number]: { number } } = {}
-
-local function isRateLimited(userId: number): boolean
-	local now = os.clock()
-	local times = requestTimes[userId]
-	if not times then
-		times = {}
-		requestTimes[userId] = times
-	end
-
-	local i = 1
-	while i <= #times do
-		if now - times[i] >= RATE_LIMIT_WINDOW then
-			table.remove(times, i)
-		else
-			i += 1
-		end
-	end
-
-	if #times >= RATE_LIMIT_COUNT then
-		return true
-	end
-
-	table.insert(times, now)
-	return false
-end
+local upgradeLimiter = RateLimiter.CreateLimiter(3, 10)
 
 upgradeBagRemote.OnServerEvent:Connect(function(player: Player, payload: any)
+	local userId = player.UserId
+	RateLimiter.TrackRemoteCall(userId)
+
 	if typeof(payload) ~= "table" then
 		return
 	end
@@ -52,8 +27,8 @@ upgradeBagRemote.OnServerEvent:Connect(function(player: Player, payload: any)
 		return
 	end
 
-	if isRateLimited(player.UserId) then
-		warn(`[BagRemotes] Rate limit exceeded for user {player.UserId}`)
+	if not upgradeLimiter:Check(userId) then
+		warn(`[BagRemotes] Rate limit exceeded for user {userId}`)
 		return
 	end
 
@@ -68,8 +43,4 @@ upgradeBagRemote.OnServerEvent:Connect(function(player: Player, payload: any)
 		newTier = newTier,
 		newCapacity = newCapacity,
 	})
-end)
-
-Players.PlayerRemoving:Connect(function(player: Player)
-	requestTimes[player.UserId] = nil
 end)

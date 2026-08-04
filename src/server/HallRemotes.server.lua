@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local HallManager = require(script.Parent.HallManager)
+local RateLimiter = require(script.Parent.RateLimiter)
 
 local INSTANCE_ID_LENGTH = 8
 
@@ -11,6 +12,10 @@ local slotMonsterRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SLOT_MO
 local unslotMonsterRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UNSLOT_MONSTER) :: RemoteEvent
 local upgradeHallRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_HALL) :: RemoteEvent
 
+local slotLimiter = RateLimiter.CreateLimiter(5, 1)
+local unslotLimiter = RateLimiter.CreateLimiter(5, 1)
+local upgradeLimiter = RateLimiter.CreateLimiter(3, 10)
+
 local function isValidInstanceId(instanceId: any): boolean
 	return typeof(instanceId) == "string"
 		and #instanceId == INSTANCE_ID_LENGTH
@@ -18,6 +23,14 @@ local function isValidInstanceId(instanceId: any): boolean
 end
 
 slotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: any, instanceId: any)
+	local userId = player.UserId
+	RateLimiter.TrackRemoteCall(userId)
+
+	if not slotLimiter:Check(userId) then
+		warn(`[HallRemotes] Slot rate limit exceeded for user {userId}`)
+		return
+	end
+
 	if typeof(slotIndex) ~= "number" then
 		return
 	end
@@ -30,6 +43,14 @@ slotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: any,
 end)
 
 unslotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: any)
+	local userId = player.UserId
+	RateLimiter.TrackRemoteCall(userId)
+
+	if not unslotLimiter:Check(userId) then
+		warn(`[HallRemotes] Unslot rate limit exceeded for user {userId}`)
+		return
+	end
+
 	if typeof(slotIndex) ~= "number" then
 		return
 	end
@@ -38,6 +59,14 @@ unslotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: an
 end)
 
 upgradeHallRemote.OnServerEvent:Connect(function(player: Player)
+	local userId = player.UserId
+	RateLimiter.TrackRemoteCall(userId)
+
+	if not upgradeLimiter:Check(userId) then
+		warn(`[HallRemotes] Upgrade rate limit exceeded for user {userId}`)
+		return
+	end
+
 	local success = HallManager.UpgradeHall(player)
 	upgradeHallRemote:FireClient(player, success)
 end)

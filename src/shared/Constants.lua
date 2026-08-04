@@ -186,4 +186,13 @@ Constants.EVENT_MONSTERS = {
 	{ name = "Hollow", emotion = "Sadness", rarity = "Epic", tokenCost = 3 },
 }
 
+Constants.ANTICHEAT = {
+	MAX_COINS_PER_SELL = 1e15,
+	MAX_VIALS_PER_DEPOSIT = 100,
+	MAX_STUD_TRAVEL_PER_SECOND = 60,
+	STRIKES_BEFORE_KICK = 3,
+	STRIKES_BEFORE_BAN = 5,
+	STRIKE_DECAY_SECONDS = 300,
+}
+
 return Constants

@@ -156,45 +156,47 @@ function VialProducer.DespawnVial(vialId: string)
 	end
 end
 
-function VialProducer.CollectVial(player: Player, vialId: string): boolean
+-- Reason string lets VialRemotes.server.lua tell an AntiCheat-worthy position
+-- mismatch apart from a harmless bag-full rejection.
+function VialProducer.CollectVial(player: Player, vialId: string): (boolean, string)
 	local userId = player.UserId
 	local vials = playerVials[userId]
 	local vialData = vials and vials[vialId]
 
 	if not vialData then
 		warn(`[VialProducer] Rejected pickup from user {userId}: vial {vialId} not found`)
-		return false
+		return false, "not_found"
 	end
 
 	local character = player.Character
 	if not character then
 		warn(`[VialProducer] Rejected pickup from user {userId}: no character`)
-		return false
+		return false, "no_character"
 	end
 
 	local rootPart = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not rootPart then
 		warn(`[VialProducer] Rejected pickup from user {userId}: no HumanoidRootPart`)
-		return false
+		return false, "no_character"
 	end
 
 	local distance = (rootPart.Position - vialData.position).Magnitude
 	if distance > Constants.VIAL_PICKUP_RADIUS then
 		warn(`[VialProducer] Rejected pickup from user {userId}: out of range ({distance} studs)`)
-		return false
+		return false, "out_of_range"
 	end
 
 	-- Only remove the vial from the ground once the bag actually accepts it; if the
 	-- bag is full the vial stays collectible until space opens up or it despawns.
 	local added = BagManager.AddVial(player, vialData)
 	if not added then
-		return false
+		return false, "bag_full"
 	end
 
 	vials[vialId] = nil
 	vialRemovedRemote:FireClient(player, vialId)
 
-	return true
+	return true, ""
 end
 
 function VialProducer.GetActiveVials(player: Player): { VialData }
