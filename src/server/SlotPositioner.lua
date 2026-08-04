@@ -2,8 +2,12 @@ local PlotManager = require(script.Parent.PlotManager)
 local HallManager = require(script.Parent.HallManager)
 
 local COLUMNS = 3
-local COLUMN_SPACING = 12
-local ROW_SPACING = 12
+-- HallArea and Origin share the same X/Z (PlotSetup.server.lua), so Origin is
+-- already the Hall's center -- the old 12-stud spacing put corner slots (3x3
+-- grid) up to sqrt(12^2+12^2) =~ 17 studs from center, well outside pickup range
+-- of a player standing near the middle. Halved so the worst case is =~ 8.5 studs.
+local COLUMN_SPACING = 6
+local ROW_SPACING = 6
 
 local SlotPositioner = {}
 

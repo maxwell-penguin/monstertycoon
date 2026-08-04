@@ -1,7 +1,7 @@
 local Constants = {}
 
 Constants.PLOT_MAX_PLAYERS = 10
-Constants.VIAL_PICKUP_RADIUS = 8
+Constants.VIAL_PICKUP_RADIUS = 15 -- TODO: temporarily widened from 8 for testing tolerance; dial back down once SlotPositioner spacing is confirmed comfortable
 Constants.DROPBOX_RADIUS = 10
 Constants.WAREHOUSE_BASE_CAPACITY = 30
 Constants.HALL_BASE_SLOTS = 9

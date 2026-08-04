@@ -47,14 +47,28 @@ local function createPlot(index: number, plotsFolder: Folder)
 	setCollisionGroup(ground)
 	ground.Parent = plotModel
 
+	-- Flat pad flush with the ground (top of Ground is at gridPosition.Y) that
+	-- players walk onto to trigger a deposit -- DropboxRemotes.server.lua listens
+	-- for .Touched on this Part directly, no ClickDetector.
 	local dropbox = Instance.new("Part")
 	dropbox.Name = "Dropbox"
 	dropbox.Anchored = true
-	dropbox.Size = Vector3.new(6, 4, 6)
-	dropbox.Position = gridPosition + Vector3.new(0, 2, -30)
+	dropbox.Size = Vector3.new(8, 0.5, 8)
+	dropbox.Position = gridPosition + Vector3.new(0, 0.25, -30)
 	dropbox.BrickColor = BrickColor.new("Bright green")
 	setCollisionGroup(dropbox)
 	dropbox.Parent = plotModel
+
+	local dropboxPad = Instance.new("Part")
+	dropboxPad.Name = "DropboxPad"
+	dropboxPad.Anchored = true
+	dropboxPad.CanCollide = false
+	dropboxPad.Size = dropbox.Size
+	dropboxPad.Position = dropbox.Position
+	dropboxPad.Transparency = 0
+	dropboxPad.Material = Enum.Material.Neon
+	dropboxPad.Color = BrickColor.new("Bright green").Color
+	dropboxPad.Parent = dropbox
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "SellLabel"

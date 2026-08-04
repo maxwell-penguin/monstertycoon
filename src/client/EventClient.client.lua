@@ -115,11 +115,6 @@ shardSpawnedRemote.OnClientEvent:Connect(function(shardId: string, position: Vec
 		TweenInfo.new(SHARD_BOB_PERIOD, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
 		{ Position = position + Vector3.new(0, SHARD_BOB_HEIGHT, 0) }
 	):Play()
-<<<<<<< HEAD
-end)
-
-shardCollectedRemote.OnClientEvent:Connect(function(shardId: string)
-=======
 
 	if shared.ParticleManager then
 		shared.ParticleManager.CreateParticleEmitter(part, "shardSparkle")
@@ -134,7 +129,6 @@ shardCollectedRemote.OnClientEvent:Connect(function(shardId: string)
 		shared.SoundManager.PlaySound("shardCollect")
 	end
 
->>>>>>> dev
 	local part = shardParts[shardId]
 	if part then
 		part:Destroy()

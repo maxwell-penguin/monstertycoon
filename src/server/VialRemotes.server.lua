@@ -12,6 +12,11 @@ local pickupVialRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PICKUP_V
 
 local pickupLimiter = RateLimiter.CreateLimiter(10, 1)
 
+-- Fallback path only. The primary pickup trigger is now server-side: each vial
+-- gets an invisible touch-trigger Part (VialProducer.SpawnVial) whose .Touched
+-- calls VialProducer.CollectVial directly, no client fire required. This handler
+-- stays so a client-fired PICKUP_VIAL (e.g. from any lingering client-side
+-- proximity logic) still works and goes through the exact same validation.
 pickupVialRemote.OnServerEvent:Connect(function(player: Player, vialId: any)
 	local userId = player.UserId
 	RateLimiter.TrackRemoteCall(userId)

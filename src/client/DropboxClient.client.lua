@@ -3,7 +3,6 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
-local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local NumberFormatter = require(ReplicatedStorage.NumberFormatter)
 
@@ -12,18 +11,9 @@ local player = Players.LocalPlayer
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local depositBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.DEPOSIT_BAG) :: RemoteEvent
 
--- BagClient.client.lua owns UPDATE_BAG and publishes shared.BagClient; its script may
--- not have run its top-level code yet when this script starts, so poll briefly.
-local BAG_CLIENT_WAIT_TIMEOUT = 5
-local waited = 0
-while not shared.BagClient and waited < BAG_CLIENT_WAIT_TIMEOUT do
-	task.wait(0.1)
-	waited += 0.1
-end
-
-local function getBagCount(): number
-	return (shared.BagClient and shared.BagClient.count) or 0
-end
+-- Deposits are now triggered server-side by the Dropbox pad's Touched event
+-- (DropboxRemotes.server.lua) -- this script only reacts to the confirmation with
+-- visual/audio feedback, no proximity polling or FireServer call.
 
 local function findDropbox(): BasePart?
 	local plotsFolder = Workspace:FindFirstChild("Plots")
@@ -42,32 +32,6 @@ local function findDropbox(): BasePart?
 	end
 
 	return nil
-end
-
-local function getOrCreateHint(dropbox: BasePart): (BillboardGui, TextLabel)
-	local existing = dropbox:FindFirstChild("DepositHint")
-	if existing and existing:IsA("BillboardGui") then
-		return existing, existing:FindFirstChild("Text") :: TextLabel
-	end
-
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "DepositHint"
-	billboard.Size = UDim2.new(4, 0, 2, 0)
-	billboard.StudsOffset = Vector3.new(0, 3, 0)
-	billboard.AlwaysOnTop = true
-	billboard.Enabled = false
-	billboard.Parent = dropbox
-
-	local textLabel = Instance.new("TextLabel")
-	textLabel.Name = "Text"
-	textLabel.Size = UDim2.new(1, 0, 1, 0)
-	textLabel.BackgroundTransparency = 1
-	textLabel.TextColor3 = Color3.new(1, 1, 1)
-	textLabel.TextScaled = true
-	textLabel.Font = Enum.Font.SourceSansBold
-	textLabel.Parent = billboard
-
-	return billboard, textLabel
 end
 
 local function playCoinBurst(position: Vector3)
@@ -170,28 +134,3 @@ depositBagRemote.OnClientEvent:Connect(function(totalEarned: number, vialCount: 
 		shared.ScreenEffects.CoinFlash(totalEarned)
 	end
 end)
-
-while true do
-	task.wait(0.5)
-
-	local dropbox = findDropbox()
-	local character = player.Character
-	local rootPart = character and (character:FindFirstChild("HumanoidRootPart") :: BasePart?)
-
-	if dropbox and rootPart then
-		local distance = (rootPart.Position - dropbox.Position).Magnitude
-		local billboard, textLabel = getOrCreateHint(dropbox)
-		local inRange = distance <= Constants.DROPBOX_RADIUS
-
-		billboard.Enabled = inRange
-
-		if inRange then
-			local bagCount = getBagCount()
-			textLabel.Text = `DEPOSIT ({bagCount})`
-
-			if bagCount > 0 then
-				depositBagRemote:FireServer()
-			end
-		end
-	end
-end

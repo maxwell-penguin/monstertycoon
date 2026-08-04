@@ -58,12 +58,9 @@ function UIManagerAPI.ShowPanel(name: string)
 	local panel = panels[name]
 	if panel then
 		panel.Visible = true
-<<<<<<< HEAD
-=======
 		if shared.SoundManager then
 			shared.SoundManager.PlaySound("panelOpen")
 		end
->>>>>>> dev
 	end
 end
 
@@ -143,12 +140,9 @@ local function onActivated(button: TextButton, callback: () -> ())
 		if button:GetAttribute("IsTweening") then
 			return
 		end
-<<<<<<< HEAD
-=======
 		if shared.SoundManager then
 			shared.SoundManager.PlaySound("buttonClick")
 		end
->>>>>>> dev
 		callback()
 	end)
 end
@@ -223,8 +217,6 @@ local function pulseCoin()
 	TweenService:Create(coinScale, TweenInfo.new(0.1), { Scale = 1 }):Play()
 end
 
-<<<<<<< HEAD
-=======
 local BRIGHT_GOLD = Color3.fromRGB(255, 255, 180)
 
 -- When earn rate rises (new monster slotted, boost starts) the amount label
@@ -236,7 +228,6 @@ end
 
 local lastEarnRate = 0
 
->>>>>>> dev
 local earnRateLabel = Instance.new("TextLabel")
 earnRateLabel.Name = "EarnRate"
 earnRateLabel.Size = UDim2.new(1, -16, 0, 18)
@@ -409,15 +400,11 @@ local function createToggleButton(label: string, order: number, panelName: strin
 	onActivated(button, function()
 		local panel = panels[panelName]
 		if panel then
-<<<<<<< HEAD
-			panel.Visible = not panel.Visible
-=======
 			if panel.Visible then
 				UIManagerAPI.HidePanel(panelName)
 			else
 				UIManagerAPI.ShowPanel(panelName)
 			end
->>>>>>> dev
 		end
 	end)
 end
@@ -671,8 +658,6 @@ task.spawn(function()
 	end
 end)
 
-<<<<<<< HEAD
-=======
 -- Slow continuous rotation via a NumberValue driving a UIRotation (rather than
 -- tweening UIRotation.Rotation directly, whose repeat would otherwise snap back
 -- to 0 visibly -- 360 and 0 look identical, so the wrap via modulo is seamless).
@@ -718,7 +703,6 @@ task.spawn(function()
 	end
 end)
 
->>>>>>> dev
 local rollCostLabel = Instance.new("TextLabel")
 rollCostLabel.Name = "RollCost"
 rollCostLabel.Position = UDim2.new(0, 16, 0, 188)
@@ -885,12 +869,6 @@ local function inferHallTier(slotCount: number): number
 	return 1
 end
 
-<<<<<<< HEAD
-local function createHallSlotFrame(slot: any): Frame
-	local slotFrame = Instance.new("Frame")
-	slotFrame.Name = "Slot_" .. slot.slotIndex
-	slotFrame.BackgroundColor3 = Color3.fromRGB(26, 26, 38)
-=======
 local function dimColor(color: Color3, factor: number): Color3
 	return color:Lerp(Color3.new(0, 0, 0), factor)
 end
@@ -907,7 +885,6 @@ local EMPTY_SLOT_CORNER_POSITIONS = {
 local function createHallSlotFrame(slot: any): Frame
 	local slotFrame = Instance.new("Frame")
 	slotFrame.Name = "Slot_" .. slot.slotIndex
->>>>>>> dev
 	slotFrame.BorderSizePixel = 0
 	addCorner(slotFrame, 6)
 
@@ -925,8 +902,6 @@ local function createHallSlotFrame(slot: any): Frame
 	label.Text = slot.monster and slot.monster.name or "EMPTY"
 	label.Parent = slotFrame
 
-<<<<<<< HEAD
-=======
 	if slot.monster then
 		local emotionColor = Constants.EMOTION_COLORS[slot.monster.emotion] or EMPTY_SLOT_BG
 		slotFrame.BackgroundColor3 = dimColor(emotionColor, 0.6)
@@ -965,7 +940,6 @@ local function createHallSlotFrame(slot: any): Frame
 		end
 	end
 
->>>>>>> dev
 	local clickCatcher = Instance.new("TextButton")
 	clickCatcher.Name = "ClickCatcher"
 	clickCatcher.BackgroundTransparency = 1
@@ -1354,10 +1328,6 @@ task.spawn(function()
 				coinAmountLabel.Text = coinState.formatted
 				pulseCoin()
 			end
-<<<<<<< HEAD
-			earnRateLabel.Text = `+{NumberFormatter.Format(coinState.earnRate or 0)}/sec`
-=======
-
 			local currentEarnRate = coinState.earnRate or 0
 			if currentEarnRate > lastEarnRate then
 				flashCoinGold()
@@ -1365,7 +1335,6 @@ task.spawn(function()
 			lastEarnRate = currentEarnRate
 
 			earnRateLabel.Text = `+{NumberFormatter.Format(currentEarnRate)}/sec`
->>>>>>> dev
 		end
 
 		-- Bag indicator
