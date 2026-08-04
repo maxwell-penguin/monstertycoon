@@ -160,6 +160,35 @@ function BagManager.UpgradeBag(player: Player, targetTier: number, isPurchaseVal
 	return true, ""
 end
 
+-- For gamepass grants (InfiniteBag/VoidCarrier): jumps straight to a tier, bypassing
+-- both the "one tier at a time" and coin-cost rules UpgradeBag enforces for players.
+-- Never downgrades -- if the player is already at or above the target tier, no-op.
+function BagManager.GrantBagTier(player: Player, tier: number): boolean
+	local userId = player.UserId
+	local bag = playerBags[userId]
+	if not bag then
+		return false
+	end
+
+	local targetDef = Constants.BAG_TIERS[tier]
+	if not targetDef then
+		return false
+	end
+
+	if tier <= bag.tier then
+		return false
+	end
+
+	bag.tier = tier
+	bag.capacity = targetDef.capacity
+
+	PlayerManager.SetData(userId, "bagTier", tier)
+
+	fireBagUpdate(player, bag)
+
+	return true
+end
+
 function BagManager.SaveBagToPlayerData(player: Player)
 	local bag = playerBags[player.UserId]
 	if not bag then

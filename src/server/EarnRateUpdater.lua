@@ -6,7 +6,6 @@ local PlayerManager = require(script.Parent.PlayerManager)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 
 local UPDATE_INTERVAL = 1
-local DEFAULT_INCOME_MULTIPLIER = 1
 
 local EarnRateUpdater = {}
 
@@ -34,7 +33,7 @@ function EarnRateUpdater.StartUpdating(player: Player)
 		while activeLoops[userId] do
 			local data = PlayerManager.GetData(userId)
 			if data then
-				local earnRate = Economy.GetEarnRate(data.monsterSlots, DEFAULT_INCOME_MULTIPLIER)
+				local earnRate = Economy.GetEarnRate(data.monsterSlots, userId)
 				updateEarnRateRemote:FireClient(player, earnRate)
 			end
 			task.wait(UPDATE_INTERVAL)

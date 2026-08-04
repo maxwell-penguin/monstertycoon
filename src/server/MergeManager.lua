@@ -6,6 +6,7 @@ local Constants = require(ReplicatedStorage.Constants)
 local MergeRules = require(ReplicatedStorage.MergeRules)
 local WarehouseManager = require(script.Parent.WarehouseManager)
 local TownManager = require(script.Parent.TownManager)
+local PlayerManager = require(script.Parent.PlayerManager)
 
 local MAX_AUTO_MERGES = 50
 
@@ -84,6 +85,14 @@ function MergeManager.ExecuteMerge(player: Player, instanceIds: any): (boolean, 
 		TownManager.AddXP(player, Constants.XP_REWARDS.mergeStar)
 	else
 		TownManager.AddXP(player, Constants.XP_REWARDS.mergeEvolve)
+	end
+
+	-- Merges have no coin cost yet, so this is a no-op in practice -- just wiring
+	-- the check and decrement so Phase 19 can add merge costs without touching
+	-- this file. Free merges from MergeBoost skip whatever cost eventually lands.
+	local data = PlayerManager.GetData(player.UserId)
+	if data and data.freeMerges and data.freeMerges > 0 then
+		PlayerManager.SetData(player.UserId, "freeMerges", data.freeMerges - 1)
 	end
 
 	mergeMonstersRemote:FireClient(player, {

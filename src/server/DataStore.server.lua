@@ -14,6 +14,7 @@ local WarehouseManager = require(script.Parent.WarehouseManager)
 local CrateManager = require(script.Parent.CrateManager)
 local BagManager = require(script.Parent.BagManager)
 local TownManager = require(script.Parent.TownManager)
+local MonetizationManager = require(script.Parent.MonetizationManager)
 
 type PlayerData = Types.PlayerData
 
@@ -35,6 +36,10 @@ local function defaultData(): PlayerData
 		monsterSlots = {},
 		warehouse = {},
 		sessionStartTime = 0,
+		ownedGamepasses = {},
+		incomeMultiplier = 1,
+		freeMerges = 0,
+		hasBoostInsider = false,
 	}
 end
 
@@ -89,6 +94,14 @@ local function onPlayerAdded(player: Player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
 	BagManager.InitBag(player)
 	TownManager.InitTown(player)
+
+	-- Non-blocking: UserOwnsGamePassAsync is a real network call made once per
+	-- gamepass (10 of them), sequentially. Blocking onPlayerAdded on all 10 would
+	-- delay PLAYER_DATA_LOADED and everything below it. CheckGamepasses re-fires
+	-- PLAYER_DATA_LOADED itself once it finishes so the client still learns the
+	-- final ownedGamepasses set, just a moment later.
+	task.spawn(MonetizationManager.CheckGamepasses, player)
+
 	VialProducer.StartProduction(player)
 	DropboxManager.InitDropbox(player)
 	CrateManager.StartCrateLoop(player)

@@ -33,6 +33,10 @@ export type PlayerData = {
 	monsterSlots: { MonsterSlot },
 	warehouse: { [string]: Monster },
 	sessionStartTime: number,
+	ownedGamepasses: { [string]: boolean },
+	incomeMultiplier: number,
+	freeMerges: number,
+	hasBoostInsider: boolean,
 }
 
 export type Plot = {
