@@ -7,6 +7,7 @@ Constants.WAREHOUSE_BASE_CAPACITY = 30
 Constants.HALL_BASE_SLOTS = 9
 Constants.OFFLINE_PRODUCTION_RATE = 0.25
 Constants.OFFLINE_PRODUCTION_CAP_HOURS = 4
+Constants.AUTO_MERGE_COST = 0 -- Robux gamepass feature; no coin cost
 
 Constants.BASE_VIAL_VALUES = {
 	Common = 10,

@@ -69,7 +69,7 @@ function WarehouseManager.GetMonsterByInstanceId(player: Player, instanceId: str
 	return warehouse.monsters[instanceId]
 end
 
-function WarehouseManager.AddMonster(player: Player, monsterName: string): (boolean, string)
+function WarehouseManager.AddMonster(player: Player, monsterName: string, stars: number?): (boolean, string)
 	local warehouse = playerWarehouses[player.UserId]
 	if not warehouse then
 		return false, "not_found"
@@ -92,7 +92,7 @@ function WarehouseManager.AddMonster(player: Player, monsterName: string): (bool
 		emotion = monsterDef.emotion,
 		rarity = monsterDef.rarity,
 		level = monsterDef.level,
-		stars = 0,
+		stars = stars or 0,
 		outputMultiplier = monsterDef.baseOutput,
 	}
 
