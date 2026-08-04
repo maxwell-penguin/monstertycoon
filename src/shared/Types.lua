@@ -23,6 +23,7 @@ export type Bag = {
 export type PlayerData = {
 	coins: number,
 	lifetimeRolls: number,
+	townLevel: number,
 	hallTier: number,
 	warehouseTier: number,
 	bagTier: number,

@@ -11,6 +11,7 @@ local HallManager = require(script.Parent.HallManager)
 local VialProducer = require(script.Parent.VialProducer)
 local DropboxManager = require(script.Parent.DropboxManager)
 local WarehouseManager = require(script.Parent.WarehouseManager)
+local CrateManager = require(script.Parent.CrateManager)
 
 type PlayerData = Types.PlayerData
 
@@ -22,6 +23,7 @@ local function defaultData(): PlayerData
 	return {
 		coins = 0,
 		lifetimeRolls = 0,
+		townLevel = 1,
 		hallTier = 1,
 		warehouseTier = 1,
 		bagTier = 1,
@@ -80,6 +82,7 @@ local function onPlayerAdded(player: Player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
 	VialProducer.StartProduction(player)
 	DropboxManager.InitDropbox(player)
+	CrateManager.StartCrateLoop(player)
 
 	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 	local remote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
@@ -95,6 +98,8 @@ local function onPlayerRemoving(player: Player)
 	HallManager.ClearHall(player)
 	VialProducer.StopProduction(player)
 	DropboxManager.CleanupDropbox(player)
+	CrateManager.CleanupCrates(player)
+	CrateManager.StopCrateLoop(player)
 	WarehouseManager.SaveWarehouseToPlayerData(player)
 	WarehouseManager.ClearWarehouse(player)
 
