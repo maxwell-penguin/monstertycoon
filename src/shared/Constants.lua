@@ -175,4 +175,15 @@ Constants.PRODUCT_IDS = {
 	VoidPack = 0,
 }
 
+-- Shared (not an EventStation-local) because the client-built Event Station panel
+-- needs the same names/costs to render BUY buttons -- same reasoning as
+-- GAMEPASS_IDS/PRODUCT_IDS above.
+Constants.EVENT_MONSTERS = {
+	{ name = "Glitchling", emotion = "Static", rarity = "Rare", tokenCost = 1 },
+	{ name = "Voidborn", emotion = "Void", rarity = "Epic", tokenCost = 3 },
+	{ name = "Prismatic", emotion = "Any", rarity = "Legendary", tokenCost = 8 },
+	{ name = "Corrupted", emotion = "Any", rarity = "Legendary", tokenCost = 8 },
+	{ name = "Hollow", emotion = "Sadness", rarity = "Epic", tokenCost = 3 },
+}
+
 return Constants

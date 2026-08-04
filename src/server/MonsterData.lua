@@ -310,4 +310,58 @@ return {
 		baseOutput = 1.0,
 		dropSound = "Silence",
 	},
+
+	-- EVENT STATION EXCLUSIVES (Phase 17) -- isEventExclusive keeps these out of
+	-- RollTable.RollMonsterOfRarity's standard-roll pool; only purchasable with
+	-- Event Tokens via EventStation.PurchaseEventMonster.
+	Glitchling = {
+		name = "Glitchling",
+		emotion = "Static",
+		rarity = "Rare",
+		level = 3,
+		description = "Event Station exclusive. Flickers between frames of reality.",
+		baseOutput = 1.0,
+		dropSound = "Static",
+		isEventExclusive = true,
+	},
+	Voidborn = {
+		name = "Voidborn",
+		emotion = "Void",
+		rarity = "Epic",
+		level = 4,
+		description = "Event Station exclusive. Born from the space between servers.",
+		baseOutput = 1.0,
+		dropSound = "Void",
+		isEventExclusive = true,
+	},
+	Prismatic = {
+		name = "Prismatic",
+		emotion = "Any",
+		rarity = "Legendary",
+		level = 5,
+		description = "Event Station exclusive. Refracts every emotion at once.",
+		baseOutput = 1.0,
+		dropSound = "Mythic",
+		isEventExclusive = true,
+	},
+	Corrupted = {
+		name = "Corrupted",
+		emotion = "Any",
+		rarity = "Legendary",
+		level = 5,
+		description = "Event Station exclusive. Data that shouldn't exist.",
+		baseOutput = 1.0,
+		dropSound = "Mythic",
+		isEventExclusive = true,
+	},
+	Hollow = {
+		name = "Hollow",
+		emotion = "Sadness",
+		rarity = "Epic",
+		level = 4,
+		description = "Event Station exclusive. An echo of something that used to feel.",
+		baseOutput = 1.0,
+		dropSound = "Sadness",
+		isEventExclusive = true,
+	},
 }

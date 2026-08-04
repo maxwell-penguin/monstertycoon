@@ -10,6 +10,7 @@ local unslotMonsterRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UNSLO
 local mergeMonstersRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MERGE_MONSTERS) :: RemoteEvent
 local upgradeHallRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_HALL) :: RemoteEvent
 local upgradeBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_BAG) :: RemoteEvent
+local eventStationPurchaseRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.EVENT_STATION_PURCHASE) :: RemoteEvent
 
 local DEBOUNCE_WINDOW = 0.3
 local lastFireTime: { [string]: number } = {}
@@ -58,6 +59,8 @@ else
 			upgradeHallRemote:FireServer()
 		elseif action == "UPGRADE_BAG" then
 			upgradeBagRemote:FireServer({ targetTier = payload.targetTier })
+		elseif action == "EVENT_STATION_PURCHASE" then
+			eventStationPurchaseRemote:FireServer({ monsterName = payload.monsterName })
 		end
 	end)
 end

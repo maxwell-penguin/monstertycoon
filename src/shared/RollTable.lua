@@ -13,6 +13,18 @@ local function getMonsterData(): { [string]: any }
 	return MonsterData :: { [string]: any }
 end
 
+-- Same lazy-load reasoning as MonsterData above: EventManager is server-only, and
+-- RollRarity must stay safely requirable from the client.
+local EventManager: any = nil
+
+local function getEventManager(): any
+	if not EventManager then
+		local ServerScriptService = game:GetService("ServerScriptService")
+		EventManager = require(ServerScriptService:WaitForChild("EventManager")) :: any
+	end
+	return EventManager
+end
+
 local RollTable = {}
 
 RollTable.RARITY_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
@@ -62,25 +74,44 @@ function RollTable.GetProbabilities(townLevel: number): { [string]: number }
 	return probabilities
 end
 
+local LEGENDARY_INDEX = 5
+
 function RollTable.RollRarity(townLevel: number): string
 	local probabilities = RollTable.GetProbabilities(townLevel)
 	local roll = math.random()
 	local cumulative = 0
+	local rarity = RollTable.RARITY_ORDER[#RollTable.RARITY_ORDER]
 
-	for _, rarity in RollTable.RARITY_ORDER do
-		cumulative += probabilities[rarity]
+	for _, r in RollTable.RARITY_ORDER do
+		cumulative += probabilities[r]
 		if roll <= cumulative then
-			return rarity
+			rarity = r
+			break
 		end
 	end
 
-	return RollTable.RARITY_ORDER[#RollTable.RARITY_ORDER]
+	-- Server-only; on a client this pcall just fails closed (no bump) since
+	-- EventManager never replicates there.
+	local ok, isLucky = pcall(function()
+		return getEventManager().IsServerLuckActive()
+	end)
+
+	if ok and isLucky then
+		local index = table.find(RollTable.RARITY_ORDER, rarity)
+		-- Bumps one tier, capped at Legendary: only bumps if below Legendary, and
+		-- never touches an already-Legendary-or-Mythic roll (no downgrading).
+		if index and index < LEGENDARY_INDEX then
+			rarity = RollTable.RARITY_ORDER[index + 1]
+		end
+	end
+
+	return rarity
 end
 
 function RollTable.RollMonsterOfRarity(rarity: string): string
 	local matches = {}
 	for name, def in getMonsterData() do
-		if def.rarity == rarity then
+		if def.rarity == rarity and not def.isEventExclusive then
 			table.insert(matches, name)
 		end
 	end
