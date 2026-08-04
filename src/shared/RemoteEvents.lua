@@ -46,6 +46,11 @@ RemoteEvents.EVENTS = {
 	-- Town
 	TOWN_UPDATED = "TownUpdated",
 
+	-- Monetization
+	SET_WALK_SPEED = "SetWalkSpeed",
+	LUCK_BOOST_ACTIVE = "LuckBoostActive",
+	PROMPT_PURCHASE = "PromptPurchase",
+
 	-- Events
 	SHARD_SPAWNED = "ShardSpawned",
 	SHARD_COLLECTED = "ShardCollected",

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"createToggleButton\\\\|^-- Hall Panel$\\\\|Merge notification\\\\|panels\\\\.\\\\|local mergeMonstersRemote\" src/client/UIManager.client.lua)"
+    ]
+  }
+}

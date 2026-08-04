@@ -147,4 +147,32 @@ Constants.SESSION_REWARDS = {
 	{ seconds = 7200, reward = "egg", rarity = "Epic", chance = 0.3 },
 }
 
+-- Placeholder IDs (0) until filled in after publishing to Roblox. Shared (not a
+-- MonetizationManager-local) because the client-built Shop Panel needs the same
+-- numeric IDs to fire PROMPT_PURCHASE with.
+Constants.GAMEPASS_IDS = {
+	InfiniteBag = 0,
+	VoidCarrier = 0,
+	SpeedBoots = 0,
+	BoostInsider = 0,
+	ExtraPlot = 0,
+	Income2x = 0,
+	Income3x = 0,
+	Income5x = 0,
+	Income7x = 0,
+	Income10x = 0,
+}
+
+Constants.PRODUCT_IDS = {
+	LuckBoost = 0,
+	MergeBoost = 0,
+	ServerBoost = 0,
+	RareEgg = 0,
+	EpicEgg = 0,
+	LegendaryEgg = 0,
+	MythicEgg = 0,
+	StarterPack = 0,
+	VoidPack = 0,
+}
+
 return Constants

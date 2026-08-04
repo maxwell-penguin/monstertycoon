@@ -390,6 +390,7 @@ end
 createToggleButton("WAREHOUSE", 0, "WarehousePanel")
 createToggleButton("ROLL", 1, "RollPanel")
 createToggleButton("HALL", 2, "HallPanel")
+createToggleButton("SHOP", 3, "ShopPanel")
 
 --============================================================
 -- Warehouse Panel
@@ -843,6 +844,192 @@ updateHallRemote.OnClientEvent:Connect(function(slots: any)
 end)
 
 --============================================================
+-- Shop Panel
+--============================================================
+
+local shopPanel = Instance.new("Frame")
+shopPanel.Name = "ShopPanel"
+shopPanel.Position = UDim2.new(0.5, -250, 0.5, -300)
+shopPanel.Size = UDim2.new(0, 500, 0, 600)
+shopPanel.BackgroundColor3 = PANEL_BG
+shopPanel.BorderSizePixel = 0
+shopPanel.Visible = false
+shopPanel.Parent = screenGui
+addCorner(shopPanel, 12)
+panels.ShopPanel = shopPanel
+
+local shopTitle = Instance.new("TextLabel")
+shopTitle.Name = "Title"
+shopTitle.Size = UDim2.new(1, -40, 0, 36)
+shopTitle.Position = UDim2.new(0, 16, 0, 12)
+shopTitle.BackgroundTransparency = 1
+shopTitle.Font = Enum.Font.GothamBold
+shopTitle.TextSize = 20
+shopTitle.TextColor3 = WHITE
+shopTitle.TextXAlignment = Enum.TextXAlignment.Left
+shopTitle.Text = "SHOP"
+shopTitle.Parent = shopPanel
+
+createCloseButton(shopPanel, "ShopPanel")
+
+local shopList = Instance.new("ScrollingFrame")
+shopList.Name = "ShopList"
+shopList.Position = UDim2.new(0, 16, 0, 56)
+shopList.Size = UDim2.new(1, -32, 1, -72)
+shopList.BackgroundTransparency = 1
+shopList.BorderSizePixel = 0
+shopList.ScrollBarThickness = 6
+shopList.CanvasSize = UDim2.new(0, 0, 0, 0)
+shopList.Parent = shopPanel
+
+local shopListLayout = Instance.new("UIListLayout")
+shopListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+shopListLayout.Padding = UDim.new(0, 6)
+shopListLayout.Parent = shopList
+
+shopListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	shopList.CanvasSize = UDim2.new(0, 0, 0, shopListLayout.AbsoluteContentSize.Y + 8)
+end)
+
+local function createShopEntry(itemName: string, description: string, priceText: string, onBuy: () -> ()): Frame
+	local entry = Instance.new("Frame")
+	entry.Name = "ShopEntry_" .. (itemName:gsub("%s", ""))
+	entry.Size = UDim2.new(1, 0, 0, 70)
+	entry.BackgroundColor3 = Color3.fromRGB(26, 26, 38)
+	entry.BorderSizePixel = 0
+	addCorner(entry, 6)
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "NameLabel"
+	nameLabel.Size = UDim2.new(0.6, -8, 0, 22)
+	nameLabel.Position = UDim2.new(0, 8, 0, 6)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextSize = 15
+	nameLabel.TextColor3 = WHITE
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.Text = itemName
+	nameLabel.Parent = entry
+
+	local descLabel = Instance.new("TextLabel")
+	descLabel.Name = "DescriptionLabel"
+	descLabel.Size = UDim2.new(0.6, -8, 0, 34)
+	descLabel.Position = UDim2.new(0, 8, 0, 28)
+	descLabel.BackgroundTransparency = 1
+	descLabel.Font = Enum.Font.Gotham
+	descLabel.TextSize = 12
+	descLabel.TextColor3 = GRAY
+	descLabel.TextXAlignment = Enum.TextXAlignment.Left
+	descLabel.TextWrapped = true
+	descLabel.Text = description
+	descLabel.Parent = entry
+
+	local priceLabel = Instance.new("TextLabel")
+	priceLabel.Name = "PriceLabel"
+	priceLabel.Size = UDim2.new(0, 90, 0, 18)
+	priceLabel.Position = UDim2.new(1, -180, 0, 10)
+	priceLabel.BackgroundTransparency = 1
+	priceLabel.Font = Enum.Font.Gotham
+	priceLabel.TextSize = 13
+	priceLabel.TextColor3 = GOLD
+	priceLabel.Text = priceText
+	priceLabel.Parent = entry
+
+	local buyButton = Instance.new("TextButton")
+	buyButton.Name = "BUY"
+	buyButton.Size = UDim2.new(0, 80, 0, 32)
+	buyButton.Position = UDim2.new(1, -90, 0.5, -16)
+	buyButton.Text = "BUY"
+	buyButton.TextSize = 14
+	buyButton.Parent = entry
+	styleButton(buyButton)
+
+	onActivated(buyButton, function()
+		if buyButton:GetAttribute("Disabled") then
+			return
+		end
+		onBuy()
+	end)
+
+	return entry
+end
+
+local shopEntryOrder = 0
+
+local function addShopEntry(entry: Frame)
+	entry.LayoutOrder = shopEntryOrder
+	shopEntryOrder += 1
+	entry.Parent = shopList
+end
+
+local GAMEPASS_SHOP_ITEMS = {
+	{ key = "InfiniteBag", name = "Infinite Bag", description = "Unlimited bag capacity, forever." },
+	{ key = "VoidCarrier", name = "Void Carrier", description = "250 bag capacity, forever." },
+	{ key = "SpeedBoots", name = "Speed Boots", description = "+30% walk speed." },
+	{ key = "BoostInsider", name = "Boost Insider", description = "Insider perks during boosts." },
+	{ key = "ExtraPlot", name = "Extra Plot", description = "An additional plot (coming soon)." },
+	{ key = "Income2x", name = "2x Income", description = "Double coin earnings." },
+	{ key = "Income3x", name = "3x Income", description = "Triple coin earnings." },
+	{ key = "Income5x", name = "5x Income", description = "5x coin earnings." },
+	{ key = "Income7x", name = "7x Income", description = "7x coin earnings." },
+	{ key = "Income10x", name = "10x Income", description = "10x coin earnings." },
+}
+
+for _, item in GAMEPASS_SHOP_ITEMS do
+	local entry = createShopEntry(item.name, item.description, "ROBUX", function()
+		shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS[item.key])
+	end)
+	entry:SetAttribute("GamepassKey", item.key)
+	addShopEntry(entry)
+end
+
+local PRODUCT_SHOP_ITEMS = {
+	{ key = "LuckBoost", name = "Luck Boost", description = "+50% egg odds for 15 minutes." },
+	{ key = "MergeBoost", name = "Merge Boost", description = "5 free merges." },
+	{ key = "ServerBoost", name = "Server Boost", description = "1.5x server-wide earnings for 10 minutes." },
+	{ key = "RareEgg", name = "Rare Egg", description = "Guaranteed Rare or better monster." },
+	{ key = "EpicEgg", name = "Epic Egg", description = "Guaranteed Epic or better monster." },
+	{ key = "LegendaryEgg", name = "Legendary Egg", description = "Guaranteed Legendary or better monster." },
+	{ key = "MythicEgg", name = "Mythic Egg", description = "Guaranteed Mythic monster." },
+	{ key = "StarterPack", name = "Starter Pack", description = "Infinite Bag + Luck Boost + Rare Egg." },
+	{ key = "VoidPack", name = "Void Pack", description = "Epic Egg + Luck Boost + Speed Boots." },
+}
+
+for _, item in PRODUCT_SHOP_ITEMS do
+	local entry = createShopEntry(item.name, item.description, "ROBUX", function()
+		shared.MonetizationClient.PromptPurchase("product", Constants.PRODUCT_IDS[item.key])
+	end)
+	addShopEntry(entry)
+end
+
+for tier = 2, #Constants.BAG_TIERS do
+	local tierDef = Constants.BAG_TIERS[tier]
+	local priceText: string
+	local onBuy: () -> ()
+
+	if tierDef.robux then
+		priceText = "ROBUX"
+		local gamepassKey = (tier == 5) and "VoidCarrier" or "InfiniteBag"
+		onBuy = function()
+			shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS[gamepassKey])
+		end
+	else
+		priceText = `{NumberFormatter.Format(tierDef.cost)} coins`
+		onBuy = function()
+			fireAction("UPGRADE_BAG", { targetTier = tier })
+		end
+	end
+
+	local entry = createShopEntry(
+		`Bag: {tierDef.name}`,
+		`Upgrade bag to {NumberFormatter.Format(tierDef.capacity)} capacity.`,
+		priceText,
+		onBuy
+	)
+	addShopEntry(entry)
+end
+
+--============================================================
 -- Merge notification (transient, not a toggle panel)
 --============================================================
 
@@ -1103,6 +1290,29 @@ task.spawn(function()
 					else
 						stroke.Color = Color3.fromRGB(60, 60, 80)
 						stroke.Thickness = 2
+					end
+				end
+			end
+		end
+
+		-- Shop "OWNED" labels
+		local monetizationState = shared.MonetizationClient
+		local ownedGamepasses = monetizationState and monetizationState.ownedGamepasses
+		if ownedGamepasses then
+			for _, entry in shopList:GetChildren() do
+				if entry:IsA("Frame") then
+					local gamepassKey = entry:GetAttribute("GamepassKey")
+					if gamepassKey then
+						local buyButton = entry:FindFirstChild("BUY")
+						if buyButton and buyButton:IsA("TextButton") then
+							if ownedGamepasses[gamepassKey] then
+								buyButton.Text = "OWNED"
+								buyButton:SetAttribute("Disabled", true)
+							else
+								buyButton.Text = "BUY"
+								buyButton:SetAttribute("Disabled", false)
+							end
+						end
 					end
 				end
 			end

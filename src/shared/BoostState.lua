@@ -15,31 +15,50 @@ local currentBoost: Types.BoostState = {
 -- only through the server-only GetRealEmotion below.
 local realEmotion: string? = nil
 
+-- Server-wide multiplier from ServerBoost developer products, independent of
+-- emotion boosts. A token guards against a second purchase's reset-to-1.0 firing
+-- early and clobbering a still-active first purchase's window.
+local serverMultiplier = 1.0
+local serverMultiplierToken = 0
+
 function BoostState.GetCurrentBoost(): Types.BoostState
 	return currentBoost
 end
 
+-- Includes serverMultiplier so any caller (Economy, VialProducer's visual read)
+-- gets the true effective multiplier from a single call.
 function BoostState.GetMultiplierForEmotion(emotion: string): number
-	if not currentBoost.isActive then
-		return 1
-	end
+	local base = 1
 
-	if currentBoost.emotion == "All" then
-		return currentBoost.multiplier
-	end
-
-	if currentBoost.emotions then
-		if table.find(currentBoost.emotions, emotion) then
-			return currentBoost.multiplier
+	if currentBoost.isActive then
+		if currentBoost.emotion == "All" then
+			base = currentBoost.multiplier
+		elseif currentBoost.emotions then
+			base = table.find(currentBoost.emotions, emotion) and currentBoost.multiplier or 1
+		elseif currentBoost.emotion == emotion then
+			base = currentBoost.multiplier
 		end
-		return 1
 	end
 
-	if currentBoost.emotion == emotion then
-		return currentBoost.multiplier
-	end
+	return base * serverMultiplier
+end
 
-	return 1
+function BoostState.GetServerMultiplier(): number
+	return serverMultiplier
+end
+
+-- Server-only: called exclusively by MonetizationManager (ServerBoost product).
+function BoostState.SetServerMultiplier(multiplier: number, durationSeconds: number)
+	serverMultiplierToken += 1
+	local token = serverMultiplierToken
+
+	serverMultiplier = multiplier
+
+	task.delay(durationSeconds, function()
+		if token == serverMultiplierToken then
+			serverMultiplier = 1.0
+		end
+	end)
 end
 
 -- Server-only: reveals the true boosted emotion during a Mystery Surge.
