@@ -37,18 +37,26 @@ function Economy.GetRollCost(lifetimeRolls: number): number
 	return 500
 end
 
--- Resolves the live boost multiplier for a given monster emotion, covering standard
--- boosts, Void Storm ("All"), Double Surge (emotions array), Mystery Surge (secret
--- real emotion, server-only), The Watcher ("Any" always benefits from any boost),
--- and the server-wide ServerBoost multiplier (applies regardless of emotion boost).
+-- Resolves the live boost multiplier for a given player/emotion pair, covering a
+-- personal boost (e.g. FTUE's first-login Joy surge, checked first and never
+-- affecting other players), standard boosts, Void Storm ("All"), Double Surge
+-- (emotions array), Mystery Surge (secret real emotion, server-only), The Watcher
+-- ("Any" always benefits from any active boost), and the server-wide ServerBoost
+-- multiplier (applies regardless of emotion boost).
 --
 -- BoostState.GetMultiplierForEmotion already folds in serverMultiplier for the
 -- standard-boost path, so that branch must NOT multiply it again here -- every
 -- other branch bypasses GetMultiplierForEmotion and so must apply it explicitly,
 -- including the "no emotion boost active" case (serverMultiplier still applies).
-function Economy.GetBoostMultiplier(emotion: string): number
-	local boost = BoostState.GetCurrentBoost()
+function Economy.GetBoostMultiplier(emotion: string, userId: number): number
 	local serverMultiplier = BoostState.GetServerMultiplier()
+
+	local personalBoost = BoostState.GetPersonalBoost(userId)
+	if personalBoost and (emotion == WATCHER_EMOTION or personalBoost.emotion == emotion) then
+		return personalBoost.multiplier * serverMultiplier
+	end
+
+	local boost = BoostState.GetCurrentBoost()
 
 	if not boost.isActive then
 		return serverMultiplier
@@ -79,7 +87,7 @@ function Economy.GetVialValue(rarity: string, emotion: string, userId: number, m
 	local data = PlayerManager.GetData(userId)
 	local incomeMultiplier = (data and data.incomeMultiplier) or 1
 
-	local boostMultiplier = Economy.GetBoostMultiplier(emotion)
+	local boostMultiplier = Economy.GetBoostMultiplier(emotion, userId)
 	local levelMultiplier = LEVEL_MULTIPLIERS[monsterLevel] or 1
 	local starMultiplier = STAR_MULTIPLIERS[monsterStars] or 1
 

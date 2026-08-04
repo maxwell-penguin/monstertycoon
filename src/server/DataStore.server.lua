@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local Types = require(ReplicatedStorage.Types)
+local BoostState = require(ReplicatedStorage.BoostState)
 local PlayerManager = require(script.Parent.PlayerManager)
 local EarnRateUpdater = require(script.Parent.EarnRateUpdater)
 local PlotManager = require(script.Parent.PlotManager)
@@ -15,6 +16,7 @@ local CrateManager = require(script.Parent.CrateManager)
 local BagManager = require(script.Parent.BagManager)
 local TownManager = require(script.Parent.TownManager)
 local MonetizationManager = require(script.Parent.MonetizationManager)
+local FTUEManager = require(script.Parent.FTUEManager)
 
 type PlayerData = Types.PlayerData
 
@@ -40,6 +42,7 @@ local function defaultData(): PlayerData
 		incomeMultiplier = 1,
 		freeMerges = 0,
 		hasBoostInsider = false,
+		ftueComplete = false,
 	}
 end
 
@@ -101,6 +104,7 @@ local function onPlayerAdded(player: Player)
 	-- PLAYER_DATA_LOADED itself once it finishes so the client still learns the
 	-- final ownedGamepasses set, just a moment later.
 	task.spawn(MonetizationManager.CheckGamepasses, player)
+	task.spawn(FTUEManager.StartFTUE, player)
 
 	VialProducer.StartProduction(player)
 	DropboxManager.InitDropbox(player)
@@ -116,6 +120,7 @@ local function onPlayerAdded(player: Player)
 end
 
 local function onPlayerRemoving(player: Player)
+	BoostState.ClearPersonalBoost(player.UserId)
 	PlotManager.ReleasePlot(player)
 	HallManager.ClearHall(player)
 	VialProducer.StopProduction(player)

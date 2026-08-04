@@ -99,6 +99,49 @@ function BoostState.ClearBoost()
 	realEmotion = nil
 end
 
+export type PersonalBoost = {
+	emotion: string,
+	multiplier: number,
+	endTime: number,
+}
+
+-- Per-player boosts (e.g. FTUE's first-login Joy surge). Calling the shared
+-- SetBoost above for a "personal" boost would incorrectly overwrite the
+-- server-wide boost for every player; this is the actual per-player override.
+local personalBoosts: { [number]: PersonalBoost } = {}
+
+-- Server-only: called exclusively by FTUEManager.server.lua (or similar
+-- single-player reward sources). Never call this for anything meant to be visible
+-- to other players -- use SetBoost for that.
+function BoostState.SetPersonalBoost(userId: number, emotion: string, multiplier: number, durationSeconds: number)
+	personalBoosts[userId] = {
+		emotion = emotion,
+		multiplier = multiplier,
+		endTime = os.time() + durationSeconds,
+	}
+end
+
+-- Returns nil once expired (lazily clears the entry) or if none was ever set.
+function BoostState.GetPersonalBoost(userId: number): PersonalBoost?
+	local boost = personalBoosts[userId]
+	if not boost then
+		return nil
+	end
+
+	if os.time() >= boost.endTime then
+		personalBoosts[userId] = nil
+		return nil
+	end
+
+	return boost
+end
+
+-- Server-only: called on PlayerRemoving to avoid leaking an entry per player who
+-- ever received a personal boost during this server's uptime.
+function BoostState.ClearPersonalBoost(userId: number)
+	personalBoosts[userId] = nil
+end
+
 function BoostState.GetTimeRemaining(): number
 	if not currentBoost.isActive then
 		return 0

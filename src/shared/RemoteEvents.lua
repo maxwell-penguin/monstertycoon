@@ -51,6 +51,10 @@ RemoteEvents.EVENTS = {
 	LUCK_BOOST_ACTIVE = "LuckBoostActive",
 	PROMPT_PURCHASE = "PromptPurchase",
 
+	-- FTUE
+	FTUE_STEP = "FtueStep",
+	FTUE_PROGRESS = "FtueProgress",
+
 	-- Events
 	SHARD_SPAWNED = "ShardSpawned",
 	SHARD_COLLECTED = "ShardCollected",
