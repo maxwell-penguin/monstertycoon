@@ -32,11 +32,30 @@ vialSpawnedRemote.OnClientEvent:Connect(function(vialId: string, position: Vecto
 	ownerIdValue.Parent = part
 
 	part.Parent = Workspace
+
+	if shared.ParticleManager then
+		local emitter = shared.ParticleManager.CreateParticleEmitter(part, "vialGlow")
+		if emitter then
+			emitter.Color = ColorSequence.new(Constants.EMOTION_COLORS[emotion] or Color3.new(1, 1, 1))
+		end
+	end
+
+	if shared.SoundManager then
+		shared.SoundManager.PlaySoundAtPosition("vialDrop", emotion, position)
+	end
 end)
 
 vialRemovedRemote.OnClientEvent:Connect(function(vialId: string)
 	local part = Workspace:FindFirstChild("Vial_" .. vialId)
 	if part then
 		part:Destroy()
+	end
+
+	-- Only a genuine pickup (fired by VialProximity's own attempt) should play the
+	-- pickup sound -- the same event also fires for a vial despawning after sitting
+	-- uncollected too long, which shouldn't sound like a success.
+	local vialProximityState = shared.VialProximity
+	if vialProximityState and vialProximityState.pendingPickups[vialId] and shared.SoundManager then
+		shared.SoundManager.PlaySound("vialPickup")
 	end
 end)

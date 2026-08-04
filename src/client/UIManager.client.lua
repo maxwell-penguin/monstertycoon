@@ -58,6 +58,9 @@ function UIManagerAPI.ShowPanel(name: string)
 	local panel = panels[name]
 	if panel then
 		panel.Visible = true
+		if shared.SoundManager then
+			shared.SoundManager.PlaySound("panelOpen")
+		end
 	end
 end
 
@@ -137,6 +140,9 @@ local function onActivated(button: TextButton, callback: () -> ())
 		if button:GetAttribute("IsTweening") then
 			return
 		end
+		if shared.SoundManager then
+			shared.SoundManager.PlaySound("buttonClick")
+		end
 		callback()
 	end)
 end
@@ -210,6 +216,17 @@ local function pulseCoin()
 	coinScale.Scale = 1.05
 	TweenService:Create(coinScale, TweenInfo.new(0.1), { Scale = 1 }):Play()
 end
+
+local BRIGHT_GOLD = Color3.fromRGB(255, 255, 180)
+
+-- When earn rate rises (new monster slotted, boost starts) the amount label
+-- briefly flares bright gold before fading back to normal gold.
+local function flashCoinGold()
+	coinAmountLabel.TextColor3 = BRIGHT_GOLD
+	TweenService:Create(coinAmountLabel, TweenInfo.new(0.3), { TextColor3 = GOLD }):Play()
+end
+
+local lastEarnRate = 0
 
 local earnRateLabel = Instance.new("TextLabel")
 earnRateLabel.Name = "EarnRate"
@@ -383,7 +400,11 @@ local function createToggleButton(label: string, order: number, panelName: strin
 	onActivated(button, function()
 		local panel = panels[panelName]
 		if panel then
-			panel.Visible = not panel.Visible
+			if panel.Visible then
+				UIManagerAPI.HidePanel(panelName)
+			else
+				UIManagerAPI.ShowPanel(panelName)
+			end
 		end
 	end)
 end
@@ -637,6 +658,51 @@ task.spawn(function()
 	end
 end)
 
+-- Slow continuous rotation via a NumberValue driving a UIRotation (rather than
+-- tweening UIRotation.Rotation directly, whose repeat would otherwise snap back
+-- to 0 visibly -- 360 and 0 look identical, so the wrap via modulo is seamless).
+local eggRotation = Instance.new("UIRotation")
+eggRotation.Rotation = 0
+eggRotation.Parent = eggVisual
+
+local eggBaseRotationValue = Instance.new("NumberValue")
+eggBaseRotationValue.Value = 0
+eggBaseRotationValue.Parent = eggVisual
+
+local eggJiggleValue = Instance.new("NumberValue")
+eggJiggleValue.Value = 0
+eggJiggleValue.Parent = eggVisual
+
+local function updateEggRotation()
+	eggRotation.Rotation = (eggBaseRotationValue.Value % 360) + eggJiggleValue.Value
+end
+
+eggBaseRotationValue:GetPropertyChangedSignal("Value"):Connect(updateEggRotation)
+eggJiggleValue:GetPropertyChangedSignal("Value"):Connect(updateEggRotation)
+
+TweenService:Create(
+	eggBaseRotationValue,
+	TweenInfo.new(8, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false),
+	{ Value = 360 }
+):Play()
+
+-- Every 3 seconds, a quick ±5 degree jiggle chained over 0.3s total, layered on
+-- top of the continuous rotation via the separate jiggle value.
+task.spawn(function()
+	while true do
+		task.wait(3)
+
+		for _, target in { 5, -5, 0 } do
+			local jiggleTween =
+				TweenService:Create(eggJiggleValue, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+					Value = target,
+				})
+			jiggleTween:Play()
+			jiggleTween.Completed:Wait()
+		end
+	end
+end)
+
 local rollCostLabel = Instance.new("TextLabel")
 rollCostLabel.Name = "RollCost"
 rollCostLabel.Position = UDim2.new(0, 16, 0, 188)
@@ -803,10 +869,22 @@ local function inferHallTier(slotCount: number): number
 	return 1
 end
 
+local function dimColor(color: Color3, factor: number): Color3
+	return color:Lerp(Color3.new(0, 0, 0), factor)
+end
+
+local EMPTY_SLOT_BG = Color3.fromRGB(26, 26, 38)
+local EMPTY_SLOT_CORNER_DOT_COLOR = Color3.fromRGB(150, 150, 160)
+local EMPTY_SLOT_CORNER_POSITIONS = {
+	UDim2.new(0, 2, 0, 2),
+	UDim2.new(1, -6, 0, 2),
+	UDim2.new(0, 2, 1, -6),
+	UDim2.new(1, -6, 1, -6),
+}
+
 local function createHallSlotFrame(slot: any): Frame
 	local slotFrame = Instance.new("Frame")
 	slotFrame.Name = "Slot_" .. slot.slotIndex
-	slotFrame.BackgroundColor3 = Color3.fromRGB(26, 26, 38)
 	slotFrame.BorderSizePixel = 0
 	addCorner(slotFrame, 6)
 
@@ -823,6 +901,44 @@ local function createHallSlotFrame(slot: any): Frame
 	label.TextWrapped = true
 	label.Text = slot.monster and slot.monster.name or "EMPTY"
 	label.Parent = slotFrame
+
+	if slot.monster then
+		local emotionColor = Constants.EMOTION_COLORS[slot.monster.emotion] or EMPTY_SLOT_BG
+		slotFrame.BackgroundColor3 = dimColor(emotionColor, 0.6)
+
+		local dot = Instance.new("Frame")
+		dot.Name = "EmotionDot"
+		dot.AnchorPoint = Vector2.new(1, 0)
+		dot.Position = UDim2.new(1, -2, 0, 2)
+		dot.Size = UDim2.new(0, 8, 0, 8)
+		dot.BackgroundColor3 = emotionColor
+		dot.BorderSizePixel = 0
+		dot.Parent = slotFrame
+		addCorner(dot, 4)
+
+		if slot.monster.rarity == "Mythic" then
+			slotFrame.BackgroundTransparency = 0.1
+			TweenService:Create(
+				slotFrame,
+				TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+				{ BackgroundTransparency = 0.3 }
+			):Play()
+		end
+	else
+		slotFrame.BackgroundColor3 = EMPTY_SLOT_BG
+
+		-- Roblox UIStroke has no native dashed style; simulate one with 4 small
+		-- corner-dot Frames instead.
+		for _, cornerPosition in EMPTY_SLOT_CORNER_POSITIONS do
+			local cornerDot = Instance.new("Frame")
+			cornerDot.Name = "CornerDot"
+			cornerDot.Size = UDim2.new(0, 4, 0, 4)
+			cornerDot.Position = cornerPosition
+			cornerDot.BackgroundColor3 = EMPTY_SLOT_CORNER_DOT_COLOR
+			cornerDot.BorderSizePixel = 0
+			cornerDot.Parent = slotFrame
+		end
+	end
 
 	local clickCatcher = Instance.new("TextButton")
 	clickCatcher.Name = "ClickCatcher"
@@ -1212,7 +1328,14 @@ task.spawn(function()
 				coinAmountLabel.Text = coinState.formatted
 				pulseCoin()
 			end
-			earnRateLabel.Text = `+{NumberFormatter.Format(coinState.earnRate or 0)}/sec`
+
+			local currentEarnRate = coinState.earnRate or 0
+			if currentEarnRate > lastEarnRate then
+				flashCoinGold()
+			end
+			lastEarnRate = currentEarnRate
+
+			earnRateLabel.Text = `+{NumberFormatter.Format(currentEarnRate)}/sec`
 		end
 
 		-- Bag indicator

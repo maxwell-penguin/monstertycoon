@@ -138,6 +138,17 @@ local function showEarnedText(position: Vector3, totalEarned: number)
 	end)
 end
 
+local LARGE_DEPOSIT_THRESHOLD = 1e6
+
+local function getDepositSizeCategory(vialCount: number): string
+	if vialCount < 10 then
+		return "small"
+	elseif vialCount <= 50 then
+		return "medium"
+	end
+	return "large"
+end
+
 depositBagRemote.OnClientEvent:Connect(function(totalEarned: number, vialCount: number)
 	local dropbox = findDropbox()
 	if not dropbox then
@@ -146,6 +157,18 @@ depositBagRemote.OnClientEvent:Connect(function(totalEarned: number, vialCount: 
 
 	playCoinBurst(dropbox.Position)
 	showEarnedText(dropbox.Position, totalEarned)
+
+	if shared.SoundManager then
+		shared.SoundManager.PlaySound("deposit", getDepositSizeCategory(vialCount))
+	end
+
+	if shared.ParticleManager then
+		shared.ParticleManager.EmitBurst("coinBurst", dropbox.Position, vialCount * 2)
+	end
+
+	if totalEarned > LARGE_DEPOSIT_THRESHOLD and shared.ScreenEffects then
+		shared.ScreenEffects.CoinFlash(totalEarned)
+	end
 end)
 
 while true do

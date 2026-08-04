@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -n \"createToggleButton\\\\|^-- Hall Panel$\\\\|Merge notification\\\\|panels\\\\.\\\\|local mergeMonstersRemote\" src/client/UIManager.client.lua)"
+      "Bash(grep -n \"createToggleButton\\\\|^-- Hall Panel$\\\\|Merge notification\\\\|panels\\\\.\\\\|local mergeMonstersRemote\" src/client/UIManager.client.lua)",
+      "Bash(grep -n \"local function onActivated\\\\|function UIManagerAPI.ShowPanel\\\\|local function createToggleButton\\\\|local function createHallSlotFrame\\\\|local eggVisual = Instance.new\\\\|task.spawn\\(function\\(\\)$\\\\|local function pulseCoin\" src/client/UIManager.client.lua)"
     ]
   }
 }
