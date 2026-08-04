@@ -7,6 +7,7 @@ local Types = require(ReplicatedStorage.Types)
 local PlayerManager = require(script.Parent.PlayerManager)
 local EarnRateUpdater = require(script.Parent.EarnRateUpdater)
 local PlotManager = require(script.Parent.PlotManager)
+local HallManager = require(script.Parent.HallManager)
 
 type PlayerData = Types.PlayerData
 
@@ -75,6 +76,7 @@ local function onPlayerAdded(player: Player)
 
 	PlayerManager.Load(player.UserId, data)
 	PlotManager.AssignPlot(player)
+	HallManager.InitHall(player)
 
 	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 	local remote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
@@ -87,6 +89,7 @@ end
 
 local function onPlayerRemoving(player: Player)
 	PlotManager.ReleasePlot(player)
+	HallManager.ClearHall(player)
 
 	local data = PlayerManager.Unload(player.UserId)
 	if not data then
