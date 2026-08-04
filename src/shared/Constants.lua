@@ -7,6 +7,7 @@ Constants.WAREHOUSE_BASE_CAPACITY = 30
 Constants.HALL_BASE_SLOTS = 9
 Constants.OFFLINE_PRODUCTION_RATE = 0.25
 Constants.OFFLINE_PRODUCTION_CAP_HOURS = 4
+Constants.AUTO_MERGE_COST = 0 -- Robux gamepass feature; no coin cost
 
 Constants.BASE_VIAL_VALUES = {
 	Common = 10,
@@ -56,6 +57,22 @@ Constants.WAREHOUSE_CAPACITY = {
 	[3] = 80,
 	[4] = 120,
 	[5] = 180,
+}
+
+Constants.PLOT_UPGRADE_COSTS = {
+	[1] = 0,
+	[2] = 75000,
+	[3] = 7500000,
+	[4] = 750000000,
+	[5] = 75000000000,
+}
+
+Constants.PLOT_SIZES = {
+	[1] = { width = 60, depth = 80 },
+	[2] = { width = 80, depth = 100 },
+	[3] = { width = 100, depth = 120 },
+	[4] = { width = 120, depth = 140 },
+	[5] = { width = 140, depth = 160 },
 }
 
 Constants.BAG_TIERS = {

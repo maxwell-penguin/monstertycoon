@@ -20,22 +20,17 @@ export type Bag = {
 	currentCount: number,
 }
 
-export type Warehouse = {
-	tier: number,
-	capacity: number,
-	currentCount: number,
-}
-
 export type PlayerData = {
 	coins: number,
 	lifetimeRolls: number,
+	townLevel: number,
 	hallTier: number,
 	warehouseTier: number,
 	bagTier: number,
 	totalPlaytime: number,
 	lastOnlineTime: number,
 	monsterSlots: { MonsterSlot },
-	warehouse: Warehouse,
+	warehouse: { [string]: Monster },
 	sessionStartTime: number,
 }
 
