@@ -39,6 +39,10 @@ local function spawnCratePart(crateId: string, spawnPosition: Vector3, landingPo
 			return
 		end
 
+		if shared.SoundManager then
+			shared.SoundManager.PlaySoundAtPosition("crateDrop", nil, landingPosition)
+		end
+
 		TweenService:Create(
 			part,
 			TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
@@ -64,6 +68,10 @@ eggResultRemote.OnClientEvent:Connect(function(result: any)
 	local part = Workspace:FindFirstChild("Crate_" .. crateId)
 	if part then
 		part:Destroy()
+	end
+
+	if shared.SoundManager then
+		shared.SoundManager.PlaySound("crateOpen")
 	end
 end)
 

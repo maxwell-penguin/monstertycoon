@@ -13,6 +13,11 @@ local vialRemovedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_RE
 
 local pendingPickups: { [string]: boolean } = {}
 
+-- Exposed so VialClient.client.lua can tell "this VIAL_REMOVED was my own pickup"
+-- apart from "this vial despawned" -- both fire the identical event with no other
+-- distinguishing data. Same table reference, so it always reflects live state.
+shared.VialProximity = { pendingPickups = pendingPickups }
+
 vialRemovedRemote.OnClientEvent:Connect(function(vialId: string)
 	pendingPickups[vialId] = nil
 end)

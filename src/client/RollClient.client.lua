@@ -3,7 +3,6 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local SoundService = game:GetService("SoundService")
 
 local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
@@ -57,18 +56,6 @@ local function createNameLabel(gui: ScreenGui, text: string, color: Color3, stro
 	return label
 end
 
-local function playPlaceholderSound()
-	local sound = Instance.new("Sound")
-	sound.Name = "RollRevealSound"
-	sound.Volume = 0.5
-	sound.Parent = SoundService
-	sound:Play()
-
-	task.delay(2, function()
-		sound:Destroy()
-	end)
-end
-
 local function shakeCamera(duration: number)
 	local camera = Workspace.CurrentCamera
 	if not camera then
@@ -88,17 +75,12 @@ local function shakeCamera(duration: number)
 	end)
 end
 
+-- The full-screen flash/vignette/darken portion of each reveal used to be built
+-- inline here; Phase 19 centralizes that in ScreenEffects.RarityFlash. What's left
+-- in each reveal* function below is the parts specific to the roll reveal itself
+-- (name label, spotlight, camera shake) that aren't just "a screen flash".
 local function revealCommon(color: Color3, monsterName: string)
 	local gui = getRevealGui()
-
-	local flash = Instance.new("Frame")
-	flash.Size = UDim2.fromScale(1, 1)
-	flash.BackgroundColor3 = color
-	flash.BackgroundTransparency = 0.5
-	flash.BorderSizePixel = 0
-	flash.Parent = gui
-
-	TweenService:Create(flash, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
 	createNameLabel(gui, monsterName, color, 2)
 
 	task.delay(1, function()
@@ -108,17 +90,6 @@ end
 
 local function revealRare(color: Color3, monsterName: string)
 	local gui = getRevealGui()
-
-	local frame = Instance.new("Frame")
-	frame.Size = UDim2.fromScale(1, 1)
-	frame.BackgroundTransparency = 1
-	frame.Parent = gui
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 14
-	stroke.Color = color
-	stroke.Parent = frame
-
 	createNameLabel(gui, monsterName, color, 3)
 
 	task.delay(2, function()
@@ -126,16 +97,8 @@ local function revealRare(color: Color3, monsterName: string)
 	end)
 end
 
-local function revealEpic(color: Color3, monsterName: string)
+local function revealEpic(_color: Color3, monsterName: string)
 	local gui = getRevealGui()
-
-	local vignette = Instance.new("Frame")
-	vignette.Size = UDim2.fromScale(1, 1)
-	vignette.BackgroundColor3 = color
-	vignette.BackgroundTransparency = 0.6
-	vignette.BorderSizePixel = 0
-	vignette.Parent = gui
-
 	createNameLabel(gui, monsterName, Color3.new(1, 1, 1), 5)
 
 	task.delay(3, function()
@@ -145,13 +108,6 @@ end
 
 local function revealLegendary(color: Color3, monsterName: string)
 	local gui = getRevealGui()
-
-	local dark = Instance.new("Frame")
-	dark.Size = UDim2.fromScale(1, 1)
-	dark.BackgroundColor3 = Color3.new(0, 0, 0)
-	dark.BackgroundTransparency = 0.15
-	dark.BorderSizePixel = 0
-	dark.Parent = gui
 
 	local character = player.Character
 	local rootPart = character and (character:FindFirstChild("HumanoidRootPart") :: BasePart?)
@@ -165,7 +121,6 @@ local function revealLegendary(color: Color3, monsterName: string)
 	end
 
 	createNameLabel(gui, monsterName, color, 6)
-	playPlaceholderSound()
 
 	task.delay(4, function()
 		if light then
@@ -178,13 +133,6 @@ end
 local function revealMythic(color: Color3, monsterName: string)
 	local gui = getRevealGui()
 
-	local black = Instance.new("Frame")
-	black.Size = UDim2.fromScale(1, 1)
-	black.BackgroundColor3 = Color3.new(0, 0, 0)
-	black.BackgroundTransparency = 0
-	black.BorderSizePixel = 0
-	black.Parent = gui
-
 	task.delay(1, function()
 		local label = createNameLabel(gui, monsterName, color, 6)
 		label.Size = UDim2.fromScale(0, 0)
@@ -193,10 +141,7 @@ local function revealMythic(color: Color3, monsterName: string)
 			Size = UDim2.fromScale(0.8, 0.3),
 		}):Play()
 
-		TweenService:Create(black, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
-
 		shakeCamera(0.3)
-		playPlaceholderSound()
 
 		task.delay(2, function()
 			gui:Destroy()
@@ -225,6 +170,14 @@ eggResultRemote.OnClientEvent:Connect(function(result: any)
 
 	if not result.success then
 		return
+	end
+
+	if shared.SoundManager then
+		shared.SoundManager.PlaySound("roll", result.rarity)
+	end
+
+	if shared.ScreenEffects then
+		shared.ScreenEffects.RarityFlash(result.rarity)
 	end
 
 	local color = getResultColor(result.newInstanceId)

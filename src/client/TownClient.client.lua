@@ -81,6 +81,13 @@ townUpdatedRemote.OnClientEvent:Connect(function(payload: any)
 	if lastTownLevel and typeof(newLevel) == "number" and newLevel > lastTownLevel then
 		playLevelUpFlash()
 		showLevelUpText(newLevel)
+<<<<<<< HEAD
+=======
+
+		if shared.SoundManager then
+			shared.SoundManager.PlaySound("townLevelUp")
+		end
+>>>>>>> dev
 	end
 
 	lastTownLevel = newLevel

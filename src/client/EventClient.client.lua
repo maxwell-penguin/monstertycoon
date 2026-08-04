@@ -115,9 +115,26 @@ shardSpawnedRemote.OnClientEvent:Connect(function(shardId: string, position: Vec
 		TweenInfo.new(SHARD_BOB_PERIOD, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
 		{ Position = position + Vector3.new(0, SHARD_BOB_HEIGHT, 0) }
 	):Play()
+<<<<<<< HEAD
 end)
 
 shardCollectedRemote.OnClientEvent:Connect(function(shardId: string)
+=======
+
+	if shared.ParticleManager then
+		shared.ParticleManager.CreateParticleEmitter(part, "shardSparkle")
+	end
+end)
+
+shardCollectedRemote.OnClientEvent:Connect(function(shardId: string)
+	-- SHARD_COLLECTED is broadcast to every player when anyone collects a shard;
+	-- only play the sound if it was this client's own collection attempt (tracked
+	-- in pendingCollect below, same-script so no cross-script ordering risk).
+	if pendingCollect[shardId] and shared.SoundManager then
+		shared.SoundManager.PlaySound("shardCollect")
+	end
+
+>>>>>>> dev
 	local part = shardParts[shardId]
 	if part then
 		part:Destroy()

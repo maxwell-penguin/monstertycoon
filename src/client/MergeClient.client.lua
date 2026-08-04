@@ -141,7 +141,20 @@ mergeMonstersRemote.OnClientEvent:Connect(function(result: any)
 	}
 
 	if result.success then
+		-- A star-merge always resets stars to 0 for an evolution (name change) and
+		-- only ever produces stars > 0 for a max-level star-add (MergeRules.
+		-- GetMergeResult), so resultStars alone reliably distinguishes the two here.
+		local isStarMerge = (result.resultStars or 0) > 0
+
+		if shared.SoundManager then
+			shared.SoundManager.PlaySound("merge", isStarMerge and "star" or "evolve")
+		end
+
 		playMergeAnimation(result.consumedInstanceIds or {}, result.resultMonsterName, result.resultStars, result.newInstanceId)
+
+		if shared.ParticleManager then
+			shared.ParticleManager.EmitBurst("mergeFlash", getCenterPosition(), 30)
+		end
 	else
 		print(`[MergeClient] Merge failed: {result.reason}`)
 	end
