@@ -1,18 +1,19 @@
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local MonetizationManager = require(script.Parent.MonetizationManager)
-
-local RATE_LIMIT_WINDOW = 5
+local RateLimiter = require(script.Parent.RateLimiter)
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local promptPurchaseRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PROMPT_PURCHASE) :: RemoteEvent
 
-local lastPromptTime: { [number]: number } = {}
+local promptLimiter = RateLimiter.CreateLimiter(1, 5)
 
 promptPurchaseRemote.OnServerEvent:Connect(function(player: Player, payload: any)
+	local userId = player.UserId
+	RateLimiter.TrackRemoteCall(userId)
+
 	if typeof(payload) ~= "table" then
 		return
 	end
@@ -28,10 +29,7 @@ promptPurchaseRemote.OnServerEvent:Connect(function(player: Player, payload: any
 		return
 	end
 
-	local userId = player.UserId
-	local now = os.clock()
-	local last = lastPromptTime[userId]
-	if last and (now - last) < RATE_LIMIT_WINDOW then
+	if not promptLimiter:Check(userId) then
 		return
 	end
 
@@ -49,15 +47,9 @@ promptPurchaseRemote.OnServerEvent:Connect(function(player: Player, payload: any
 		return
 	end
 
-	lastPromptTime[userId] = now
-
 	if purchaseType == "gamepass" then
 		MarketplaceService:PromptGamePassPurchase(player, productId)
 	else
 		MarketplaceService:PromptProductPurchase(player, productId)
 	end
-end)
-
-Players.PlayerRemoving:Connect(function(player: Player)
-	lastPromptTime[player.UserId] = nil
 end)

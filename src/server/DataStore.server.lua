@@ -17,6 +17,7 @@ local BagManager = require(script.Parent.BagManager)
 local TownManager = require(script.Parent.TownManager)
 local MonetizationManager = require(script.Parent.MonetizationManager)
 local FTUEManager = require(script.Parent.FTUEManager)
+local AntiCheat = require(script.Parent.AntiCheat)
 
 type PlayerData = Types.PlayerData
 
@@ -84,6 +85,10 @@ local function saveData(userId: number, data: PlayerData): boolean
 end
 
 local function onPlayerAdded(player: Player)
+	if AntiCheat.CheckBan(player) then
+		return
+	end
+
 	local data = loadData(player.UserId)
 	data.sessionStartTime = os.time()
 

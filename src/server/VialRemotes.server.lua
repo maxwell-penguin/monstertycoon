@@ -1,36 +1,22 @@
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local VialProducer = require(script.Parent.VialProducer)
+local RateLimiter = require(script.Parent.RateLimiter)
+local AntiCheat = require(script.Parent.AntiCheat)
 
 local GUID_LENGTH = 36
-local RATE_LIMIT = 10
-local RATE_WINDOW = 1
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local pickupVialRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PICKUP_VIAL) :: RemoteEvent
 
-local rateData: { [number]: { count: number, windowStart: number } } = {}
-
-local function checkRateLimit(userId: number): boolean
-	local now = os.clock()
-	local record = rateData[userId]
-
-	if not record or (now - record.windowStart) >= RATE_WINDOW then
-		record = { count = 0, windowStart = now }
-		rateData[userId] = record
-	end
-
-	record.count += 1
-
-	return record.count <= RATE_LIMIT
-end
+local pickupLimiter = RateLimiter.CreateLimiter(10, 1)
 
 pickupVialRemote.OnServerEvent:Connect(function(player: Player, vialId: any)
 	local userId = player.UserId
+	RateLimiter.TrackRemoteCall(userId)
 
-	if not checkRateLimit(userId) then
+	if not pickupLimiter:Check(userId) then
 		warn(`[VialRemotes] Rate limit exceeded for user {userId}`)
 		return
 	end
@@ -40,9 +26,8 @@ pickupVialRemote.OnServerEvent:Connect(function(player: Player, vialId: any)
 		return
 	end
 
-	VialProducer.CollectVial(player, vialId)
-end)
-
-Players.PlayerRemoving:Connect(function(player: Player)
-	rateData[player.UserId] = nil
+	local success, reason = VialProducer.CollectVial(player, vialId)
+	if not success and reason == "out_of_range" then
+		AntiCheat.RecordViolation(player, `position_mismatch: vial pickup out of range`)
+	end
 end)
