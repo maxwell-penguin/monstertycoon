@@ -37,6 +37,7 @@ export type PlayerData = {
 	incomeMultiplier: number,
 	freeMerges: number,
 	hasBoostInsider: boolean,
+	ftueComplete: boolean,
 }
 
 export type Plot = {
