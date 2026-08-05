@@ -20,138 +20,129 @@ local function setCollisionGroup(part: BasePart)
 	part.CollisionGroup = COLLISION_GROUP
 end
 
-local STAR_COUNT = 200
-local STAR_MIN_RADIUS = 400
-local STAR_MAX_RADIUS = 600
-local STAR_MIN_Y = 50
-local STAR_COLORS = {
-	Color3.fromRGB(255, 255, 255),
-	Color3.fromRGB(200, 180, 255),
-	Color3.fromRGB(180, 200, 255),
-	Color3.fromRGB(255, 200, 180),
-}
+-- Fixed so the star/nebula layout is identical every server start. A scoped
+-- Random object rather than math.randomseed(42) -- reseeding the global RNG
+-- would make every OTHER math.random() call on the server (egg rarity, vial
+-- offsets, etc.) deterministic too for the rest of the server's lifetime.
+local VOID_SKY_SEED = 42
 
-local NEBULA_COUNT = 5
-local NEBULA_MIN_SIZE = 80
-local NEBULA_MAX_SIZE = 150
-local NEBULA_MIN_Y = 150
-local NEBULA_MAX_Y = 250
-local NEBULA_HORIZONTAL_RANGE = 500
-local NEBULA_COLORS = {
-	Color3.fromRGB(40, 20, 80),
-	Color3.fromRGB(60, 15, 60),
-	Color3.fromRGB(20, 30, 80),
-}
+local function setupVoidAtmosphere()
+	-- Lighting
+	local lighting = Lighting
+	lighting.Ambient = Color3.fromRGB(15, 10, 30)
+	lighting.OutdoorAmbient = Color3.fromRGB(8, 5, 18)
+	lighting.Brightness = 0.15
+	lighting.ClockTime = 0
+	lighting.FogEnd = 500
+	lighting.FogStart = 250
+	lighting.FogColor = Color3.fromRGB(5, 3, 15)
+	lighting.GlobalShadows = true
 
--- Fixed so the star/nebula layout is identical every server start. A
--- dedicated Random object rather than math.randomseed -- reseeding the
--- global RNG would make every OTHER math.random() call on the server
--- (egg rarity, vial offsets, etc.) deterministic too, which is not the point.
-local VOID_SKY_SEED = 20260805
-
--- Uniform point on the sphere of the given radius range, retried (a few
--- times, at most) until it lands above minY so stars only appear in the sky.
-local function randomUpperSpherePosition(rng: Random, minRadius: number, maxRadius: number, minY: number): Vector3
-	for _ = 1, 20 do
-		local y = rng:NextNumber(-1, 1)
-		local horizontal = math.sqrt(1 - y * y)
-		local phi = rng:NextNumber(0, 2 * math.pi)
-		local direction = Vector3.new(horizontal * math.cos(phi), y, horizontal * math.sin(phi))
-		local position = direction * rng:NextNumber(minRadius, maxRadius)
-		if position.Y > minY then
-			return position
+	-- Remove default sky
+	for _, child in ipairs(lighting:GetChildren()) do
+		if child:IsA("Sky") then
+			child:Destroy()
 		end
 	end
-	return Vector3.new(0, maxRadius, 0)
-end
 
-local function createVoidSky()
-	local rng = Random.new(VOID_SKY_SEED)
+	-- Color correction
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.Brightness = -0.08
+	cc.Contrast = 0.15
+	cc.Saturation = -0.05
+	cc.TintColor = Color3.fromRGB(190, 170, 255)
+	cc.Parent = lighting
 
+	-- Bloom for neon glow -- without this, Neon materials (pedestals, veins,
+	-- sell pad, monster eyes) look flat; Threshold 0.95 keeps only truly
+	-- bright neon parts blooming, not the dark background.
+	local bloom = Instance.new("BloomEffect")
+	bloom.Intensity = 0.8
+	bloom.Size = 24
+	bloom.Threshold = 0.95
+	bloom.Parent = lighting
+
+	-- Star field
 	local voidSky = Instance.new("Model")
 	voidSky.Name = "VoidSky"
 	voidSky.Parent = Workspace
 
-	for i = 1, STAR_COUNT do
-		local size = rng:NextNumber(0.3, 0.8)
+	local starColors = {
+		Color3.fromRGB(255, 255, 255),
+		Color3.fromRGB(210, 190, 255),
+		Color3.fromRGB(180, 200, 255),
+		Color3.fromRGB(255, 210, 180),
+		Color3.fromRGB(200, 230, 255),
+	}
 
+	local rng = Random.new(VOID_SKY_SEED)
+
+	for i = 1, 300 do
 		local star = Instance.new("Part")
 		star.Name = "Star_" .. i
 		star.Shape = Enum.PartType.Ball
+		local size = rng:NextInteger(20, 80) / 100
 		star.Size = Vector3.new(size, size, size)
 		star.Material = Enum.Material.Neon
-		star.Color = STAR_COLORS[rng:NextInteger(1, #STAR_COLORS)]
+		star.Color = starColors[rng:NextInteger(1, #starColors)]
 		star.Anchored = true
 		star.CanCollide = false
 		star.CastShadow = false
-		star.Position = randomUpperSpherePosition(rng, STAR_MIN_RADIUS, STAR_MAX_RADIUS, STAR_MIN_Y)
+		star.Locked = true
+
+		-- Random position on sphere shell
+		local theta = rng:NextNumber() * math.pi * 2
+		local phi = math.acos(rng:NextNumber() * 2 - 1)
+		local radius = rng:NextInteger(350, 550)
+
+		local x = radius * math.sin(phi) * math.cos(theta)
+		local y = math.abs(radius * math.cos(phi)) + 80 -- force above Y=80
+		local z = radius * math.sin(phi) * math.sin(theta)
+
+		star.Position = Vector3.new(x, y, z)
 		star.Parent = voidSky
 	end
 
-	for i = 1, NEBULA_COUNT do
-		local size = rng:NextNumber(NEBULA_MIN_SIZE, NEBULA_MAX_SIZE)
+	-- Nebula clouds
+	local nebulaColors = {
+		Color3.fromRGB(60, 20, 100),
+		Color3.fromRGB(80, 15, 80),
+		Color3.fromRGB(20, 30, 100),
+		Color3.fromRGB(40, 10, 70),
+		Color3.fromRGB(15, 40, 90),
+	}
 
+	for i = 1, 6 do
 		local nebula = Instance.new("Part")
 		nebula.Name = "Nebula_" .. i
 		nebula.Shape = Enum.PartType.Ball
+		local size = rng:NextInteger(80, 180)
 		nebula.Size = Vector3.new(size, size, size)
 		nebula.Material = Enum.Material.Neon
-		nebula.Color = NEBULA_COLORS[((i - 1) % #NEBULA_COLORS) + 1]
-		nebula.Transparency = 0.95
+		nebula.Color = nebulaColors[i]
+		nebula.Transparency = rng:NextInteger(93, 97) / 100
 		nebula.Anchored = true
 		nebula.CanCollide = false
 		nebula.CastShadow = false
-		nebula.Position = Vector3.new(
-			rng:NextNumber(-NEBULA_HORIZONTAL_RANGE, NEBULA_HORIZONTAL_RANGE),
-			rng:NextNumber(NEBULA_MIN_Y, NEBULA_MAX_Y),
-			rng:NextNumber(-NEBULA_HORIZONTAL_RANGE, NEBULA_HORIZONTAL_RANGE)
-		)
+		nebula.Locked = true
+		nebula.Position = Vector3.new(rng:NextInteger(-200, 200), rng:NextInteger(120, 280), rng:NextInteger(-200, 200))
 		nebula.Parent = voidSky
 	end
 
-	local lightHolder = Instance.new("Part")
-	lightHolder.Name = "VoidLight"
-	lightHolder.Anchored = true
-	lightHolder.CanCollide = false
-	lightHolder.CastShadow = false
-	lightHolder.Transparency = 1
-	lightHolder.Size = Vector3.new(1, 1, 1)
-	lightHolder.Position = Vector3.new(0, 200, 0)
-	lightHolder.Parent = voidSky
+	-- World ambient light source
+	local ambientPart = Instance.new("Part")
+	ambientPart.Size = Vector3.new(1, 1, 1)
+	ambientPart.Position = Vector3.new(0, 300, 0)
+	ambientPart.Anchored = true
+	ambientPart.CanCollide = false
+	ambientPart.Transparency = 1
+	ambientPart.Parent = voidSky
 
-	local light = Instance.new("PointLight")
-	light.Brightness = 2
-	light.Range = 500
-	light.Color = Color3.fromRGB(60, 30, 100)
-	light.Parent = lightHolder
-end
-
-local function setupVoidAtmosphere()
-	Lighting.Ambient = Color3.fromRGB(15, 10, 30)
-	Lighting.OutdoorAmbient = Color3.fromRGB(8, 5, 18)
-	Lighting.Brightness = 0
-	Lighting.ClockTime = 0
-	Lighting.FogEnd = 400
-	Lighting.FogStart = 200
-	Lighting.FogColor = Color3.fromRGB(5, 3, 15)
-
-	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.4
-	atmosphere.Offset = 0.1
-	atmosphere.Color = Color3.fromRGB(80, 60, 120)
-	atmosphere.Decay = Color3.fromRGB(20, 10, 40)
-	atmosphere.Glare = 0
-	atmosphere.Haze = 0.5
-	atmosphere.Parent = Lighting
-
-	local colorCorrection = Instance.new("ColorCorrectionEffect")
-	colorCorrection.Brightness = -0.05
-	colorCorrection.Contrast = 0.1
-	colorCorrection.Saturation = -0.1
-	colorCorrection.TintColor = Color3.fromRGB(200, 180, 255)
-	colorCorrection.Parent = Lighting
-
-	createVoidSky()
+	local ambientLight = Instance.new("PointLight")
+	ambientLight.Brightness = 1.5
+	ambientLight.Range = 600
+	ambientLight.Color = Color3.fromRGB(50, 25, 90)
+	ambientLight.Parent = ambientPart
 end
 
 setupVoidAtmosphere()
