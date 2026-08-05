@@ -26,7 +26,10 @@ export type VialData = {
 
 local VIAL_DROP_INTERVAL = 30
 local MAX_XZ_OFFSET = 3
-local Y_OFFSET = 1
+-- Must match VialClient.client.lua's VIAL_FLOAT_Y (pedestal redesign: the vial
+-- now floats up to chest height) so the invisible .Touched trigger this spawns
+-- lines up with where the vial actually appears, not down near the old pad.
+local Y_OFFSET = 9
 local VIAL_DESPAWN_TIME = 300
 
 local VialProducer = {}

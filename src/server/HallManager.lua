@@ -6,6 +6,7 @@ local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
 local Economy = require(script.Parent.Economy)
 local WarehouseManager = require(script.Parent.WarehouseManager)
+local MonsterVisuals = require(script.Parent.MonsterVisuals)
 
 local HallManager = {}
 
@@ -35,6 +36,15 @@ function HallManager.InitHall(player: Player)
 end
 
 function HallManager.ClearHall(player: Player)
+	local slots = playerSlots[player.UserId]
+	if slots then
+		for _, slot in slots do
+			if slot.monster then
+				MonsterVisuals.RemoveMonsterFromPad(player, slot.slotIndex)
+			end
+		end
+	end
+
 	playerSlots[player.UserId] = nil
 end
 
@@ -66,6 +76,8 @@ function HallManager.SlotMonster(player: Player, slotIndex: number, instanceId: 
 
 	WarehouseManager.RemoveMonster(player, instanceId)
 
+	MonsterVisuals.SpawnMonsterOnPad(player, slotIndex, monster.name, monster.emotion, monster.rarity)
+
 	updateHallRemote:FireClient(player, slots)
 
 	return true
@@ -88,6 +100,8 @@ function HallManager.UnslotMonster(player: Player, slotIndex: number): boolean
 
 	slot.monster = nil
 	slot.isActive = false
+
+	MonsterVisuals.RemoveMonsterFromPad(player, slotIndex)
 
 	updateHallRemote:FireClient(player, slots)
 

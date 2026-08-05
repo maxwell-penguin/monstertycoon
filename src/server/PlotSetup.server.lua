@@ -19,6 +19,137 @@ local function setCollisionGroup(part: BasePart)
 	part.CollisionGroup = COLLISION_GROUP
 end
 
+-- A Roblox Cylinder's axis runs along local X by default -- unrotated it lies
+-- on its side. Standing it upright (flat round face pointing along world Y)
+-- requires this 90-degree-about-Z rotation regardless of orientation intent.
+local UPRIGHT_CYLINDER = CFrame.Angles(0, 0, math.rad(90))
+
+-- Once UPRIGHT_CYLINDER is applied, local X becomes the vertical axis and
+-- local Y/Z (which must match for a true circle) become the horizontal
+-- footprint -- so a Part.Size is built as (thickness, diameter, diameter).
+local function padSize(diameter: number, thickness: number): Vector3
+	return Vector3.new(thickness, diameter, diameter)
+end
+
+local HALL_COLUMNS = 3
+local HALL_COLUMN_SPACING = 10
+local HALL_ROW_SPACING = 10
+-- Hall grid center sits 10 studs back (toward -Z) from PlotOrigin. Row count
+-- is fixed to the maximum hall tier (not any player's current tier) so pad
+-- positions never shift as a hall upgrades -- only TopGlow/Ring Transparency
+-- changes. SlotPositioner.lua mirrors this exact math so runtime vial spawn
+-- points always land on the matching pad.
+local HALL_ORIGIN_OFFSET = Vector3.new(0, 0, -10)
+local TOTAL_HALL_SLOTS = Constants.HALL_SLOT_COUNTS[5]
+local TOTAL_HALL_ROWS = math.ceil(TOTAL_HALL_SLOTS / HALL_COLUMNS)
+-- Visual-only cutoff, not the real hall tier 1 slot count (Constants.HALL_SLOT_COUNTS[1] stays
+-- 9) -- only the first 3 pedestals are built visible/collidable at server start.
+local VISIBLE_HALL_SLOTS = 3
+
+local function getSlotOffset(slotIndex: number): Vector3
+	local col = (slotIndex - 1) % HALL_COLUMNS
+	local row = math.floor((slotIndex - 1) / HALL_COLUMNS)
+	local colOffset = (col - (HALL_COLUMNS - 1) / 2) * HALL_COLUMN_SPACING
+	local rowOffset = (row - (TOTAL_HALL_ROWS - 1) / 2) * HALL_ROW_SPACING
+	return HALL_ORIGIN_OFFSET + Vector3.new(colOffset, 0, rowOffset)
+end
+
+local function createCylinder(
+	name: string,
+	size: Vector3,
+	color: Color3,
+	material: Enum.Material,
+	transparency: number,
+	cframe: CFrame,
+	canCollide: boolean
+): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Shape = Enum.PartType.Cylinder
+	part.Anchored = true
+	part.CanCollide = canCollide
+	part.Material = material
+	part.Color = color
+	part.Transparency = transparency
+	part.Size = size
+	part.CFrame = cframe
+	return part
+end
+
+local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex: number)
+	local groundY = gridPosition.Y
+	local offset = getSlotOffset(slotIndex)
+	local slotX = gridPosition.X + offset.X
+	local slotZ = gridPosition.Z + offset.Z
+
+	local function padCFrame(y: number): CFrame
+		return CFrame.new(slotX, y, slotZ) * UPRIGHT_CYLINDER
+	end
+
+	local slotModel = Instance.new("Model")
+	slotModel.Name = "SlotPad_" .. slotIndex
+	slotModel.Parent = plotModel
+
+	local isVisible = slotIndex <= VISIBLE_HALL_SLOTS
+	local GLOW_BLUE = Color3.fromRGB(120, 190, 255)
+
+	-- Sits on the ground (bottom at groundY), top face at groundY + 6.
+	local base = createCylinder(
+		"Base",
+		padSize(3, 6),
+		Color3.fromRGB(80, 140, 200),
+		Enum.Material.SmoothPlastic,
+		isVisible and 0 or 1,
+		padCFrame(groundY + 3),
+		isVisible
+	)
+	setCollisionGroup(base)
+	base.Parent = slotModel
+
+	local topGlow = createCylinder(
+		"TopGlow",
+		padSize(2.8, 0.15),
+		Color3.fromRGB(100, 180, 255),
+		Enum.Material.Neon,
+		isVisible and 0.3 or 1,
+		padCFrame(groundY + 6.05),
+		false
+	)
+	topGlow.Parent = slotModel
+
+	local ring = createCylinder(
+		"Ring",
+		padSize(3.6, 0.2),
+		GLOW_BLUE,
+		Enum.Material.Neon,
+		isVisible and 0.5 or 1,
+		padCFrame(groundY + 0.1),
+		false
+	)
+	ring.Parent = slotModel
+
+	local midRing = createCylinder(
+		"MidRing",
+		padSize(3.2, 0.15),
+		GLOW_BLUE,
+		Enum.Material.Neon,
+		isVisible and 0.7 or 1,
+		padCFrame(groundY + 3),
+		false
+	)
+	midRing.Parent = slotModel
+
+	local slotIndexValue = Instance.new("IntValue")
+	slotIndexValue.Name = "SlotIndex"
+	slotIndexValue.Value = slotIndex
+	slotIndexValue.Parent = slotModel
+
+	local isOccupied = Instance.new("BoolValue")
+	isOccupied.Name = "IsOccupied"
+	isOccupied.Value = false
+	isOccupied.Parent = slotModel
+end
+
 local function createPlot(index: number, plotsFolder: Folder)
 	local plotModel = Instance.new("Model")
 	plotModel.Name = "Plot_" .. index
@@ -47,33 +178,37 @@ local function createPlot(index: number, plotsFolder: Folder)
 	setCollisionGroup(ground)
 	ground.Parent = plotModel
 
-	-- Flat pad flush with the ground (top of Ground is at gridPosition.Y) that
+	-- Flat cylinder flush with the ground (top of Ground is at gridPosition.Y) that
 	-- players walk onto to trigger a deposit -- DropboxRemotes.server.lua listens
 	-- for .Touched on this Part directly, no ClickDetector.
-	local dropbox = Instance.new("Part")
-	dropbox.Name = "Dropbox"
-	dropbox.Anchored = true
-	dropbox.Size = Vector3.new(8, 0.5, 8)
-	dropbox.Position = gridPosition + Vector3.new(0, 0.25, -30)
-	dropbox.BrickColor = BrickColor.new("Bright green")
+	local dropboxCFrame = CFrame.new(gridPosition + Vector3.new(0, 0.25, -30)) * UPRIGHT_CYLINDER
+	local dropbox = createCylinder(
+		"Dropbox",
+		Vector3.new(0.5, 9, 9),
+		Color3.fromRGB(0, 200, 80),
+		Enum.Material.Neon,
+		0,
+		dropboxCFrame,
+		true
+	)
 	setCollisionGroup(dropbox)
 	dropbox.Parent = plotModel
 
-	local dropboxPad = Instance.new("Part")
-	dropboxPad.Name = "DropboxPad"
-	dropboxPad.Anchored = true
-	dropboxPad.CanCollide = false
-	dropboxPad.Size = dropbox.Size
-	dropboxPad.Position = dropbox.Position
-	dropboxPad.Transparency = 0
-	dropboxPad.Material = Enum.Material.Neon
-	dropboxPad.Color = BrickColor.new("Bright green").Color
-	dropboxPad.Parent = dropbox
+	local dropboxRing = createCylinder(
+		"DropboxRing",
+		Vector3.new(0.3, 10.5, 10.5),
+		Color3.fromRGB(0, 255, 100),
+		Enum.Material.Neon,
+		0.6,
+		dropboxCFrame,
+		false
+	)
+	dropboxRing.Parent = dropbox
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "SellLabel"
 	billboard.Size = UDim2.new(4, 0, 2, 0)
-	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.StudsOffset = Vector3.new(0, 4, 0)
 	billboard.AlwaysOnTop = true
 	billboard.Parent = dropbox
 
@@ -87,14 +222,9 @@ local function createPlot(index: number, plotsFolder: Folder)
 	textLabel.Font = Enum.Font.SourceSansBold
 	textLabel.Parent = billboard
 
-	local hallArea = Instance.new("Part")
-	hallArea.Name = "HallArea"
-	hallArea.Anchored = true
-	hallArea.Size = Vector3.new(40, 1, 30)
-	hallArea.Position = gridPosition + Vector3.new(0, 0.5, 0)
-	hallArea.Transparency = 0.5
-	setCollisionGroup(hallArea)
-	hallArea.Parent = plotModel
+	for slotIndex = 1, TOTAL_HALL_SLOTS do
+		createSlotPad(plotModel, gridPosition, slotIndex)
+	end
 
 	local warehouseArea = Instance.new("Part")
 	warehouseArea.Name = "WarehouseArea"
@@ -123,10 +253,14 @@ if not plotsFolder then
 	plotsFolder.Parent = Workspace
 end
 
-for i = 1, PLOT_COUNT do
-	if not plotsFolder:FindFirstChild("Plot_" .. i) then
-		createPlot(i, plotsFolder)
-	end
+-- temporary: only Plot_1 active during visual development
+if not plotsFolder:FindFirstChild("Plot_1") then
+	createPlot(1, plotsFolder)
 end
+-- for i = 2, PLOT_COUNT do
+-- 	if not plotsFolder:FindFirstChild("Plot_" .. i) then
+-- 		createPlot(i, plotsFolder)
+-- 	end
+-- end
 
-print(`[PlotSetup] Created {PLOT_COUNT} plots`)
+print(`[PlotSetup] Created 1 plot (temporary)`)

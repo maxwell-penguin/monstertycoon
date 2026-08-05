@@ -17,6 +17,16 @@ local vialRemovedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_RE
 -- axis and local Y/Z become the horizontal circular footprint.
 local UPRIGHT_CYLINDER = CFrame.Angles(0, 0, math.rad(90))
 
+-- Plots are flat (gridPosition.Y is always 0 in PlotSetup.server.lua), so the
+-- stage Y values are computed from this fixed ground level rather than from
+-- vialSpawnedRemote's position.Y -- that field is the vial's final resting
+-- height (VialProducer's Y_OFFSET), not any of the earlier stages' heights.
+local GROUND_Y = 0
+local PEDESTAL_TOP_Y = GROUND_Y + 6
+local DROPLET_START_Y = PEDESTAL_TOP_Y + 3 -- pedestal top + roughly monster height
+local PUDDLE_Y = GROUND_Y + 6.1
+local VIAL_FLOAT_Y = GROUND_Y + 9 -- chest height; matches VialProducer.lua's Y_OFFSET
+
 -- Keyed by vialId, holds every Part/light/emitter created for that vial across
 -- all three animation stages so VIAL_REMOVED can wipe them regardless of which
 -- stage is currently playing.
@@ -95,6 +105,9 @@ local function spawnPuddle(vialId: string, position: Vector3, emotion: string, e
 end
 
 local function spawnDroplet(vialId: string, position: Vector3, emotion: string, emotionColor: Color3)
+	local startPosition = Vector3.new(position.X, DROPLET_START_Y, position.Z)
+	local landPosition = Vector3.new(position.X, PUDDLE_Y, position.Z)
+
 	local droplet = Instance.new("Part")
 	droplet.Name = "Droplet_" .. vialId
 	droplet.Shape = Enum.PartType.Ball
@@ -102,19 +115,19 @@ local function spawnDroplet(vialId: string, position: Vector3, emotion: string, 
 	droplet.CanCollide = false
 	droplet.Color = emotionColor
 	droplet.Size = Vector3.new(0.3, 0.3, 0.3)
-	droplet.Position = position + Vector3.new(0, 6, 0)
+	droplet.Position = startPosition
 	droplet.Parent = Workspace
 	track(vialId, droplet)
 
 	local fallTween = TweenService:Create(
 		droplet,
 		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-		{ Position = position }
+		{ Position = landPosition }
 	)
 	fallTween.Completed:Connect(function()
 		droplet:Destroy()
 		if not cancelled[vialId] then
-			spawnPuddle(vialId, position, emotion, emotionColor)
+			spawnPuddle(vialId, landPosition, emotion, emotionColor)
 		end
 	end)
 	fallTween:Play()
@@ -135,6 +148,9 @@ function spawnVial(vialId: string, position: Vector3, emotion: string, emotionCo
 		puddle:Destroy()
 	end
 
+	local startPosition = Vector3.new(position.X, PEDESTAL_TOP_Y, position.Z)
+	local floatPosition = Vector3.new(position.X, VIAL_FLOAT_Y, position.Z)
+
 	local vial = Instance.new("Part")
 	vial.Name = "Vial_" .. vialId
 	vial.Shape = Enum.PartType.Cylinder
@@ -143,7 +159,7 @@ function spawnVial(vialId: string, position: Vector3, emotion: string, emotionCo
 	vial.Material = Enum.Material.Neon
 	vial.Color = emotionColor
 	vial.Transparency = 0.1
-	vial.CFrame = CFrame.new(position) * UPRIGHT_CYLINDER
+	vial.CFrame = CFrame.new(startPosition) * UPRIGHT_CYLINDER
 	vial.Size = Vector3.new(1.4, 0.7, 0.7)
 	vial.Parent = Workspace
 	track(vialId, vial)
@@ -167,7 +183,7 @@ function spawnVial(vialId: string, position: Vector3, emotion: string, emotionCo
 	local riseTween = TweenService:Create(
 		vial,
 		TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-		{ CFrame = vial.CFrame + Vector3.new(0, 2.5, 0) }
+		{ CFrame = CFrame.new(floatPosition) * UPRIGHT_CYLINDER }
 	)
 	riseTween.Completed:Connect(function()
 		if not cancelled[vialId] then
