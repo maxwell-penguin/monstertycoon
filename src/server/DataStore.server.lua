@@ -97,6 +97,7 @@ local function onPlayerAdded(player: Player)
 	-- TownManager.AddXP(player, Constants.XP_REWARDS.sessionMilestone).
 
 	PlayerManager.Load(player.UserId, data)
+	PlayerManager.GiveTestCoins(player) -- TEMP: remove before launch
 	PlotManager.AssignPlot(player)
 	HallManager.InitHall(player)
 	WarehouseManager.InitWarehouse(player)

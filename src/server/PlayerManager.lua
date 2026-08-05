@@ -80,6 +80,17 @@ function PlayerManager.DecrementCoins(userId: number, amount: number): boolean
 	return true
 end
 
+-- TEMP: remove before launch
+function PlayerManager.GiveTestCoins(player: Player)
+	local userId = player.UserId
+	local data = playerData[userId]
+	if not data then
+		return
+	end
+	data.coins = 999999999999
+	dirtyFlags[userId] = true
+end
+
 function PlayerManager.IsDirty(userId: number): boolean
 	return dirtyFlags[userId] == true
 end
