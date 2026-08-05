@@ -17,6 +17,7 @@ local mergeMonstersRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MERGE
 local playerDataLoadedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
 local eggResultRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.EGG_RESULT) :: RemoteEvent
 local sessionRewardRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SESSION_REWARD) :: RemoteEvent
+local leaderboardUpdateRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.LEADERBOARD_UPDATE) :: RemoteEvent
 
 -- BindableEvent so UIInput.client.lua (a separate LocalScript, can't be require()'d)
 -- can hear about button clicks without UIManager reaching into RemoteEvents itself.
@@ -186,16 +187,19 @@ hud.BackgroundTransparency = 1
 hud.Parent = screenGui
 panels.HUD = hud
 
--- Coin counter (top-left)
+-- Coin counter (top-center)
 local coinFrame = Instance.new("Frame")
 coinFrame.Name = "CoinCounter"
-coinFrame.Position = UDim2.new(0, 16, 0, 16)
-coinFrame.Size = UDim2.new(0, 220, 0, 60)
+coinFrame.AnchorPoint = Vector2.new(0.5, 0)
+coinFrame.Position = UDim2.new(0.5, 0, 0, 12)
+coinFrame.Size = UDim2.new(0, 320, 0, 70)
 coinFrame.BackgroundColor3 = PANEL_BG
 coinFrame.BackgroundTransparency = 0.3
 coinFrame.BorderSizePixel = 0
 coinFrame.Parent = hud
 addCorner(coinFrame, 8)
+local coinFrameStroke = addStroke(coinFrame, Color3.fromRGB(180, 140, 0))
+coinFrameStroke.Transparency = 0.5
 
 local coinAmountLabel = Instance.new("TextLabel")
 coinAmountLabel.Name = "CoinAmount"
@@ -203,9 +207,9 @@ coinAmountLabel.Size = UDim2.new(1, -16, 0, 34)
 coinAmountLabel.Position = UDim2.new(0, 8, 0, 4)
 coinAmountLabel.BackgroundTransparency = 1
 coinAmountLabel.Font = Enum.Font.GothamBold
-coinAmountLabel.TextSize = 28
+coinAmountLabel.TextSize = 32
 coinAmountLabel.TextColor3 = GOLD
-coinAmountLabel.TextXAlignment = Enum.TextXAlignment.Left
+coinAmountLabel.TextXAlignment = Enum.TextXAlignment.Center
 coinAmountLabel.Text = "0"
 coinAmountLabel.Parent = coinFrame
 
@@ -237,15 +241,16 @@ earnRateLabel.BackgroundTransparency = 1
 earnRateLabel.Font = Enum.Font.Gotham
 earnRateLabel.TextSize = 14
 earnRateLabel.TextColor3 = GRAY
-earnRateLabel.TextXAlignment = Enum.TextXAlignment.Left
+earnRateLabel.TextXAlignment = Enum.TextXAlignment.Center
 earnRateLabel.Text = "+0/sec"
 earnRateLabel.Parent = coinFrame
 
--- Bag indicator (top-right)
+-- Bag indicator (top-left -- moved off top-right to make room for the new
+-- LeaderboardPanel there; top-left was vacated by CoinCounter's move to
+-- top-center)
 local bagFrame = Instance.new("Frame")
 bagFrame.Name = "BagIndicator"
-bagFrame.AnchorPoint = Vector2.new(1, 0)
-bagFrame.Position = UDim2.new(1, -16, 0, 16)
+bagFrame.Position = UDim2.new(0, 16, 0, 16)
 bagFrame.Size = UDim2.new(0, 160, 0, 60)
 bagFrame.BackgroundColor3 = PANEL_BG
 bagFrame.BackgroundTransparency = 0.3
@@ -283,11 +288,11 @@ addCorner(bagBarFill, 4)
 
 local bagPulseTween: Tween? = nil
 
--- Town level indicator (top-center)
+-- Town level indicator (top-left, stacked below the bag indicator -- the new
+-- wider/taller CoinCounter now occupies top-center)
 local townFrame = Instance.new("Frame")
 townFrame.Name = "TownLevelIndicator"
-townFrame.AnchorPoint = Vector2.new(0.5, 0)
-townFrame.Position = UDim2.new(0.5, 0, 0, 16)
+townFrame.Position = UDim2.new(0, 16, 0, 84)
 townFrame.Size = UDim2.new(0, 200, 0, 60)
 townFrame.BackgroundColor3 = PANEL_BG
 townFrame.BackgroundTransparency = 0.3
@@ -322,6 +327,143 @@ xpBarFill.BackgroundColor3 = PURPLE
 xpBarFill.BorderSizePixel = 0
 xpBarFill.Parent = xpBarTrack
 addCorner(xpBarFill, 3)
+
+-- Leaderboard panel (top-right)
+local leaderboardPanel = Instance.new("Frame")
+leaderboardPanel.Name = "LeaderboardPanel"
+leaderboardPanel.AnchorPoint = Vector2.new(1, 0)
+leaderboardPanel.Position = UDim2.new(1, -16, 0, 16)
+leaderboardPanel.Size = UDim2.new(0, 200, 0, 220)
+leaderboardPanel.BackgroundColor3 = Color3.fromRGB(12, 9, 22)
+leaderboardPanel.BackgroundTransparency = 0.2
+leaderboardPanel.BorderSizePixel = 0
+leaderboardPanel.Parent = hud
+addCorner(leaderboardPanel, 10)
+local leaderboardStroke = addStroke(leaderboardPanel, Color3.fromRGB(80, 50, 140))
+leaderboardStroke.Transparency = 0.3
+
+local leaderboardHeader = Instance.new("TextLabel")
+leaderboardHeader.Name = "Header"
+leaderboardHeader.Size = UDim2.new(1, 0, 0, 30)
+leaderboardHeader.BackgroundTransparency = 1
+leaderboardHeader.Font = Enum.Font.GothamBold
+leaderboardHeader.TextSize = 13
+leaderboardHeader.TextColor3 = Color3.fromRGB(180, 140, 255)
+leaderboardHeader.TextXAlignment = Enum.TextXAlignment.Center
+leaderboardHeader.Text = "TOP EARNERS"
+leaderboardHeader.Parent = leaderboardPanel
+
+local LEADERBOARD_RANK_COLORS = {
+	Color3.fromRGB(255, 210, 50), -- 1st: gold
+	Color3.fromRGB(200, 200, 200), -- 2nd: silver
+	Color3.fromRGB(200, 140, 80), -- 3rd: bronze
+	Color3.fromRGB(140, 120, 180), -- 4th: dim purple
+	Color3.fromRGB(140, 120, 180), -- 5th: dim purple
+}
+
+type LeaderboardRow = {
+	frame: Frame,
+	rank: TextLabel,
+	name: TextLabel,
+	earnings: TextLabel,
+	defaultColor: Color3,
+	defaultTransparency: number,
+}
+
+local leaderboardRows: { LeaderboardRow } = {}
+
+for i = 1, 5 do
+	local rowColor = Color3.fromRGB(20, 15, 35)
+	local rowTransparency = (i % 2 == 1) and 0.5 or 1
+
+	local row = Instance.new("Frame")
+	row.Name = "Row_" .. i
+	row.Size = UDim2.new(1, -16, 0, 34)
+	row.Position = UDim2.new(0, 8, 0, 32 + (i - 1) * 36)
+	row.BackgroundColor3 = rowColor
+	row.BackgroundTransparency = rowTransparency
+	row.BorderSizePixel = 0
+	row.Parent = leaderboardPanel
+
+	local rankLabel = Instance.new("TextLabel")
+	rankLabel.Name = "Rank"
+	rankLabel.Size = UDim2.new(0, 24, 1, 0)
+	rankLabel.BackgroundTransparency = 1
+	rankLabel.Font = Enum.Font.GothamBold
+	rankLabel.TextSize = 13
+	rankLabel.TextColor3 = LEADERBOARD_RANK_COLORS[i]
+	rankLabel.Text = tostring(i)
+	rankLabel.Parent = row
+
+	local rowNameLabel = Instance.new("TextLabel")
+	rowNameLabel.Name = "PlayerName"
+	rowNameLabel.Size = UDim2.new(0, 100, 1, 0)
+	rowNameLabel.Position = UDim2.new(0, 28, 0, 0)
+	rowNameLabel.BackgroundTransparency = 1
+	rowNameLabel.Font = Enum.Font.Gotham
+	rowNameLabel.TextSize = 12
+	rowNameLabel.TextColor3 = WHITE
+	rowNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	rowNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	rowNameLabel.Text = "---"
+	rowNameLabel.Parent = row
+
+	local earningsLabel = Instance.new("TextLabel")
+	earningsLabel.Name = "Earnings"
+	earningsLabel.Size = UDim2.new(0, 60, 1, 0)
+	earningsLabel.Position = UDim2.new(1, -60, 0, 0)
+	earningsLabel.BackgroundTransparency = 1
+	earningsLabel.Font = Enum.Font.GothamBold
+	earningsLabel.TextSize = 12
+	earningsLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
+	earningsLabel.TextXAlignment = Enum.TextXAlignment.Right
+	earningsLabel.Text = ""
+	earningsLabel.Parent = row
+
+	leaderboardRows[i] = {
+		frame = row,
+		rank = rankLabel,
+		name = rowNameLabel,
+		earnings = earningsLabel,
+		defaultColor = rowColor,
+		defaultTransparency = rowTransparency,
+	}
+end
+
+local LOCAL_PLAYER_ROW_COLOR = Color3.fromRGB(40, 25, 70)
+
+leaderboardUpdateRemote.OnClientEvent:Connect(function(top: any)
+	if typeof(top) ~= "table" then
+		return
+	end
+
+	for i = 1, 5 do
+		local row = leaderboardRows[i]
+		local entry = top[i]
+		local isLocalPlayer = false
+
+		if entry then
+			row.name.Text = entry.playerName
+			row.earnings.Text = NumberFormatter.Format(entry.coins)
+			isLocalPlayer = entry.playerName == player.Name
+		else
+			row.name.Text = "---"
+			row.earnings.Text = ""
+		end
+
+		local targetColor = isLocalPlayer and LOCAL_PLAYER_ROW_COLOR or row.defaultColor
+		local targetTransparency = isLocalPlayer and 0 or row.defaultTransparency
+
+		-- Flash white, then tween both color and transparency back to their
+		-- (possibly just-changed, e.g. local-player-highlight) target state.
+		row.frame.BackgroundColor3 = Color3.new(1, 1, 1)
+		row.frame.BackgroundTransparency = 0.2
+		TweenService:Create(row.frame, TweenInfo.new(0.3), {
+			BackgroundColor3 = targetColor,
+			BackgroundTransparency = targetTransparency,
+		}):Play()
+	end
+end)
 
 -- Boost HUD (bottom-center, hidden when no boost)
 local BOOST_HUD_HIDDEN_Y = 90

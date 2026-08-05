@@ -47,6 +47,9 @@ RemoteEvents.EVENTS = {
 	-- Town
 	TOWN_UPDATED = "TownUpdated",
 
+	-- Leaderboard
+	LEADERBOARD_UPDATE = "LeaderboardUpdate",
+
 	-- Monetization
 	SET_WALK_SPEED = "SetWalkSpeed",
 	LUCK_BOOST_ACTIVE = "LuckBoostActive",
