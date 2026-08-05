@@ -7,14 +7,12 @@ local PlayerManager = require(script.Parent.PlayerManager)
 local WarehouseManager = require(script.Parent.WarehouseManager)
 local HallManager = require(script.Parent.HallManager)
 local TownManager = require(script.Parent.TownManager)
-local RollManager = require(script.Parent.RollManager)
 
 local STARTER_MONSTER = "Sparklet"
 local COMPLETION_XP = 200
 local PERSONAL_BOOST_EMOTION = "Joy"
 local PERSONAL_BOOST_MULTIPLIER = 3
 local PERSONAL_BOOST_DURATION = 120
-local TWO_MINUTE_MILESTONE_SECONDS = 120
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local ftueStepRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.FTUE_STEP) :: RemoteEvent
@@ -60,33 +58,6 @@ function FTUEManager.IsFTUEComplete(player: Player): boolean
 	return (data and data.ftueComplete) or false
 end
 
-local function findSessionReward(seconds: number): any
-	for _, entry in Constants.SESSION_REWARDS do
-		if entry.seconds == seconds then
-			return entry
-		end
-	end
-	return nil
-end
-
--- The generic timer-based session reward system isn't built yet (still a Phase 16+
--- item per the stub comment in DataStore.server.lua); this only grants the one
--- specific milestone FTUE completion is tied to.
-local function grantTwoMinuteSessionReward(player: Player)
-	local rewardEntry = findSessionReward(TWO_MINUTE_MILESTONE_SECONDS)
-	if not rewardEntry then
-		return
-	end
-
-	if rewardEntry.reward == "coins" then
-		PlayerManager.IncrementCoins(player.UserId, rewardEntry.amount)
-	elseif rewardEntry.reward == "egg" then
-		RollManager.PerformPremiumRoll(player, rewardEntry.rarity, true)
-	end
-
-	TownManager.AddXP(player, Constants.XP_REWARDS.sessionMilestone)
-end
-
 function FTUEManager.CompleteFTUE(player: Player)
 	local userId = player.UserId
 
@@ -97,8 +68,6 @@ function FTUEManager.CompleteFTUE(player: Player)
 	ftueStepRemote:FireClient(player, { stepName = "complete", firstBoostActive = true })
 
 	TownManager.AddXP(player, COMPLETION_XP)
-
-	grantTwoMinuteSessionReward(player)
 end
 
 function FTUEManager.StartFTUE(player: Player)

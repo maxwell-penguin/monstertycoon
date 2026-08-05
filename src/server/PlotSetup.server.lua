@@ -1,6 +1,7 @@
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PhysicsService = game:GetService("PhysicsService")
+local Lighting = game:GetService("Lighting")
 
 local Constants = require(ReplicatedStorage.Constants)
 
@@ -18,6 +19,44 @@ end)
 local function setCollisionGroup(part: BasePart)
 	part.CollisionGroup = COLLISION_GROUP
 end
+
+local function setupVoidAtmosphere()
+	Lighting.Ambient = Color3.fromRGB(20, 15, 35)
+	Lighting.OutdoorAmbient = Color3.fromRGB(10, 8, 20)
+	Lighting.Brightness = 0.3
+	Lighting.ClockTime = 0
+	Lighting.FogEnd = 300
+	Lighting.FogStart = 150
+	Lighting.FogColor = Color3.fromRGB(8, 5, 18)
+
+	local atmosphere = Instance.new("Atmosphere")
+	atmosphere.Density = 0.4
+	atmosphere.Offset = 0.1
+	atmosphere.Color = Color3.fromRGB(80, 60, 120)
+	atmosphere.Decay = Color3.fromRGB(20, 10, 40)
+	atmosphere.Glare = 0
+	atmosphere.Haze = 0.5
+	atmosphere.Parent = Lighting
+
+	-- Placeholder ids (0) until a real void sky texture is authored and uploaded.
+	local sky = Instance.new("Sky")
+	sky.SkyboxBk = "rbxassetid://0"
+	sky.SkyboxDn = "rbxassetid://0"
+	sky.SkyboxFt = "rbxassetid://0"
+	sky.SkyboxLf = "rbxassetid://0"
+	sky.SkyboxRt = "rbxassetid://0"
+	sky.SkyboxUp = "rbxassetid://0"
+	sky.Parent = Lighting
+
+	local colorCorrection = Instance.new("ColorCorrectionEffect")
+	colorCorrection.Brightness = -0.05
+	colorCorrection.Contrast = 0.1
+	colorCorrection.Saturation = -0.1
+	colorCorrection.TintColor = Color3.fromRGB(200, 180, 255)
+	colorCorrection.Parent = Lighting
+end
+
+setupVoidAtmosphere()
 
 -- A Roblox Cylinder's axis runs along local X by default -- unrotated it lies
 -- on its side. Standing it upright (flat round face pointing along world Y)
@@ -74,6 +113,80 @@ local function createCylinder(
 	part.Size = size
 	part.CFrame = cframe
 	return part
+end
+
+local PLOT_WIDTH = 60 -- matches Ground.Size.X below
+local PLOT_DEPTH = 80 -- matches Ground.Size.Z below
+local BORDER_WALL_HEIGHT = 8
+local BORDER_WALL_THICKNESS = 0.3
+local BORDER_WALL_COLOR = Color3.fromRGB(60, 40, 100)
+local BORDER_POST_COLOR = Color3.fromRGB(100, 70, 160)
+
+local function createBorderWall(name: string, size: Vector3, position: Vector3): Part
+	local wall = Instance.new("Part")
+	wall.Name = name
+	wall.Anchored = true
+	wall.CanCollide = false
+	wall.Material = Enum.Material.Neon
+	wall.Color = BORDER_WALL_COLOR
+	wall.Transparency = 0.85
+	wall.Size = size
+	wall.Position = position
+	return wall
+end
+
+-- Faint boundary walls (see-through) plus 4 brighter corner posts, sized off
+-- the Ground Part's own footprint so they always match its edges.
+local function createPlotBorder(plotModel: Model, gridPosition: Vector3)
+	local wallY = gridPosition.Y + BORDER_WALL_HEIGHT / 2
+	local halfWidth = PLOT_WIDTH / 2
+	local halfDepth = PLOT_DEPTH / 2
+
+	local walls = {
+		createBorderWall(
+			"BorderWall_1",
+			Vector3.new(PLOT_WIDTH, BORDER_WALL_HEIGHT, BORDER_WALL_THICKNESS),
+			gridPosition + Vector3.new(0, BORDER_WALL_HEIGHT / 2, halfDepth)
+		),
+		createBorderWall(
+			"BorderWall_2",
+			Vector3.new(PLOT_WIDTH, BORDER_WALL_HEIGHT, BORDER_WALL_THICKNESS),
+			gridPosition + Vector3.new(0, BORDER_WALL_HEIGHT / 2, -halfDepth)
+		),
+		createBorderWall(
+			"BorderWall_3",
+			Vector3.new(BORDER_WALL_THICKNESS, BORDER_WALL_HEIGHT, PLOT_DEPTH),
+			gridPosition + Vector3.new(halfWidth, BORDER_WALL_HEIGHT / 2, 0)
+		),
+		createBorderWall(
+			"BorderWall_4",
+			Vector3.new(BORDER_WALL_THICKNESS, BORDER_WALL_HEIGHT, PLOT_DEPTH),
+			gridPosition + Vector3.new(-halfWidth, BORDER_WALL_HEIGHT / 2, 0)
+		),
+	}
+	for _, wall in walls do
+		wall.Parent = plotModel
+	end
+
+	local postSize = padSize(0.4, BORDER_WALL_HEIGHT)
+	local corners = {
+		Vector3.new(halfWidth, wallY, halfDepth),
+		Vector3.new(halfWidth, wallY, -halfDepth),
+		Vector3.new(-halfWidth, wallY, halfDepth),
+		Vector3.new(-halfWidth, wallY, -halfDepth),
+	}
+	for i, corner in corners do
+		local post = createCylinder(
+			"BorderPost_" .. i,
+			postSize,
+			BORDER_POST_COLOR,
+			Enum.Material.Neon,
+			0.6,
+			CFrame.new(gridPosition + corner) * UPRIGHT_CYLINDER,
+			false
+		)
+		post.Parent = plotModel
+	end
 end
 
 local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex: number)
@@ -172,11 +285,25 @@ local function createPlot(index: number, plotsFolder: Folder)
 	local ground = Instance.new("Part")
 	ground.Name = "Ground"
 	ground.Anchored = true
-	ground.Size = Vector3.new(60, 1, 80)
+	ground.Size = Vector3.new(PLOT_WIDTH, 1, PLOT_DEPTH)
 	ground.Position = gridPosition + Vector3.new(0, -0.5, 0)
-	ground.Color = Constants.EMOTION_COLORS.Void
+	ground.Material = Enum.Material.Granite
+	ground.Color = Color3.fromRGB(15, 12, 25)
 	setCollisionGroup(ground)
 	ground.Parent = plotModel
+
+	local groundGlow = Instance.new("Part")
+	groundGlow.Name = "GroundGlow"
+	groundGlow.Anchored = true
+	groundGlow.CanCollide = false
+	groundGlow.Size = Vector3.new(ground.Size.X, 0.05, ground.Size.Z)
+	groundGlow.Position = gridPosition + Vector3.new(0, 0.025, 0)
+	groundGlow.Material = Enum.Material.Neon
+	groundGlow.Color = Color3.fromRGB(30, 20, 50)
+	groundGlow.Transparency = 0.9
+	groundGlow.Parent = plotModel
+
+	createPlotBorder(plotModel, gridPosition)
 
 	-- Flat cylinder flush with the ground (top of Ground is at gridPosition.Y) that
 	-- players walk onto to trigger a deposit -- DropboxRemotes.server.lua listens

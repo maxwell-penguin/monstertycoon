@@ -18,6 +18,7 @@ local TownManager = require(script.Parent.TownManager)
 local MonetizationManager = require(script.Parent.MonetizationManager)
 local FTUEManager = require(script.Parent.FTUEManager)
 local AntiCheat = require(script.Parent.AntiCheat)
+local SessionRewards = require(script.Parent.SessionRewards)
 
 type PlayerData = Types.PlayerData
 
@@ -92,10 +93,6 @@ local function onPlayerAdded(player: Player)
 	local data = loadData(player.UserId)
 	data.sessionStartTime = os.time()
 
-	-- Constants.SESSION_REWARDS milestones aren't wired to fire yet (Phase 16 FTUE).
-	-- When that system lands, each claimed milestone should also call
-	-- TownManager.AddXP(player, Constants.XP_REWARDS.sessionMilestone).
-
 	PlayerManager.Load(player.UserId, data)
 	PlayerManager.GiveTestCoins(player) -- TEMP: remove before launch
 	PlotManager.AssignPlot(player)
@@ -104,6 +101,7 @@ local function onPlayerAdded(player: Player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
 	BagManager.InitBag(player)
 	TownManager.InitTown(player)
+	SessionRewards.InitSessionRewards(player)
 
 	-- Non-blocking: UserOwnsGamePassAsync is a real network call made once per
 	-- gamepass (10 of them), sequentially. Blocking onPlayerAdded on all 10 would
@@ -128,6 +126,7 @@ end
 
 local function onPlayerRemoving(player: Player)
 	BoostState.ClearPersonalBoost(player.UserId)
+	SessionRewards.StopSessionRewards(player)
 	PlotManager.ReleasePlot(player)
 	HallManager.ClearHall(player)
 	VialProducer.StopProduction(player)
