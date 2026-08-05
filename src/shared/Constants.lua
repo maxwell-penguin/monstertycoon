@@ -161,6 +161,8 @@ Constants.GAMEPASS_IDS = {
 	Income5x = 0,
 	Income7x = 0,
 	Income10x = 0,
+	AutoMerge = 0,
+	VoidPass = 0,
 }
 
 Constants.PRODUCT_IDS = {

@@ -987,50 +987,679 @@ end)
 -- Shop Panel
 --============================================================
 
+type ShopItem = {
+	name: string,
+	desc: string,
+	icon: string,
+	priceText: string,
+	kind: "coins" | "product" | "gamepass",
+	key: string?,
+	targetTier: number?,
+}
+
+local SHOP_TAB_ORDER = { "EGGS", "BOOSTS", "UPGRADES", "PASSES", "VOID PASS" }
+local SHOP_TAB_COLORS: { [string]: Color3 } = {
+	EGGS = Color3.fromRGB(200, 150, 50),
+	BOOSTS = Color3.fromRGB(100, 200, 100),
+	UPGRADES = Color3.fromRGB(80, 150, 220),
+	PASSES = Color3.fromRGB(150, 80, 220),
+	["VOID PASS"] = Color3.fromRGB(200, 100, 200),
+}
+
+local SHOP_ITEMS: { [string]: { ShopItem } } = {
+	EGGS = {
+		{
+			name = "Rare Egg",
+			desc = "Guaranteed Rare or better",
+			icon = "🥚",
+			priceText = "149 R$",
+			kind = "product",
+			key = "RareEgg",
+		},
+		{
+			name = "Epic Egg",
+			desc = "Guaranteed Epic or better",
+			icon = "🥚",
+			priceText = "349 R$",
+			kind = "product",
+			key = "EpicEgg",
+		},
+		{
+			name = "Legendary Egg",
+			desc = "Guaranteed Legendary or better",
+			icon = "🥚",
+			priceText = "699 R$",
+			kind = "product",
+			key = "LegendaryEgg",
+		},
+		{
+			name = "Mythic Egg",
+			desc = "Guaranteed Mythic monster",
+			icon = "🥚",
+			priceText = "1999 R$",
+			kind = "product",
+			key = "MythicEgg",
+		},
+		{
+			name = "Starter Pack",
+			desc = "Infinite Bag + Luck Boost + Rare Egg",
+			icon = "🎁",
+			priceText = "299 R$",
+			kind = "product",
+			key = "StarterPack",
+		},
+		{
+			name = "Void Pack",
+			desc = "Epic Egg + Luck Boost + Speed Boots",
+			icon = "🎁",
+			priceText = "599 R$",
+			kind = "product",
+			key = "VoidPack",
+		},
+	},
+	BOOSTS = {
+		{
+			name = "Luck Boost",
+			desc = "+50% egg odds for 15 min",
+			icon = "🍀",
+			priceText = "99 R$",
+			kind = "product",
+			key = "LuckBoost",
+		},
+		{
+			name = "Merge Boost",
+			desc = "Next 5 merges free",
+			icon = "⚡",
+			priceText = "59 R$",
+			kind = "product",
+			key = "MergeBoost",
+		},
+		{
+			name = "Server Boost",
+			desc = "Whole server 1.5x earnings 10 min",
+			icon = "🌐",
+			priceText = "199 R$",
+			kind = "product",
+			key = "ServerBoost",
+		},
+		{
+			name = "2x Income",
+			desc = "Permanent 2x all earnings",
+			icon = "💰",
+			priceText = "GAMEPASS",
+			kind = "gamepass",
+			key = "Income2x",
+		},
+		{
+			name = "3x Income",
+			desc = "Permanent 3x all earnings",
+			icon = "💰",
+			priceText = "GAMEPASS",
+			kind = "gamepass",
+			key = "Income3x",
+		},
+		{
+			name = "5x Income",
+			desc = "Permanent 5x all earnings",
+			icon = "💰",
+			priceText = "GAMEPASS",
+			kind = "gamepass",
+			key = "Income5x",
+		},
+		{
+			name = "7x Income",
+			desc = "Permanent 7x all earnings",
+			icon = "💰",
+			priceText = "GAMEPASS",
+			kind = "gamepass",
+			key = "Income7x",
+		},
+		{
+			name = "10x Income",
+			desc = "Permanent 10x all earnings",
+			icon = "💰",
+			priceText = "GAMEPASS",
+			kind = "gamepass",
+			key = "Income10x",
+		},
+	},
+	UPGRADES = {
+		{
+			name = "Satchel",
+			desc = "25 vial bag capacity",
+			icon = "👜",
+			priceText = `{NumberFormatter.Format(500)} coins`,
+			kind = "coins",
+			targetTier = 2,
+		},
+		{
+			name = "Backpack",
+			desc = "50 vial bag capacity",
+			icon = "👜",
+			priceText = `{NumberFormatter.Format(3000)} coins`,
+			kind = "coins",
+			targetTier = 3,
+		},
+		{
+			name = "Vault Pack",
+			desc = "100 vial bag capacity",
+			icon = "👜",
+			priceText = `{NumberFormatter.Format(15000)} coins`,
+			kind = "coins",
+			targetTier = 4,
+		},
+		{
+			name = "Void Carrier",
+			desc = "250 vial bag capacity",
+			icon = "👜",
+			priceText = "199 R$",
+			kind = "gamepass",
+			key = "VoidCarrier",
+		},
+		{
+			name = "Infinite Bag",
+			desc = "Unlimited vial carry",
+			icon = "👜",
+			priceText = "499 R$",
+			kind = "gamepass",
+			key = "InfiniteBag",
+		},
+		{
+			name = "Speed Boots",
+			desc = "+30% walk speed permanently",
+			icon = "👟",
+			priceText = "149 R$",
+			kind = "gamepass",
+			key = "SpeedBoots",
+		},
+		{
+			name = "Extra Plot",
+			desc = "Second monster plot slot",
+			icon = "🏭",
+			priceText = "399 R$",
+			kind = "gamepass",
+			key = "ExtraPlot",
+		},
+		{
+			name = "Boost Insider",
+			desc = "See next boost 15s early",
+			icon = "👁",
+			priceText = "299 R$",
+			kind = "gamepass",
+			key = "BoostInsider",
+		},
+	},
+	PASSES = {
+		{
+			name = "Infinite Bag",
+			desc = "Unlimited vial carry forever",
+			icon = "👜",
+			priceText = "499 R$",
+			kind = "gamepass",
+			key = "InfiniteBag",
+		},
+		{
+			name = "Speed Boots",
+			desc = "+30% walk speed forever",
+			icon = "👟",
+			priceText = "149 R$",
+			kind = "gamepass",
+			key = "SpeedBoots",
+		},
+		{
+			name = "Boost Insider",
+			desc = "Preview next boost early",
+			icon = "👁",
+			priceText = "299 R$",
+			kind = "gamepass",
+			key = "BoostInsider",
+		},
+		{
+			name = "Extra Plot",
+			desc = "Second monster plot",
+			icon = "🏭",
+			priceText = "399 R$",
+			kind = "gamepass",
+			key = "ExtraPlot",
+		},
+		{
+			name = "Auto Merge",
+			desc = "Warehouse auto-merges monsters",
+			icon = "⚙",
+			priceText = "299 R$",
+			kind = "gamepass",
+			key = "AutoMerge",
+		},
+	},
+}
+
 local shopPanel = Instance.new("Frame")
 shopPanel.Name = "ShopPanel"
-shopPanel.Position = UDim2.new(0.5, -250, 0.5, -300)
-shopPanel.Size = UDim2.new(0, 500, 0, 600)
-shopPanel.BackgroundColor3 = PANEL_BG
+shopPanel.Position = UDim2.new(0.5, -320, 0.5, -280)
+shopPanel.Size = UDim2.new(0, 640, 0, 560)
+shopPanel.BackgroundColor3 = Color3.fromRGB(12, 9, 22)
+shopPanel.BackgroundTransparency = 0
 shopPanel.BorderSizePixel = 0
+-- Header/tab bar below sit flush against the panel edges with square corners
+-- of their own; without this they'd visibly poke out past the panel's own
+-- rounded UICorner instead of being clipped to match it.
+shopPanel.ClipsDescendants = true
 shopPanel.Visible = false
 shopPanel.Parent = screenGui
-addCorner(shopPanel, 12)
+addCorner(shopPanel, 16)
+local shopStroke = addStroke(shopPanel, Color3.fromRGB(80, 50, 140))
+shopStroke.Thickness = 1
 panels.ShopPanel = shopPanel
+
+-- Header
+local shopHeader = Instance.new("Frame")
+shopHeader.Name = "Header"
+shopHeader.Size = UDim2.new(1, 0, 0, 50)
+shopHeader.BackgroundColor3 = Color3.fromRGB(18, 14, 32)
+shopHeader.BorderSizePixel = 0
+shopHeader.Parent = shopPanel
 
 local shopTitle = Instance.new("TextLabel")
 shopTitle.Name = "Title"
-shopTitle.Size = UDim2.new(1, -40, 0, 36)
-shopTitle.Position = UDim2.new(0, 16, 0, 12)
+shopTitle.Size = UDim2.new(1, -80, 1, 0)
 shopTitle.BackgroundTransparency = 1
 shopTitle.Font = Enum.Font.GothamBold
 shopTitle.TextSize = 20
 shopTitle.TextColor3 = WHITE
-shopTitle.TextXAlignment = Enum.TextXAlignment.Left
-shopTitle.Text = "SHOP"
-shopTitle.Parent = shopPanel
+shopTitle.Text = "VOID SHOP"
+shopTitle.Parent = shopHeader
 
-createCloseButton(shopPanel, "ShopPanel")
+createCloseButton(shopHeader, "ShopPanel")
 
-local shopList = Instance.new("ScrollingFrame")
-shopList.Name = "ShopList"
-shopList.Position = UDim2.new(0, 16, 0, 56)
-shopList.Size = UDim2.new(1, -32, 1, -72)
-shopList.BackgroundTransparency = 1
-shopList.BorderSizePixel = 0
-shopList.ScrollBarThickness = 6
-shopList.CanvasSize = UDim2.new(0, 0, 0, 0)
-shopList.Parent = shopPanel
+-- Tab bar
+local shopTabBar = Instance.new("Frame")
+shopTabBar.Name = "TabBar"
+shopTabBar.Size = UDim2.new(1, 0, 0, 44)
+shopTabBar.Position = UDim2.new(0, 0, 0, 50)
+shopTabBar.BackgroundColor3 = Color3.fromRGB(10, 8, 20)
+shopTabBar.BorderSizePixel = 0
+shopTabBar.Parent = shopPanel
 
-local shopListLayout = Instance.new("UIListLayout")
-shopListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-shopListLayout.Padding = UDim.new(0, 6)
-shopListLayout.Parent = shopList
+local shopTabButtons: { [string]: TextButton } = {}
 
-shopListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	shopList.CanvasSize = UDim2.new(0, 0, 0, shopListLayout.AbsoluteContentSize.Y + 8)
+for i, tabName in SHOP_TAB_ORDER do
+	local tabButton = Instance.new("TextButton")
+	tabButton.Name = "Tab_" .. tabName:gsub("%s", "")
+	tabButton.Size = UDim2.new(1 / #SHOP_TAB_ORDER, 0, 1, 0)
+	tabButton.Position = UDim2.new((i - 1) / #SHOP_TAB_ORDER, 0, 0, 0)
+	tabButton.BackgroundColor3 = Color3.fromRGB(30, 22, 50)
+	tabButton.BackgroundTransparency = 1
+	tabButton.BorderSizePixel = 0
+	tabButton.AutoButtonColor = false
+	tabButton.Font = Enum.Font.GothamBold
+	tabButton.TextSize = 13
+	tabButton.TextColor3 = SHOP_TAB_COLORS[tabName]
+	tabButton.Text = tabName
+	tabButton.Parent = shopTabBar
+
+	local bottomBorder = Instance.new("Frame")
+	bottomBorder.Name = "BottomBorder"
+	bottomBorder.AnchorPoint = Vector2.new(0, 1)
+	bottomBorder.Position = UDim2.new(0, 0, 1, 0)
+	bottomBorder.Size = UDim2.new(1, 0, 0, 2)
+	bottomBorder.BackgroundColor3 = SHOP_TAB_COLORS[tabName]
+	bottomBorder.BorderSizePixel = 0
+	bottomBorder.Visible = false
+	bottomBorder.Parent = tabButton
+
+	shopTabButtons[tabName] = tabButton
+end
+
+local function updateShopTabVisuals(active: string)
+	for tabName, button in shopTabButtons do
+		local isActive = tabName == active
+		button.BackgroundTransparency = isActive and 0 or 1
+		local border = button:FindFirstChild("BottomBorder")
+		if border then
+			border.Visible = isActive
+		end
+	end
+end
+
+-- Grid content (EGGS/BOOSTS/UPGRADES/PASSES)
+local shopContent = Instance.new("ScrollingFrame")
+shopContent.Name = "Content"
+shopContent.Size = UDim2.new(1, -20, 1, -114)
+shopContent.Position = UDim2.new(0, 10, 0, 104)
+shopContent.BackgroundTransparency = 1
+shopContent.BorderSizePixel = 0
+shopContent.ScrollBarThickness = 6
+shopContent.CanvasSize = UDim2.new(0, 0, 0, 0)
+shopContent.Parent = shopPanel
+
+-- CanvasGroup so the whole grid can fade as one unit on tab switch (Group-
+-- Transparency composites all descendants together); AutomaticSize keeps it
+-- exactly as tall as its content so nothing gets clipped by the CanvasGroup
+-- itself -- the outer ScrollingFrame above handles the real viewport/scroll.
+local shopCardCanvas = Instance.new("CanvasGroup")
+shopCardCanvas.Name = "CardCanvas"
+shopCardCanvas.Size = UDim2.new(1, 0, 0, 0)
+shopCardCanvas.AutomaticSize = Enum.AutomaticSize.Y
+shopCardCanvas.BackgroundTransparency = 1
+shopCardCanvas.BorderSizePixel = 0
+shopCardCanvas.Parent = shopContent
+
+local shopGridLayout = Instance.new("UIGridLayout")
+shopGridLayout.CellSize = UDim2.new(0, 190, 0, 120)
+shopGridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+shopGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+shopGridLayout.Parent = shopCardCanvas
+
+shopGridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	shopContent.CanvasSize = UDim2.new(0, 0, 0, shopGridLayout.AbsoluteContentSize.Y + 8)
 end)
 
+local OWNED_COLOR = Color3.fromRGB(60, 60, 60)
+local ROBUX_TAG_COLOR = Color3.fromRGB(0, 180, 80)
+local COIN_TAG_COLOR = Color3.fromRGB(180, 140, 0)
+
+local function isShopItemOwned(item: ShopItem): boolean
+	if item.kind ~= "gamepass" or not item.key then
+		return false
+	end
+	local monetization = shared.MonetizationClient
+	return monetization ~= nil and monetization.ownedGamepasses[item.key] == true
+end
+
+local function buyShopItem(item: ShopItem)
+	if item.kind == "coins" then
+		fireAction("UPGRADE_BAG", { targetTier = item.targetTier })
+	elseif item.kind == "product" then
+		shared.MonetizationClient.PromptPurchase("product", Constants.PRODUCT_IDS[item.key])
+	elseif item.kind == "gamepass" then
+		shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS[item.key])
+	end
+end
+
+local function createShopItemCard(item: ShopItem, tabName: string, tabColor: Color3): (Frame, () -> ())
+	local card = Instance.new("Frame")
+	card.Name = "Card_" .. item.name:gsub("%s", "")
+	card.Size = UDim2.new(0, 190, 0, 120)
+	card.BackgroundColor3 = Color3.fromRGB(20, 15, 35)
+	card.BorderSizePixel = 0
+	card:SetAttribute("Tab", tabName)
+	addCorner(card, 10)
+	local cardStroke = addStroke(card, Color3.fromRGB(60, 40, 100))
+	cardStroke.Thickness = 0.5
+
+	local icon = Instance.new("TextLabel")
+	icon.Name = "Icon"
+	icon.Size = UDim2.new(0, 32, 0, 32)
+	icon.Position = UDim2.new(0, 8, 0, 8)
+	icon.BackgroundTransparency = 1
+	icon.Font = Enum.Font.GothamBold
+	icon.TextSize = 24
+	icon.Text = item.icon
+	icon.Parent = card
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "NameLabel"
+	nameLabel.Size = UDim2.new(1, -48, 0, 18)
+	nameLabel.Position = UDim2.new(0, 44, 0, 8)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextSize = 13
+	nameLabel.TextColor3 = WHITE
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.Text = item.name
+	nameLabel.Parent = card
+
+	local descLabel = Instance.new("TextLabel")
+	descLabel.Name = "DescriptionLabel"
+	descLabel.Size = UDim2.new(1, -16, 0, 40)
+	descLabel.Position = UDim2.new(0, 8, 0, 44)
+	descLabel.BackgroundTransparency = 1
+	descLabel.Font = Enum.Font.Gotham
+	descLabel.TextSize = 11
+	descLabel.TextColor3 = Color3.fromRGB(160, 140, 200)
+	descLabel.TextXAlignment = Enum.TextXAlignment.Left
+	descLabel.TextYAlignment = Enum.TextYAlignment.Top
+	descLabel.TextWrapped = true
+	descLabel.Text = item.desc
+	descLabel.Parent = card
+
+	local priceTag = Instance.new("Frame")
+	priceTag.Name = "PriceTag"
+	priceTag.AnchorPoint = Vector2.new(1, 0)
+	priceTag.Position = UDim2.new(1, -8, 0, 8)
+	priceTag.Size = UDim2.new(0, 74, 0, 16)
+	priceTag.BorderSizePixel = 0
+	addCorner(priceTag, 4)
+	priceTag.Parent = card
+
+	local priceLabel = Instance.new("TextLabel")
+	priceLabel.Name = "PriceLabel"
+	priceLabel.Size = UDim2.fromScale(1, 1)
+	priceLabel.BackgroundTransparency = 1
+	priceLabel.Font = Enum.Font.GothamBold
+	priceLabel.TextSize = 11
+	priceLabel.TextColor3 = WHITE
+	priceLabel.Parent = priceTag
+
+	local buyButton = Instance.new("TextButton")
+	buyButton.Name = "BuyButton"
+	buyButton.Size = UDim2.new(1, -16, 0, 28)
+	buyButton.Position = UDim2.new(0, 8, 1, -36)
+	buyButton.AutoButtonColor = false
+	buyButton.BorderSizePixel = 0
+	buyButton.Font = Enum.Font.GothamBold
+	buyButton.TextSize = 12
+	buyButton.TextColor3 = WHITE
+	addCorner(buyButton, 6)
+	buyButton.Parent = card
+
+	local function refresh()
+		if isShopItemOwned(item) then
+			priceTag.BackgroundColor3 = OWNED_COLOR
+			priceLabel.Text = "OWNED"
+			buyButton.BackgroundColor3 = OWNED_COLOR
+			buyButton.Text = "OWNED"
+			buyButton.Active = false
+		else
+			priceTag.BackgroundColor3 = (item.kind == "coins") and COIN_TAG_COLOR or ROBUX_TAG_COLOR
+			priceLabel.Text = item.priceText
+			buyButton.BackgroundColor3 = tabColor
+			buyButton.Text = "BUY"
+			buyButton.Active = true
+		end
+	end
+	refresh()
+
+	buyButton.MouseButton1Click:Connect(function()
+		if not buyButton.Active then
+			return
+		end
+		if shared.SoundManager then
+			shared.SoundManager.PlaySound("buttonClick")
+		end
+		buyShopItem(item)
+	end)
+
+	return card, refresh
+end
+
+local shopCardRefreshers: { () -> () } = {}
+local shopCardOrder = 0
+
+for _, tabName in { "EGGS", "BOOSTS", "UPGRADES", "PASSES" } do
+	local tabColor = SHOP_TAB_COLORS[tabName]
+	for _, item in SHOP_ITEMS[tabName] do
+		local card, refresh = createShopItemCard(item, tabName, tabColor)
+		card.LayoutOrder = shopCardOrder
+		shopCardOrder += 1
+		card.Visible = tabName == "EGGS"
+		card.Parent = shopCardCanvas
+		table.insert(shopCardRefreshers, refresh)
+	end
+end
+
+playerDataLoadedRemote.OnClientEvent:Connect(function()
+	for _, refresh in shopCardRefreshers do
+		refresh()
+	end
+end)
+
+-- VOID PASS content -- single featured layout, not the item grid above.
+local voidPassContent = Instance.new("Frame")
+voidPassContent.Name = "VoidPassContent"
+voidPassContent.Size = UDim2.new(1, -20, 1, -114)
+voidPassContent.Position = UDim2.new(0, 10, 0, 104)
+voidPassContent.BackgroundTransparency = 1
+voidPassContent.BorderSizePixel = 0
+voidPassContent.Visible = false
+voidPassContent.Parent = shopPanel
+
+local voidPassCanvas = Instance.new("CanvasGroup")
+voidPassCanvas.Name = "VoidPassCanvas"
+voidPassCanvas.Size = UDim2.fromScale(1, 1)
+voidPassCanvas.BackgroundTransparency = 1
+voidPassCanvas.BorderSizePixel = 0
+voidPassCanvas.Parent = voidPassContent
+
+local voidFeaturedCard = Instance.new("Frame")
+voidFeaturedCard.Name = "FeaturedCard"
+voidFeaturedCard.Size = UDim2.new(1, 0, 0, 160)
+voidFeaturedCard.BackgroundColor3 = Color3.fromRGB(40, 15, 60)
+voidFeaturedCard.BorderSizePixel = 0
+addCorner(voidFeaturedCard, 12)
+voidFeaturedCard.Parent = voidPassCanvas
+
+local voidGradient = Instance.new("UIGradient")
+voidGradient.Color = ColorSequence.new(Color3.fromRGB(60, 25, 90), Color3.fromRGB(30, 10, 50))
+voidGradient.Rotation = 90
+voidGradient.Parent = voidFeaturedCard
+
+local voidPassTitle = Instance.new("TextLabel")
+voidPassTitle.Name = "Title"
+voidPassTitle.Size = UDim2.new(1, -32, 0, 40)
+voidPassTitle.Position = UDim2.new(0, 16, 0, 16)
+voidPassTitle.BackgroundTransparency = 1
+voidPassTitle.Font = Enum.Font.GothamBlack
+voidPassTitle.TextSize = 28
+voidPassTitle.TextColor3 = WHITE
+voidPassTitle.TextXAlignment = Enum.TextXAlignment.Left
+voidPassTitle.Text = "VOID PASS"
+voidPassTitle.Parent = voidFeaturedCard
+
+local voidPassPrice = Instance.new("TextLabel")
+voidPassPrice.Name = "Price"
+voidPassPrice.Size = UDim2.new(1, -32, 0, 24)
+voidPassPrice.Position = UDim2.new(0, 16, 0, 60)
+voidPassPrice.BackgroundTransparency = 1
+voidPassPrice.Font = Enum.Font.GothamBold
+voidPassPrice.TextSize = 18
+voidPassPrice.TextColor3 = Color3.fromRGB(220, 180, 255)
+voidPassPrice.TextXAlignment = Enum.TextXAlignment.Left
+voidPassPrice.Text = "99 R$ / month"
+voidPassPrice.Parent = voidFeaturedCard
+
+local voidBenefitsList = Instance.new("Frame")
+voidBenefitsList.Name = "Benefits"
+voidBenefitsList.Size = UDim2.new(1, 0, 0, 110)
+voidBenefitsList.Position = UDim2.new(0, 0, 0, 176)
+voidBenefitsList.BackgroundTransparency = 1
+voidBenefitsList.Parent = voidPassCanvas
+
+local voidBenefitsLayout = Instance.new("UIListLayout")
+voidBenefitsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+voidBenefitsLayout.Padding = UDim.new(0, 4)
+voidBenefitsLayout.Parent = voidBenefitsList
+
+local VOID_PASS_BENEFITS = {
+	"✓ 1 free daily egg roll",
+	"✓ Exclusive monthly monster skin",
+	"✓ VIP server tag",
+	"✓ Global trade board access",
+}
+
+for i, text in VOID_PASS_BENEFITS do
+	local benefitLabel = Instance.new("TextLabel")
+	benefitLabel.Name = "Benefit_" .. i
+	benefitLabel.Size = UDim2.new(1, 0, 0, 20)
+	benefitLabel.BackgroundTransparency = 1
+	benefitLabel.Font = Enum.Font.Gotham
+	benefitLabel.TextSize = 13
+	benefitLabel.TextColor3 = Color3.fromRGB(210, 200, 230)
+	benefitLabel.TextXAlignment = Enum.TextXAlignment.Left
+	benefitLabel.LayoutOrder = i
+	benefitLabel.Text = text
+	benefitLabel.Parent = voidBenefitsList
+end
+
+local voidPassBuyButton = Instance.new("TextButton")
+voidPassBuyButton.Name = "VoidPassBuyButton"
+voidPassBuyButton.Size = UDim2.new(1, 0, 0, 44)
+voidPassBuyButton.Position = UDim2.new(0, 0, 0, 300)
+voidPassBuyButton.BackgroundColor3 = Color3.fromRGB(150, 60, 200)
+voidPassBuyButton.AutoButtonColor = false
+voidPassBuyButton.BorderSizePixel = 0
+voidPassBuyButton.Font = Enum.Font.GothamBold
+voidPassBuyButton.TextSize = 16
+voidPassBuyButton.TextColor3 = WHITE
+voidPassBuyButton.Text = "BUY"
+addCorner(voidPassBuyButton, 8)
+voidPassBuyButton.Parent = voidPassCanvas
+
+voidPassBuyButton.MouseButton1Click:Connect(function()
+	if shared.SoundManager then
+		shared.SoundManager.PlaySound("buttonClick")
+	end
+	shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS.VoidPass)
+end)
+
+-- Tab switching: fade the outgoing canvas out, swap which cards/content are
+-- visible while invisible, then fade the (possibly different) incoming
+-- canvas back in.
+local shopActiveTab = "EGGS"
+updateShopTabVisuals(shopActiveTab)
+
+local function setShopActiveTab(newTab: string)
+	if newTab == shopActiveTab then
+		return
+	end
+
+	local outgoingCanvas = (shopActiveTab == "VOID PASS") and voidPassCanvas or shopCardCanvas
+
+	local fadeOut = TweenService:Create(outgoingCanvas, TweenInfo.new(0.1), { GroupTransparency = 1 })
+	fadeOut.Completed:Connect(function()
+		shopContent.Visible = newTab ~= "VOID PASS"
+		voidPassContent.Visible = newTab == "VOID PASS"
+
+		if newTab ~= "VOID PASS" then
+			for _, card in shopCardCanvas:GetChildren() do
+				if card:IsA("Frame") and card:GetAttribute("Tab") then
+					card.Visible = card:GetAttribute("Tab") == newTab
+				end
+			end
+		end
+
+		shopActiveTab = newTab
+		updateShopTabVisuals(shopActiveTab)
+
+		local incomingCanvas = (shopActiveTab == "VOID PASS") and voidPassCanvas or shopCardCanvas
+		incomingCanvas.GroupTransparency = 1
+		TweenService:Create(incomingCanvas, TweenInfo.new(0.1), { GroupTransparency = 0 }):Play()
+	end)
+	fadeOut:Play()
+end
+
+for tabName, button in shopTabButtons do
+	button.MouseButton1Click:Connect(function()
+		if shared.SoundManager then
+			shared.SoundManager.PlaySound("buttonClick")
+		end
+		setShopActiveTab(tabName)
+	end)
+end
+
+-- Generic list-row builder. Used to belong to the old Shop Panel; kept here
+-- since Event Station below still builds its token-purchase rows with it.
 local function createShopEntry(itemName: string, description: string, priceText: string, onBuy: () -> ()): Frame
 	local entry = Instance.new("Frame")
 	entry.Name = "ShopEntry_" .. (itemName:gsub("%s", ""))
@@ -1092,81 +1721,6 @@ local function createShopEntry(itemName: string, description: string, priceText:
 	end)
 
 	return entry
-end
-
-local shopEntryOrder = 0
-
-local function addShopEntry(entry: Frame)
-	entry.LayoutOrder = shopEntryOrder
-	shopEntryOrder += 1
-	entry.Parent = shopList
-end
-
-local GAMEPASS_SHOP_ITEMS = {
-	{ key = "InfiniteBag", name = "Infinite Bag", description = "Unlimited bag capacity, forever." },
-	{ key = "VoidCarrier", name = "Void Carrier", description = "250 bag capacity, forever." },
-	{ key = "SpeedBoots", name = "Speed Boots", description = "+30% walk speed." },
-	{ key = "BoostInsider", name = "Boost Insider", description = "Insider perks during boosts." },
-	{ key = "ExtraPlot", name = "Extra Plot", description = "An additional plot (coming soon)." },
-	{ key = "Income2x", name = "2x Income", description = "Double coin earnings." },
-	{ key = "Income3x", name = "3x Income", description = "Triple coin earnings." },
-	{ key = "Income5x", name = "5x Income", description = "5x coin earnings." },
-	{ key = "Income7x", name = "7x Income", description = "7x coin earnings." },
-	{ key = "Income10x", name = "10x Income", description = "10x coin earnings." },
-}
-
-for _, item in GAMEPASS_SHOP_ITEMS do
-	local entry = createShopEntry(item.name, item.description, "ROBUX", function()
-		shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS[item.key])
-	end)
-	entry:SetAttribute("GamepassKey", item.key)
-	addShopEntry(entry)
-end
-
-local PRODUCT_SHOP_ITEMS = {
-	{ key = "LuckBoost", name = "Luck Boost", description = "+50% egg odds for 15 minutes." },
-	{ key = "MergeBoost", name = "Merge Boost", description = "5 free merges." },
-	{ key = "ServerBoost", name = "Server Boost", description = "1.5x server-wide earnings for 10 minutes." },
-	{ key = "RareEgg", name = "Rare Egg", description = "Guaranteed Rare or better monster." },
-	{ key = "EpicEgg", name = "Epic Egg", description = "Guaranteed Epic or better monster." },
-	{ key = "LegendaryEgg", name = "Legendary Egg", description = "Guaranteed Legendary or better monster." },
-	{ key = "MythicEgg", name = "Mythic Egg", description = "Guaranteed Mythic monster." },
-	{ key = "StarterPack", name = "Starter Pack", description = "Infinite Bag + Luck Boost + Rare Egg." },
-	{ key = "VoidPack", name = "Void Pack", description = "Epic Egg + Luck Boost + Speed Boots." },
-}
-
-for _, item in PRODUCT_SHOP_ITEMS do
-	local entry = createShopEntry(item.name, item.description, "ROBUX", function()
-		shared.MonetizationClient.PromptPurchase("product", Constants.PRODUCT_IDS[item.key])
-	end)
-	addShopEntry(entry)
-end
-
-for tier = 2, #Constants.BAG_TIERS do
-	local tierDef = Constants.BAG_TIERS[tier]
-	local priceText: string
-	local onBuy: () -> ()
-
-	if tierDef.robux then
-		priceText = "ROBUX"
-		local gamepassKey = (tier == 5) and "VoidCarrier" or "InfiniteBag"
-		onBuy = function()
-			shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS[gamepassKey])
-		end
-	else
-		priceText = `{NumberFormatter.Format(tierDef.cost)} coins`
-		onBuy = function()
-			fireAction("UPGRADE_BAG", { targetTier = tier })
-		end
-	end
-
-	local entry = createShopEntry(
-		`Bag: {tierDef.name}`,
-		`Upgrade bag to {NumberFormatter.Format(tierDef.capacity)} capacity.`,
-		priceText,
-		onBuy
-	)
-	addShopEntry(entry)
 end
 
 --============================================================
@@ -1521,29 +2075,6 @@ task.spawn(function()
 					else
 						stroke.Color = Color3.fromRGB(60, 60, 80)
 						stroke.Thickness = 2
-					end
-				end
-			end
-		end
-
-		-- Shop "OWNED" labels
-		local monetizationState = shared.MonetizationClient
-		local ownedGamepasses = monetizationState and monetizationState.ownedGamepasses
-		if ownedGamepasses then
-			for _, entry in shopList:GetChildren() do
-				if entry:IsA("Frame") then
-					local gamepassKey = entry:GetAttribute("GamepassKey")
-					if gamepassKey then
-						local buyButton = entry:FindFirstChild("BUY")
-						if buyButton and buyButton:IsA("TextButton") then
-							if ownedGamepasses[gamepassKey] then
-								buyButton.Text = "OWNED"
-								buyButton:SetAttribute("Disabled", true)
-							else
-								buyButton.Text = "BUY"
-								buyButton:SetAttribute("Disabled", false)
-							end
-						end
 					end
 				end
 			end
