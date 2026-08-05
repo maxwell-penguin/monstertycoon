@@ -13,6 +13,7 @@ RemoteEvents.EVENTS = {
 	MONSTER_PRODUCED = "MonsterProduced",
 	UPDATE_HALL = "UpdateHall",
 	UPDATE_WAREHOUSE = "UpdateWarehouse",
+	OPEN_WAREHOUSE = "OpenWarehouse",
 
 	-- Vials
 	PICKUP_VIAL = "PickupVial",

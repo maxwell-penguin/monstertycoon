@@ -12,7 +12,10 @@ local player = Players.LocalPlayer
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local updateHallRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_HALL) :: RemoteEvent
 
-local DIM_PURPLE = Color3.fromRGB(60, 40, 100)
+-- Must match PlotSetup.server.lua's TopGlow/Ring default color, or an empty
+-- pedestal looks different fresh vs. after a slot/unslot cycle.
+local DIM_PURPLE = Color3.fromRGB(40, 30, 80)
+local CRYSTAL_SHOWN_TRANSPARENCY = 0.4
 local TWEEN_INFO = TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 
 -- slotIndex -> the monster occupying it as of the last UPDATE_HALL, so a
@@ -62,6 +65,13 @@ local function updateSlotPad(
 
 	if ring and ring:IsA("BasePart") then
 		TweenService:Create(ring, TWEEN_INFO, { Color = color, Transparency = ringTransparency }):Play()
+	end
+
+	local crystal = slotPad:FindFirstChild("Crystal")
+	if crystal and crystal:IsA("BasePart") then
+		TweenService:Create(crystal, TWEEN_INFO, {
+			Transparency = occupied and 1 or CRYSTAL_SHOWN_TRANSPARENCY,
+		}):Play()
 	end
 
 	local isOccupied = slotPad:FindFirstChild("IsOccupied")

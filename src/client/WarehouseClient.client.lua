@@ -4,6 +4,7 @@ local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local updateWarehouseRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_WAREHOUSE) :: RemoteEvent
+local openWarehouseRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.OPEN_WAREHOUSE) :: RemoteEvent
 
 local function groupByEmotion(monsters: { [string]: any }): { [string]: { any } }
 	local groups = {}
@@ -36,4 +37,10 @@ updateWarehouseRemote.OnClientEvent:Connect(function(warehouse: any)
 	}
 
 	print(`[WarehouseClient] Warehouse: {count}/{capacity}`)
+end)
+
+openWarehouseRemote.OnClientEvent:Connect(function()
+	if shared.UIManager then
+		shared.UIManager.ShowPanel("WarehousePanel")
+	end
 end)
