@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
@@ -658,48 +659,51 @@ task.spawn(function()
 	end
 end)
 
--- Slow continuous rotation via a NumberValue driving a UIRotation (rather than
--- tweening UIRotation.Rotation directly, whose repeat would otherwise snap back
--- to 0 visibly -- 360 and 0 look identical, so the wrap via modulo is seamless).
-local eggRotation = Instance.new("UIRotation")
-eggRotation.Rotation = 0
-eggRotation.Parent = eggVisual
+-- Slow continuous rotation drives eggVisual.Rotation (a native GuiObject
+-- property) directly every Heartbeat tick -- no UIRotation instance. The
+-- NumberValue tracks the current angle so the jiggle tween below can pause
+-- the loop and hand control back without a visible snap.
+local eggRotationValue = Instance.new("NumberValue")
+eggRotationValue.Value = 0
+eggRotationValue.Parent = eggVisual
 
-local eggBaseRotationValue = Instance.new("NumberValue")
-eggBaseRotationValue.Value = 0
-eggBaseRotationValue.Parent = eggVisual
+local EGG_ROTATION_SPEED = 45 -- degrees/second (360 over 8s, matches old tween duration)
+local eggJiggling = false
 
-local eggJiggleValue = Instance.new("NumberValue")
-eggJiggleValue.Value = 0
-eggJiggleValue.Parent = eggVisual
+task.spawn(function()
+	while true do
+		local dt = RunService.Heartbeat:Wait()
+		if not eggJiggling then
+			eggRotationValue.Value = (eggRotationValue.Value + EGG_ROTATION_SPEED * dt) % 360
+			eggVisual.Rotation = eggRotationValue.Value
+		end
+	end
+end)
 
-local function updateEggRotation()
-	eggRotation.Rotation = (eggBaseRotationValue.Value % 360) + eggJiggleValue.Value
-end
-
-eggBaseRotationValue:GetPropertyChangedSignal("Value"):Connect(updateEggRotation)
-eggJiggleValue:GetPropertyChangedSignal("Value"):Connect(updateEggRotation)
-
-TweenService:Create(
-	eggBaseRotationValue,
-	TweenInfo.new(8, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false),
-	{ Value = 360 }
-):Play()
-
--- Every 3 seconds, a quick ±5 degree jiggle chained over 0.3s total, layered on
--- top of the continuous rotation via the separate jiggle value.
+-- Every 3 seconds, a quick ±5 degree jiggle chained over 0.3s total, tweening
+-- eggVisual.Rotation itself. The continuous loop above pauses for the duration
+-- so the two don't fight over the same property, then resumes from the
+-- jiggle's landing angle (always the pre-jiggle base, since the last leg
+-- targets +0).
 task.spawn(function()
 	while true do
 		task.wait(3)
 
-		for _, target in { 5, -5, 0 } do
-			local jiggleTween =
-				TweenService:Create(eggJiggleValue, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-					Value = target,
-				})
+		eggJiggling = true
+		local baseRotation = eggVisual.Rotation
+
+		for _, offset in { 5, -5, 0 } do
+			local jiggleTween = TweenService:Create(
+				eggVisual,
+				TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+				{ Rotation = baseRotation + offset }
+			)
 			jiggleTween:Play()
 			jiggleTween.Completed:Wait()
 		end
+
+		eggRotationValue.Value = eggVisual.Rotation % 360
+		eggJiggling = false
 	end
 end)
 

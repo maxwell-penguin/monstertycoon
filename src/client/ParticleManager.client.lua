@@ -38,6 +38,15 @@ local PARTICLES = {
 		Size = NumberSequence.new(0.3),
 		Speed = NumberRange.new(2, 4),
 	},
+	puddleSwirl = {
+		Rate = 8,
+		LightEmission = 0.6,
+		Lifetime = NumberRange.new(0.4, 0.8),
+		Size = NumberSequence.new(0.15),
+		Speed = NumberRange.new(0.5, 1.5),
+		EmissionDirection = Enum.NormalId.Top,
+		SpreadAngle = Vector2.new(15, 15),
+	},
 	shardSparkle = {
 		Rate = 8,
 		LightEmission = 0.9,
