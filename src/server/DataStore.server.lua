@@ -116,7 +116,7 @@ local function onPlayerAdded(player: Player)
 	-- final ownedGamepasses set, just a moment later.
 	task.spawn(MonetizationManager.CheckGamepasses, player)
 
-	if os.time() < data.autoPickupExpiry then
+	if data.autoPickupExpiry and os.time() < data.autoPickupExpiry then
 		local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 		local setAutoPickupRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SET_AUTO_PICKUP) :: RemoteEvent
 		setAutoPickupRemote:FireClient(player, data.autoPickupExpiry)

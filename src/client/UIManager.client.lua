@@ -658,13 +658,10 @@ task.spawn(function()
 	end
 end)
 
--- Slow continuous rotation via a NumberValue driving a UIRotation (rather than
--- tweening UIRotation.Rotation directly, whose repeat would otherwise snap back
--- to 0 visibly -- 360 and 0 look identical, so the wrap via modulo is seamless).
-local eggRotation = Instance.new("UIRotation")
-eggRotation.Rotation = 0
-eggRotation.Parent = eggVisual
-
+-- Slow continuous rotation via NumberValues driving eggVisual.Rotation directly
+-- (rather than tweening a Rotation property whose repeat would otherwise snap
+-- back to 0 visibly -- 360 and 0 look identical, so the wrap via modulo is
+-- seamless).
 local eggBaseRotationValue = Instance.new("NumberValue")
 eggBaseRotationValue.Value = 0
 eggBaseRotationValue.Parent = eggVisual
@@ -674,7 +671,7 @@ eggJiggleValue.Value = 0
 eggJiggleValue.Parent = eggVisual
 
 local function updateEggRotation()
-	eggRotation.Rotation = (eggBaseRotationValue.Value % 360) + eggJiggleValue.Value
+	eggVisual.Rotation = (eggBaseRotationValue.Value % 360) + eggJiggleValue.Value
 end
 
 eggBaseRotationValue:GetPropertyChangedSignal("Value"):Connect(updateEggRotation)
