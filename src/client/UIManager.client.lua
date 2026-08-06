@@ -624,11 +624,11 @@ end)
 -- use createToggleButton's order-based stacking math.
 local rewardsNavButton = Instance.new("TextButton")
 rewardsNavButton.Name = "RewardsToggleButton"
-rewardsNavButton.AnchorPoint = Vector2.new(1, 0)
-rewardsNavButton.Position = UDim2.new(1, -110, 0.5, -20)
+rewardsNavButton.AnchorPoint = Vector2.new(1, 0.5)
+rewardsNavButton.Position = UDim2.new(1, -16, 0.5, -20)
 rewardsNavButton.Size = UDim2.new(0, 110, 0, 36)
 rewardsNavButton.TextSize = 16
-rewardsNavButton.Text = "REWARDS"
+rewardsNavButton.Text = "🎁🕐"
 rewardsNavButton.Parent = hud
 styleButton(rewardsNavButton)
 
