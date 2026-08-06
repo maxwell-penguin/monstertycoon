@@ -1,15 +1,13 @@
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
-local PlotManager = require(script.Parent.PlotManager)
 local Economy = require(script.Parent.Economy)
 local BagManager = require(script.Parent.BagManager)
 
 local DropboxManager = {}
-
-local playerDropboxes: { [number]: BasePart } = {}
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local updateCoinsRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_COINS) :: RemoteEvent
@@ -17,19 +15,8 @@ local updateBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_BA
 local depositBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.DEPOSIT_BAG) :: RemoteEvent
 
 function DropboxManager.InitDropbox(player: Player)
-	local plotModel = PlotManager.GetPlayerPlot(player)
-	if not plotModel then
-		warn(`[DropboxManager] No plot found for {player.Name}`)
-		return
-	end
-
-	local dropboxPart = plotModel:FindFirstChild("Dropbox")
-	if not dropboxPart or not dropboxPart:IsA("BasePart") then
-		warn(`[DropboxManager] No Dropbox part found in plot for {player.Name}`)
-		return
-	end
-
-	playerDropboxes[player.UserId] = dropboxPart
+	-- No per-player state: the farm has a single shared SellPoint now, not a
+	-- per-plot Dropbox, so there's nothing to look up per player.
 end
 
 function DropboxManager.ProcessDeposit(player: Player): (boolean, number)
@@ -78,15 +65,14 @@ function DropboxManager.ProcessDeposit(player: Player): (boolean, number)
 end
 
 function DropboxManager.GetDropboxPosition(player: Player): Vector3?
-	local dropboxPart = playerDropboxes[player.UserId]
-	if not dropboxPart then
+	local sellPoint = Workspace:FindFirstChild("SellPoint")
+	if not sellPoint then
 		return nil
 	end
-	return dropboxPart.Position
+	return (sellPoint :: Model):GetPivot().Position
 end
 
 function DropboxManager.CleanupDropbox(player: Player)
-	playerDropboxes[player.UserId] = nil
 end
 
 return DropboxManager

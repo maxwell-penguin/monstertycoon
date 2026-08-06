@@ -99,6 +99,18 @@ function PlayerManager.ClearDirty(userId: number)
 	dirtyFlags[userId] = false
 end
 
+-- Cheap accessor for the join timestamp (os.time(), set once in
+-- DataStore.server.lua before PlayerManager.Load) -- avoids the deepCopy
+-- GetData() does, since callers like SessionRewards poll this every few
+-- seconds for every online player.
+function PlayerManager.GetSessionStartTime(userId: number): number?
+	local data = playerData[userId]
+	if not data then
+		return nil
+	end
+	return data.sessionStartTime
+end
+
 function PlayerManager.GetLoadedUserIds(): { number }
 	local ids = {}
 	for userId in playerData do

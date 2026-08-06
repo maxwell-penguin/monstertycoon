@@ -17,15 +17,14 @@ local vialRemovedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_RE
 -- axis and local Y/Z become the horizontal circular footprint.
 local UPRIGHT_CYLINDER = CFrame.Angles(0, 0, math.rad(90))
 
--- Plots are flat (gridPosition.Y is always 0 in PlotSetup.server.lua), so the
--- stage Y values are computed from this fixed ground level rather than from
--- vialSpawnedRemote's position.Y -- that field is the vial's final resting
--- height (VialProducer's Y_OFFSET), not any of the earlier stages' heights.
+-- The farm is flat ground (no pedestals), so the stage Y values are computed
+-- from ground level rather than from vialSpawnedRemote's position.Y -- that
+-- field is the vial's final resting height (VialProducer's Y_OFFSET), not any
+-- of the earlier stages' heights.
 local GROUND_Y = 0
-local PEDESTAL_TOP_Y = GROUND_Y + 6
-local DROPLET_START_Y = PEDESTAL_TOP_Y + 3 -- pedestal top + roughly monster height
-local PUDDLE_Y = GROUND_Y + 6.1
-local VIAL_FLOAT_Y = GROUND_Y + 9 -- chest height; matches VialProducer.lua's Y_OFFSET
+local DROPLET_START_Y = GROUND_Y + 3 -- roughly monster height, wherever it's standing
+local PUDDLE_Y = GROUND_Y + 0.1
+local VIAL_FLOAT_Y = GROUND_Y + 1 -- ground level + 1 stud
 
 -- Keyed by vialId, holds every Part/light/emitter created for that vial across
 -- all three animation stages so VIAL_REMOVED can wipe them regardless of which
@@ -148,7 +147,7 @@ function spawnVial(vialId: string, position: Vector3, emotion: string, emotionCo
 		puddle:Destroy()
 	end
 
-	local startPosition = Vector3.new(position.X, PEDESTAL_TOP_Y, position.Z)
+	local startPosition = Vector3.new(position.X, PUDDLE_Y, position.Z)
 	local floatPosition = Vector3.new(position.X, VIAL_FLOAT_Y, position.Z)
 
 	local vial = Instance.new("Part")

@@ -42,6 +42,7 @@ RemoteEvents.EVENTS = {
 
 	-- Session
 	SESSION_REWARD = "SessionReward",
+	REQUEST_SESSION_REWARD = "RequestSessionReward",
 	PLAYER_DATA_LOADED = "PlayerDataLoaded",
 
 	-- Town
@@ -52,6 +53,11 @@ RemoteEvents.EVENTS = {
 
 	-- Codex
 	CODEX_DISCOVERY = "CodexDiscovery",
+
+	-- Biomes
+	BIOME_UNLOCK_PROMPT = "BiomeUnlockPrompt",
+	BIOME_UNLOCKED = "BiomeUnlocked",
+	UNLOCK_BIOME = "UnlockBiome",
 
 	-- Monetization
 	SET_WALK_SPEED = "SetWalkSpeed",

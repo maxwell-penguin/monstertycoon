@@ -40,6 +40,10 @@ local mergeMonstersRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MERGE
 local playerDataLoadedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
 local eggResultRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.EGG_RESULT) :: RemoteEvent
 local sessionRewardRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SESSION_REWARD) :: RemoteEvent
+
+-- RewardsPanel's session clock; captured once here (script init == join) so
+-- both the ticking display and the claimable-card check share one clock.
+local sessionStartTick = tick()
 local leaderboardUpdateRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.LEADERBOARD_UPDATE) :: RemoteEvent
 local codexDiscoveryRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.CODEX_DISCOVERY) :: RemoteEvent
 
@@ -602,6 +606,7 @@ end
 -- can still be wired to call it, without moving this button's creation after
 -- that whole panel section.
 local rebuildCodexGrid: (() -> ())? = nil
+local refreshRewardsPanel: (() -> ())? = nil
 
 createToggleButton("WAREHOUSE", 0, "WarehousePanel")
 createToggleButton("ROLL", 1, "RollPanel")
@@ -611,6 +616,33 @@ createToggleButton("EVENT", 4, "EventStationPanel")
 createToggleButton("CODEX", 5, "CodexPanel", function()
 	if rebuildCodexGrid then
 		rebuildCodexGrid()
+	end
+end)
+
+-- RewardsPanel's toggle lives on the right edge, vertically centered --
+-- a mirror of the left nav stack rather than a member of it, so it doesn't
+-- use createToggleButton's order-based stacking math.
+local rewardsNavButton = Instance.new("TextButton")
+rewardsNavButton.Name = "RewardsToggleButton"
+rewardsNavButton.AnchorPoint = Vector2.new(1, 0)
+rewardsNavButton.Position = UDim2.new(1, -110, 0.5, -20)
+rewardsNavButton.Size = UDim2.new(0, 110, 0, 36)
+rewardsNavButton.TextSize = 16
+rewardsNavButton.Text = "REWARDS"
+rewardsNavButton.Parent = hud
+styleButton(rewardsNavButton)
+
+onActivated(rewardsNavButton, function()
+	local panel = panels.RewardsPanel
+	if panel then
+		if panel.Visible then
+			UIManagerAPI.HidePanel("RewardsPanel")
+		else
+			UIManagerAPI.ShowPanel("RewardsPanel")
+			if refreshRewardsPanel then
+				refreshRewardsPanel()
+			end
+		end
 	end
 end)
 
@@ -2802,6 +2834,313 @@ end
 local codexPanel = createCodexPanel(screenGui, isMobile)
 
 --============================================================
+-- Rewards Panel
+--============================================================
+
+-- Own function scope for the same reason createShopPanel/createCodexPanel are:
+-- keeps this panel's locals off the main chunk's 200-local-register budget.
+local function createRewardsPanel(screenGui: ScreenGui, isMobile: boolean): (Frame, () -> ())
+	local CLAIMABLE_GOLD = Color3.fromRGB(255, 200, 50)
+	local LOCKED_STROKE = Color3.fromRGB(50, 50, 55)
+	local DEFAULT_STROKE = Color3.fromRGB(60, 40, 100)
+	local LOCKED_BG = Color3.fromRGB(15, 12, 25)
+	local UNLOCKED_BG = Color3.fromRGB(20, 15, 35)
+	local CLAIMED_BG = Color3.fromRGB(15, 25, 15)
+	local CLAIMED_GREEN = Color3.fromRGB(100, 200, 100)
+
+	local function formatCardTime(seconds: number): string
+		return string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
+	end
+
+	local function formatSessionTime(seconds: number): string
+		local hours = math.floor(seconds / 3600)
+		local minutes = math.floor((seconds % 3600) / 60)
+		return string.format("%02d:%02d:%02d", hours, minutes, seconds % 60)
+	end
+
+	local function getRewardText(entry: any): (string, string)
+		if entry.reward == "egg" then
+			return "🥚", entry.rarity
+		elseif entry.reward == "coins" then
+			return "💰", "Coins"
+		elseif entry.reward == "bagVoucher" then
+			return "👜", "Bag Upgrade"
+		end
+		return "🎁", "Reward"
+	end
+
+	local rewardsPanel = Instance.new("Frame")
+	rewardsPanel.Name = "RewardsPanel"
+	if isMobile then
+		rewardsPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+		rewardsPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+		rewardsPanel.Size = UDim2.new(0.95, 0, 0.85, 0)
+	else
+		rewardsPanel.Position = UDim2.new(0.5, -300, 0.5, -220)
+		rewardsPanel.Size = UDim2.new(0, 600, 0, 440)
+	end
+	rewardsPanel.BackgroundColor3 = Color3.fromRGB(12, 9, 22)
+	rewardsPanel.BorderSizePixel = 0
+	rewardsPanel.Visible = false
+	rewardsPanel.Parent = screenGui
+	addCorner(rewardsPanel, 14)
+	local rewardsPanelStroke = addStroke(rewardsPanel, Color3.fromRGB(150, 50, 50))
+	rewardsPanelStroke.Thickness = 1
+	panels.RewardsPanel = rewardsPanel
+
+	local rewardsTitle = Instance.new("TextLabel")
+	rewardsTitle.Name = "Title"
+	rewardsTitle.Size = UDim2.new(1, -48, 0, 26)
+	rewardsTitle.Position = UDim2.new(0, 16, 0, 14)
+	rewardsTitle.BackgroundTransparency = 1
+	rewardsTitle.Font = Enum.Font.GothamBold
+	rewardsTitle.TextSize = 20
+	rewardsTitle.TextColor3 = WHITE
+	rewardsTitle.TextXAlignment = Enum.TextXAlignment.Left
+	rewardsTitle.Text = "SESSION REWARDS"
+	rewardsTitle.Parent = rewardsPanel
+
+	local rewardsSubtitle = Instance.new("TextLabel")
+	rewardsSubtitle.Name = "Subtitle"
+	rewardsSubtitle.Size = UDim2.new(1, -48, 0, 16)
+	rewardsSubtitle.Position = UDim2.new(0, 16, 0, 40)
+	rewardsSubtitle.BackgroundTransparency = 1
+	rewardsSubtitle.Font = Enum.Font.Gotham
+	rewardsSubtitle.TextSize = 11
+	rewardsSubtitle.TextColor3 = GRAY
+	rewardsSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+	rewardsSubtitle.Text = "Earn rewards by playing — resets each session"
+	rewardsSubtitle.Parent = rewardsPanel
+
+	createCloseButton(rewardsPanel, "RewardsPanel")
+
+	local rewardsGrid = Instance.new("Frame")
+	rewardsGrid.Name = "RewardsGrid"
+	rewardsGrid.Position = UDim2.new(0, 16, 0, 66)
+	rewardsGrid.Size = UDim2.new(1, -32, 0, 230)
+	rewardsGrid.BackgroundTransparency = 1
+	rewardsGrid.Parent = rewardsPanel
+
+	local rewardsGridLayout = Instance.new("UIGridLayout")
+	rewardsGridLayout.CellSize = UDim2.new(0, 130, 0, 110)
+	rewardsGridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+	rewardsGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	rewardsGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	rewardsGridLayout.Parent = rewardsGrid
+
+	local sessionTimerLabel = Instance.new("TextLabel")
+	sessionTimerLabel.Name = "SessionTimer"
+	sessionTimerLabel.Position = UDim2.new(0, 16, 0, 304)
+	sessionTimerLabel.Size = UDim2.new(1, -32, 0, 24)
+	sessionTimerLabel.BackgroundTransparency = 1
+	sessionTimerLabel.Font = Enum.Font.Gotham
+	sessionTimerLabel.TextSize = 13
+	sessionTimerLabel.TextColor3 = GRAY
+	sessionTimerLabel.TextXAlignment = Enum.TextXAlignment.Center
+	sessionTimerLabel.Text = "Session time: 00:00:00"
+	sessionTimerLabel.Parent = rewardsPanel
+
+	type RewardCard = {
+		frame: Frame,
+		stroke: UIStroke,
+		timeLabel: TextLabel,
+		statusIcon: TextLabel,
+		claimButton: TextButton,
+		glowTween: Tween?,
+	}
+
+	local rewardCards: { [number]: RewardCard } = {}
+	local indexBySeconds: { [number]: number } = {}
+	local claimedMilestones: { [number]: boolean } = {}
+
+	local function setCardPulsing(card: RewardCard, pulsing: boolean)
+		if card.glowTween then
+			card.glowTween:Cancel()
+			card.glowTween = nil
+		end
+		if pulsing then
+			local dim = CLAIMABLE_GOLD:Lerp(Color3.new(0, 0, 0), 0.2)
+			local bright = CLAIMABLE_GOLD:Lerp(Color3.new(1, 1, 1), 0.2)
+			card.stroke.Color = dim
+			local tween = TweenService:Create(
+				card.stroke,
+				TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+				{ Color = bright }
+			)
+			tween:Play()
+			card.glowTween = tween
+		end
+	end
+
+	local function updateCardVisual(index: number)
+		local card = rewardCards[index]
+		local entry = Constants.SESSION_REWARDS[index]
+		if not card or not entry then
+			return
+		end
+
+		local claimed = claimedMilestones[entry.seconds]
+		local elapsed = tick() - sessionStartTick
+		local reached = elapsed >= entry.seconds
+
+		if claimed then
+			setCardPulsing(card, false)
+			card.frame.BackgroundColor3 = CLAIMED_BG
+			card.stroke.Color = DEFAULT_STROKE
+			card.timeLabel.TextColor3 = CLAIMED_GREEN
+			card.statusIcon.Text = "✓"
+			card.statusIcon.TextColor3 = CLAIMED_GREEN
+			card.claimButton.Visible = false
+		elseif reached then
+			card.frame.BackgroundColor3 = UNLOCKED_BG
+			card.timeLabel.TextColor3 = WHITE
+			card.statusIcon.Text = ""
+			card.claimButton.Visible = true
+			setCardPulsing(card, true)
+		else
+			setCardPulsing(card, false)
+			card.frame.BackgroundColor3 = LOCKED_BG
+			card.stroke.Color = LOCKED_STROKE
+			card.timeLabel.TextColor3 = GRAY
+			card.statusIcon.Text = "🔒"
+			card.statusIcon.TextColor3 = GRAY
+			card.claimButton.Visible = false
+		end
+	end
+
+	local function updateAllCardVisuals()
+		for index in rewardCards do
+			updateCardVisual(index)
+		end
+	end
+
+	local function flashCardClaimed(index: number)
+		local card = rewardCards[index]
+		if not card then
+			return
+		end
+		updateCardVisual(index)
+		card.frame.BackgroundColor3 = Color3.new(1, 1, 1)
+		TweenService:Create(card.frame, TweenInfo.new(0.4), { BackgroundColor3 = CLAIMED_BG }):Play()
+	end
+
+	for index, entry in Constants.SESSION_REWARDS do
+		indexBySeconds[entry.seconds] = index
+
+		local card = Instance.new("Frame")
+		card.Name = "Card_" .. index
+		card.Size = UDim2.new(0, 130, 0, 110)
+		card.BackgroundColor3 = UNLOCKED_BG
+		card.BorderSizePixel = 0
+		card.LayoutOrder = index
+		card.Parent = rewardsGrid
+		addCorner(card, 12)
+		local stroke = addStroke(card, DEFAULT_STROKE)
+
+		local timeLabel = Instance.new("TextLabel")
+		timeLabel.Name = "TimeLabel"
+		timeLabel.Size = UDim2.new(1, 0, 0, 50)
+		timeLabel.Position = UDim2.new(0, 0, 0, 8)
+		timeLabel.BackgroundTransparency = 1
+		timeLabel.Font = Enum.Font.GothamBold
+		timeLabel.TextSize = 22
+		timeLabel.TextColor3 = WHITE
+		timeLabel.TextXAlignment = Enum.TextXAlignment.Center
+		timeLabel.Text = formatCardTime(entry.seconds)
+		timeLabel.Parent = card
+
+		local icon, desc = getRewardText(entry)
+		local descLabel = Instance.new("TextLabel")
+		descLabel.Name = "RewardDesc"
+		descLabel.Size = UDim2.new(1, -8, 0, 16)
+		descLabel.Position = UDim2.new(0, 4, 0, 58)
+		descLabel.BackgroundTransparency = 1
+		descLabel.Font = Enum.Font.Gotham
+		descLabel.TextSize = 11
+		descLabel.TextColor3 = GRAY
+		descLabel.TextXAlignment = Enum.TextXAlignment.Center
+		descLabel.Text = `{icon} {desc}`
+		descLabel.Parent = card
+
+		local statusIcon = Instance.new("TextLabel")
+		statusIcon.Name = "StatusIcon"
+		statusIcon.AnchorPoint = Vector2.new(1, 0)
+		statusIcon.Position = UDim2.new(1, -4, 0, 4)
+		statusIcon.Size = UDim2.new(0, 18, 0, 18)
+		statusIcon.BackgroundTransparency = 1
+		statusIcon.Font = Enum.Font.GothamBold
+		statusIcon.TextSize = 14
+		statusIcon.TextColor3 = GRAY
+		statusIcon.Text = ""
+		statusIcon.Parent = card
+
+		local claimButton = Instance.new("TextButton")
+		claimButton.Name = "ClaimButton"
+		claimButton.Size = UDim2.new(1, -12, 0, 22)
+		claimButton.Position = UDim2.new(0, 6, 1, -26)
+		claimButton.Text = "CLAIM"
+		claimButton.TextSize = 12
+		claimButton.Visible = false
+		claimButton.Parent = card
+		styleButton(claimButton)
+
+		local cardIndex = index
+		onActivated(claimButton, function()
+			fireAction("REQUEST_SESSION_REWARD", { milestoneIndex = cardIndex })
+		end)
+
+		rewardCards[index] = {
+			frame = card,
+			stroke = stroke,
+			timeLabel = timeLabel,
+			statusIcon = statusIcon,
+			claimButton = claimButton,
+			glowTween = nil,
+		}
+	end
+
+	updateAllCardVisuals()
+
+	sessionRewardRemote.OnClientEvent:Connect(function(reward: any)
+		if typeof(reward) ~= "table" or typeof(reward.seconds) ~= "number" then
+			return
+		end
+		local index = indexBySeconds[reward.seconds]
+		if not index then
+			return
+		end
+		claimedMilestones[reward.seconds] = true
+		flashCardClaimed(index)
+	end)
+
+	-- Ticks the "Session time: HH:MM:SS" label once a second off a Heartbeat
+	-- accumulator (Heartbeat fires far more often than once/sec).
+	local secondAccumulator = 0
+	RunService.Heartbeat:Connect(function(dt: number)
+		secondAccumulator += dt
+		if secondAccumulator >= 1 then
+			secondAccumulator = 0
+			sessionTimerLabel.Text = "Session time: " .. formatSessionTime(math.floor(tick() - sessionStartTick))
+		end
+	end)
+
+	-- Separate from the per-second display tick, matching SessionRewards.lua's
+	-- own 5-second server-side check interval -- this is what actually flips
+	-- cards from locked to claimable.
+	task.spawn(function()
+		while true do
+			task.wait(5)
+			updateAllCardVisuals()
+		end
+	end)
+
+	return rewardsPanel, updateAllCardVisuals
+end
+
+local rewardsPanel, updateAllRewardsCards = createRewardsPanel(screenGui, isMobile)
+refreshRewardsPanel = updateAllRewardsCards
+
+--============================================================
 -- Merge notification (transient, not a toggle panel)
 --============================================================
 
@@ -3150,11 +3489,12 @@ local function applyMobileLayout()
 	centerPanelMobile(hallPanel, UDim2.new(0.9, 0, 0.65, 0))
 	hallGridLayout.CellSize = UDim2.new(0, 60, 0, 60)
 
-	-- Shop and Codex panels size/position themselves (and their grid
-	-- CellSize) internally now, since createShopPanel/createCodexPanel take
-	-- isMobile as a parameter -- extracting them into their own function
-	-- scopes (to stay under Luau's 200-local-per-function limit) moved
-	-- shopGridLayout/codexGridLayout out of this scope entirely.
+	-- Shop, Codex, and Rewards panels size/position themselves (and their grid
+	-- CellSize) internally now, since createShopPanel/createCodexPanel/
+	-- createRewardsPanel take isMobile as a parameter -- extracting them into
+	-- their own function scopes (to stay under Luau's 200-local-per-function
+	-- limit) moved shopGridLayout/codexGridLayout/rewardsGridLayout out of
+	-- this scope entirely.
 
 	-- Event station panel
 	centerPanelMobile(eventStationPanel, UDim2.new(0.95, 0, 0.75, 0))

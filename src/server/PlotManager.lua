@@ -47,6 +47,11 @@ local function hidePlotExpansions(plotModel: Model)
 end
 
 function PlotManager.AssignPlot(player: Player): Types.Plot?
+	do
+		warn("[PlotManager] AssignPlot is deprecated -- plots replaced by biome world")
+		return nil
+	end
+
 	local plotsFolder = Workspace:FindFirstChild("Plots")
 	if not plotsFolder then
 		warn("[PlotManager] Plots folder not found in Workspace")
@@ -86,6 +91,11 @@ function PlotManager.AssignPlot(player: Player): Types.Plot?
 end
 
 function PlotManager.ReleasePlot(player: Player)
+	do
+		warn("[PlotManager] ReleasePlot is deprecated -- plots replaced by biome world")
+		return
+	end
+
 	local plotModel = playerPlots[player.UserId]
 	if not plotModel then
 		return

@@ -94,50 +94,11 @@ local function createUIPointerArrow()
 	createArrow(position)
 end
 
-local function findNearestVial(): BasePart?
-	local character = player.Character
-	local rootPart = character and (character:FindFirstChild("HumanoidRootPart") :: BasePart?)
-	if not rootPart then
-		return nil
-	end
-
-	local nearest: BasePart? = nil
-	local nearestDistance = math.huge
-
-	for _, part in Workspace:GetChildren() do
-		if part:IsA("BasePart") and part.Name:sub(1, 5) == "Vial_" then
-			local ownerIdValue = part:FindFirstChild("OwnerId")
-			if ownerIdValue and ownerIdValue.Value == tostring(player.UserId) then
-				local distance = (rootPart.Position - part.Position).Magnitude
-				if distance < nearestDistance then
-					nearestDistance = distance
-					nearest = part
-				end
-			end
-		end
-	end
-
-	return nearest
-end
-
-local function findDropbox(): BasePart?
-	local plotsFolder = Workspace:FindFirstChild("Plots")
-	if not plotsFolder then
-		return nil
-	end
-
-	for _, plotModel in plotsFolder:GetChildren() do
-		local ownerId = plotModel:FindFirstChild("OwnerId")
-		if ownerId and ownerId.Value == tostring(player.UserId) then
-			local dropbox = plotModel:FindFirstChild("Dropbox")
-			if dropbox and dropbox:IsA("BasePart") then
-				return dropbox
-			end
-		end
-	end
-
-	return nil
-end
+-- Approximate world markers for the new biome farm, replacing the old
+-- pedestal/plot-relative lookups (PlotSetup.server.lua no longer builds
+-- per-player plots, so there's no owned Dropbox/SlotPad to find anymore).
+local FOREST_BIOME_POSITION = Vector3.new(-60, 5, 20)
+local SELL_POINT_POSITION = Vector3.new(0, 5, 0)
 
 --============================================================
 -- Hint text
@@ -400,12 +361,8 @@ end
 
 local function handleMonstersPlaced()
 	destroyAllArrows()
-	setHint("Collect the vials!")
-
-	local existingVial = findNearestVial()
-	if existingVial then
-		createArrow(existingVial.Position + Vector3.new(0, 3, 0))
-	end
+	setHint("Head to the Forest to find monsters!")
+	createArrow(FOREST_BIOME_POSITION)
 end
 
 -- These next three steps' arrow/hint were already created by the corresponding
@@ -416,10 +373,7 @@ local function handleSellNow()
 	setHint("Walk into the SELL box to deposit!")
 
 	if #ftueArrows == 0 then
-		local dropbox = findDropbox()
-		if dropbox then
-			createArrow(dropbox.Position + Vector3.new(0, 3, 0))
-		end
+		createArrow(SELL_POINT_POSITION)
 	end
 end
 
@@ -501,11 +455,7 @@ updateBagRemote.OnClientEvent:Connect(function(bagState: any)
 
 		destroyAllArrows()
 		setHint("Bring them to the SELL box!")
-
-		local dropbox = findDropbox()
-		if dropbox then
-			createArrow(dropbox.Position + Vector3.new(0, 3, 0))
-		end
+		createArrow(SELL_POINT_POSITION)
 	end
 
 	lastBagCount = newCount

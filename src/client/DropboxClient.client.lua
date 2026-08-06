@@ -16,19 +16,14 @@ local depositBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.DEPOSIT_
 -- visual/audio feedback, no proximity polling or FireServer call.
 
 local function findDropbox(): BasePart?
-	local plotsFolder = Workspace:FindFirstChild("Plots")
-	if not plotsFolder then
+	local sellPoint = Workspace:FindFirstChild("SellPoint")
+	if not sellPoint then
 		return nil
 	end
 
-	for _, plotModel in plotsFolder:GetChildren() do
-		local ownerId = plotModel:FindFirstChild("OwnerId")
-		if ownerId and ownerId.Value == tostring(player.UserId) then
-			local dropbox = plotModel:FindFirstChild("Dropbox")
-			if dropbox and dropbox:IsA("BasePart") then
-				return dropbox
-			end
-		end
+	local platform = sellPoint:FindFirstChild("SellPlatform")
+	if platform and platform:IsA("BasePart") then
+		return platform
 	end
 
 	return nil

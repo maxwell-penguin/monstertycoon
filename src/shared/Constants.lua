@@ -143,6 +143,7 @@ Constants.SESSION_REWARDS = {
 	{ seconds = 300, reward = "coins", amount = 5000, bonusLuck = true, luckDuration = 120 },
 	{ seconds = 900, reward = "egg", rarity = "Uncommon" },
 	{ seconds = 1800, reward = "bagVoucher" },
+	{ seconds = 2700, reward = "coins", amount = 10000 },
 	{ seconds = 3600, reward = "egg", rarity = "Rare", bonusTownXP = true },
 	{ seconds = 7200, reward = "egg", rarity = "Epic", chance = 0.3 },
 }

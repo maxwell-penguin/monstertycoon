@@ -40,6 +40,7 @@ export type PlayerData = {
 	ftueComplete: boolean,
 	eventTokens: number,
 	discoveredMonsters: { string },
+	unlockedBiomes: { string },
 }
 
 export type Plot = {

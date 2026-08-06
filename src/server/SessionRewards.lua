@@ -14,6 +14,7 @@ local BONUS_TOWN_XP = 100
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local updateCoinsRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_COINS) :: RemoteEvent
 local sessionRewardRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SESSION_REWARD) :: RemoteEvent
+local requestSessionRewardRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.REQUEST_SESSION_REWARD) :: RemoteEvent
 
 -- Highest bag tier reachable for free (BAG_TIERS beyond this require Robux) --
 -- a session reward should never hand out a paid tier for nothing.
@@ -93,8 +94,20 @@ local function grantReward(player: Player, entry: any)
 		sessionRewardRemote:FireClient(player, {
 			type = entry.reward,
 			description = describeReward(entry),
+			seconds = entry.seconds,
 		})
 	end
+end
+
+-- Server-authoritative elapsed time, off the join timestamp PlayerManager
+-- stored at load (not anything the client reports) -- used by both the
+-- automatic loop below and the manual REQUEST_SESSION_REWARD claim.
+local function getElapsedSeconds(userId: number): number?
+	local sessionStartTime = PlayerManager.GetSessionStartTime(userId)
+	if not sessionStartTime then
+		return nil
+	end
+	return os.time() - sessionStartTime
 end
 
 function SessionRewards.InitSessionRewards(player: Player)
@@ -106,8 +119,6 @@ function SessionRewards.InitSessionRewards(player: Player)
 	activeLoops[userId] = true
 	firedThresholds[userId] = {}
 
-	local startTime = os.clock()
-
 	task.spawn(function()
 		while activeLoops[userId] do
 			task.wait(CHECK_INTERVAL)
@@ -116,18 +127,50 @@ function SessionRewards.InitSessionRewards(player: Player)
 				break
 			end
 
-			local elapsed = os.clock() - startTime
+			local elapsed = getElapsedSeconds(userId)
 			local fired = firedThresholds[userId]
-
-			for _, entry in Constants.SESSION_REWARDS do
-				if elapsed >= entry.seconds and not fired[entry.seconds] then
-					fired[entry.seconds] = true
-					grantReward(player, entry)
+			if elapsed and fired then
+				for _, entry in Constants.SESSION_REWARDS do
+					if elapsed >= entry.seconds and not fired[entry.seconds] then
+						fired[entry.seconds] = true
+						grantReward(player, entry)
+					end
 				end
 			end
 		end
 	end)
 end
+
+-- Manual claim path for the RewardsPanel's CLAIM button. Same firedThresholds
+-- table as the automatic loop, so whichever path reaches a milestone first
+-- blocks the other from double-granting it.
+function SessionRewards.ClaimReward(player: Player, milestoneIndex: number)
+	local userId = player.UserId
+	local fired = firedThresholds[userId]
+	if not fired then
+		return
+	end
+
+	local entry = Constants.SESSION_REWARDS[milestoneIndex]
+	if not entry or fired[entry.seconds] then
+		return
+	end
+
+	local elapsed = getElapsedSeconds(userId)
+	if not elapsed or elapsed < entry.seconds then
+		return
+	end
+
+	fired[entry.seconds] = true
+	grantReward(player, entry)
+end
+
+requestSessionRewardRemote.OnServerEvent:Connect(function(player: Player, milestoneIndex: any)
+	if typeof(milestoneIndex) ~= "number" then
+		return
+	end
+	SessionRewards.ClaimReward(player, milestoneIndex)
+end)
 
 function SessionRewards.StopSessionRewards(player: Player)
 	local userId = player.UserId

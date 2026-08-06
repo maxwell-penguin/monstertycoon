@@ -48,6 +48,7 @@ local function defaultData(): PlayerData
 		ftueComplete = false,
 		eventTokens = 0,
 		discoveredMonsters = {},
+		unlockedBiomes = { "Forest" },
 	}
 end
 
@@ -97,7 +98,8 @@ local function onPlayerAdded(player: Player)
 
 	PlayerManager.Load(player.UserId, data)
 	PlayerManager.GiveTestCoins(player) -- TEMP: remove before launch
-	PlotManager.AssignPlot(player)
+	-- DEPRECATED: plots replaced by biome world
+	-- PlotManager.AssignPlot(player)
 	HallManager.InitHall(player)
 	WarehouseManager.InitWarehouse(player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
@@ -131,7 +133,8 @@ local function onPlayerRemoving(player: Player)
 	BoostState.ClearPersonalBoost(player.UserId)
 	SessionRewards.StopSessionRewards(player)
 	CodexManager.ClearCodex(player)
-	PlotManager.ReleasePlot(player)
+	-- DEPRECATED: plots replaced by biome world
+	-- PlotManager.ReleasePlot(player)
 	HallManager.ClearHall(player)
 	VialProducer.StopProduction(player)
 	DropboxManager.CleanupDropbox(player)
