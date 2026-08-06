@@ -105,33 +105,37 @@ Constants.CRATE_COOLDOWNS = {
 }
 
 Constants.BOOST_ROTATION = {
-	{ emotion = "Rage", duration = 480, multiplier = 4 },
-	{ emotion = "Void", duration = 360, multiplier = 5 },
-	{ emotion = "Joy", duration = 600, multiplier = 3 },
-	{ emotion = "Dread", duration = 360, multiplier = 5 },
-	{ emotion = "Sadness", duration = 480, multiplier = 3 },
-	{ emotion = "Nostalgia", duration = 240, multiplier = 8 },
+	{ element = "Fire", duration = 480, multiplier = 4 },
+	{ element = "Water", duration = 360, multiplier = 5 },
+	{ element = "Nature", duration = 600, multiplier = 3 },
+	{ element = "Void", duration = 360, multiplier = 5 },
+	{ element = "Wind", duration = 480, multiplier = 3 },
+	{ element = "Thunder", duration = 240, multiplier = 8 },
 }
 
 Constants.SPECIAL_BOOST_CHANCE = 0.15
 
 Constants.SPECIAL_BOOSTS = {
-	VoidStorm = { emotion = "All", multiplier = 2, duration = 180, displayName = "VOID STORM" },
+	VoidStorm = { element = "All", multiplier = 2, duration = 180, displayName = "VOID STORM" },
 	DoubleSurge = { multiplier = 3, duration = 300, displayName = "DOUBLE SURGE" },
 	MysterySurge = { multiplier = 6, duration = 300, displayName = "??? SURGE" },
 }
 
 Constants.WATCHER_BOOST_MULTIPLIER = 50
 
-Constants.EMOTION_COLORS = {
-	Joy = Color3.fromRGB(250, 199, 80),
-	Sadness = Color3.fromRGB(133, 183, 235),
-	Rage = Color3.fromRGB(240, 149, 149),
-	Dread = Color3.fromRGB(175, 169, 236),
-	Nostalgia = Color3.fromRGB(237, 147, 177),
-	Void = Color3.fromRGB(44, 44, 42),
-	Static = Color3.fromRGB(151, 196, 89),
-	Abyss = Color3.fromRGB(26, 33, 92),
+Constants.ELEMENT_COLORS = {
+	Fire = Color3.fromRGB(255, 100, 30),
+	Magma = Color3.fromRGB(180, 50, 10),
+	Water = Color3.fromRGB(60, 140, 220),
+	Ice = Color3.fromRGB(180, 220, 255),
+	Wind = Color3.fromRGB(200, 220, 240),
+	Thunder = Color3.fromRGB(255, 220, 50),
+	Nature = Color3.fromRGB(60, 160, 60),
+	Poison = Color3.fromRGB(120, 200, 50),
+	Void = Color3.fromRGB(80, 40, 120),
+	Galaxy = Color3.fromRGB(100, 60, 180),
+	Light = Color3.fromRGB(255, 240, 180),
+	Radiance = Color3.fromRGB(255, 200, 80),
 }
 
 Constants.XP_REWARDS = {
@@ -191,11 +195,11 @@ Constants.PRODUCT_IDS = {
 -- needs the same names/costs to render BUY buttons -- same reasoning as
 -- GAMEPASS_IDS/PRODUCT_IDS above.
 Constants.EVENT_MONSTERS = {
-	{ name = "Glitchling", emotion = "Static", rarity = "Rare", tokenCost = 1 },
-	{ name = "Voidborn", emotion = "Void", rarity = "Epic", tokenCost = 3 },
-	{ name = "Prismatic", emotion = "Any", rarity = "Legendary", tokenCost = 8 },
-	{ name = "Corrupted", emotion = "Any", rarity = "Legendary", tokenCost = 8 },
-	{ name = "Hollow", emotion = "Sadness", rarity = "Epic", tokenCost = 3 },
+	{ name = "Glitchling", element = "Void", rarity = "Rare", tokenCost = 1 },
+	{ name = "Galaxyborn", element = "Galaxy", rarity = "Epic", tokenCost = 3 },
+	{ name = "Prismatic", element = "Radiance", rarity = "Legendary", tokenCost = 8 },
+	{ name = "Corrupted", element = "Void", rarity = "Legendary", tokenCost = 8 },
+	{ name = "Hollow", element = "Void", rarity = "Epic", tokenCost = 3 },
 }
 
 Constants.ANTICHEAT = {
