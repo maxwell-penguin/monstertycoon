@@ -45,6 +45,7 @@ local function defaultData(): PlayerData
 		hasBoostInsider = false,
 		ftueComplete = false,
 		eventTokens = 0,
+		unlockedBiomes = { "Forest" },
 	}
 end
 

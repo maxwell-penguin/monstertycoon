@@ -39,6 +39,7 @@ export type PlayerData = {
 	hasBoostInsider: boolean,
 	ftueComplete: boolean,
 	eventTokens: number,
+	unlockedBiomes: { string },
 }
 
 export type Plot = {

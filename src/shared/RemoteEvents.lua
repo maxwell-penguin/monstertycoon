@@ -68,6 +68,11 @@ RemoteEvents.EVENTS = {
 
 	-- Anti-cheat
 	SANITY_FAIL = "SanityFail",
+
+	-- Biomes
+	BIOME_UNLOCK_PROMPT = "BiomeUnlockPrompt",
+	BIOME_UNLOCKED = "BiomeUnlocked",
+	UNLOCK_BIOME = "UnlockBiome",
 }
 
 RemoteEvents.FUNCTIONS = {
