@@ -135,12 +135,12 @@ function ScreenEffects.RarityFlash(rarity: string)
 	end
 end
 
-function ScreenEffects.BoostFlash(emotionColor: Color3)
+function ScreenEffects.BoostFlash(elementColor: Color3)
 	local flash = Instance.new("ImageLabel")
 	flash.Size = UDim2.fromScale(1, 1)
 	flash.Image = ""
 	flash.ImageTransparency = 1
-	flash.BackgroundColor3 = emotionColor
+	flash.BackgroundColor3 = elementColor
 	flash.BackgroundTransparency = 0
 	flash.BorderSizePixel = 0
 	flash.Parent = gui

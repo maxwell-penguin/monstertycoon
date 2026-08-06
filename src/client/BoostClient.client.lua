@@ -10,18 +10,18 @@ local boostEndedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.BOOST_EN
 
 local VOID_STORM_COLOR = Color3.fromRGB(150, 60, 220)
 
--- Mirrors the same emotion/"All"/"Mystery"/emotions-array resolution UIManager's
+-- Mirrors the same element/"All"/"Mystery"/elements-array resolution UIManager's
 -- polling loop uses for the boost HUD -- duplicated rather than shared since
 -- UIManager exposes no function for it, just its own private locals.
 local function resolveBoostColor(payload: any): Color3
-	if payload.emotions then
-		return Constants.EMOTION_COLORS[payload.emotions[1]] or Color3.new(1, 1, 1)
-	elseif payload.emotion == "All" then
+	if payload.elements then
+		return Constants.ELEMENT_COLORS[payload.elements[1]] or Color3.new(1, 1, 1)
+	elseif payload.element == "All" then
 		return VOID_STORM_COLOR
-	elseif payload.emotion == "Mystery" then
+	elseif payload.element == "Mystery" then
 		return Color3.fromHSV(os.clock() % 1, 1, 1)
 	end
-	return Constants.EMOTION_COLORS[payload.emotion] or Color3.new(1, 1, 1)
+	return Constants.ELEMENT_COLORS[payload.element] or Color3.new(1, 1, 1)
 end
 
 -- Pure state publisher, mirroring CoinDisplay/WarehouseClient/BagClient. Phase 14's
@@ -30,15 +30,15 @@ end
 -- double up with it.
 shared.BoostWarning = {
 	isActive = false,
-	emotion = "",
+	element = "",
 	multiplier = 1,
 	endTime = 0,
 }
 
 shared.BoostClient = {
 	isActive = false,
-	emotion = "",
-	emotions = nil,
+	element = "",
+	elements = nil,
 	multiplier = 1,
 	endTime = 0,
 }
@@ -50,7 +50,7 @@ boostWarningRemote.OnClientEvent:Connect(function(payload: any)
 
 	shared.BoostWarning = {
 		isActive = true,
-		emotion = payload.nextEmotion,
+		element = payload.nextElement,
 		multiplier = payload.nextMultiplier,
 		endTime = os.time() + (payload.warningDuration or 60),
 	}
@@ -67,15 +67,15 @@ boostStartedRemote.OnClientEvent:Connect(function(payload: any)
 
 	shared.BoostWarning = {
 		isActive = false,
-		emotion = "",
+		element = "",
 		multiplier = 1,
 		endTime = 0,
 	}
 
 	shared.BoostClient = {
 		isActive = true,
-		emotion = payload.emotion,
-		emotions = payload.emotions,
+		element = payload.element,
+		elements = payload.elements,
 		multiplier = payload.multiplier,
 		endTime = os.time() + (payload.durationSeconds or 0),
 	}
@@ -92,8 +92,8 @@ end)
 boostEndedRemote.OnClientEvent:Connect(function()
 	shared.BoostClient = {
 		isActive = false,
-		emotion = "",
-		emotions = nil,
+		element = "",
+		elements = nil,
 		multiplier = 1,
 		endTime = 0,
 	}

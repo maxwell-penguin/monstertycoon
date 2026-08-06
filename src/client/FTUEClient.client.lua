@@ -61,7 +61,7 @@ local function createArrow(position: Vector3): WedgePart
 	arrow.Name = "FTUEArrow"
 	arrow.Size = Vector3.new(2, 1, 4)
 	arrow.Material = Enum.Material.Neon
-	arrow.Color = Constants.EMOTION_COLORS.Joy
+	arrow.Color = Constants.ELEMENT_COLORS.Thunder
 	arrow.Anchored = true
 	arrow.CanCollide = false
 	arrow.Position = position

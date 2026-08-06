@@ -117,7 +117,7 @@ function RollTable.RollMonsterOfRarity(rarity: string): string
 	end
 
 	if #matches == 0 then
-		return "Weeper"
+		return "Embret"
 	end
 
 	return matches[math.random(1, #matches)]

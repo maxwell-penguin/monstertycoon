@@ -14,7 +14,7 @@ export type VialData = {
 	vialId: string,
 	playerId: number,
 	rarity: string,
-	emotion: string,
+	element: string,
 	monsterLevel: number,
 	monsterStars: number,
 	slotIndex: number,
@@ -57,7 +57,7 @@ function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot, worldPo
 		vialId = vialId,
 		playerId = player.UserId,
 		rarity = monster.rarity,
-		emotion = monster.emotion,
+		element = monster.element,
 		monsterLevel = monster.level,
 		monsterStars = monster.stars,
 		slotIndex = slot.slotIndex,
@@ -73,9 +73,9 @@ function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot, worldPo
 	vials[vialId] = vialData
 
 	-- Visual intensity only; actual sale value is resolved fresh (and correctly,
-	-- including Mystery Surge's hidden emotion) by Economy at sell time.
-	local boostMultiplier = BoostState.GetMultiplierForEmotion(monster.emotion)
-	vialSpawnedRemote:FireClient(player, vialId, position, monster.rarity, monster.emotion, boostMultiplier)
+	-- including Mystery Surge's hidden element) by Economy at sell time.
+	local boostMultiplier = BoostState.GetMultiplierForElement(monster.element)
+	vialSpawnedRemote:FireClient(player, vialId, position, monster.rarity, monster.element, boostMultiplier)
 
 	return vialId
 end

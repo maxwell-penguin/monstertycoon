@@ -3,8 +3,8 @@ local Types = require(script.Parent.Types)
 local BoostState = {}
 
 local currentBoost: Types.BoostState = {
-	emotion = "",
-	emotions = nil,
+	element = "",
+	elements = nil,
 	multiplier = 1,
 	startTime = 0,
 	endTime = 0,
@@ -12,11 +12,11 @@ local currentBoost: Types.BoostState = {
 }
 
 -- Only meaningful during a Mystery Surge. Never exposed via GetCurrentBoost,
--- only through the server-only GetRealEmotion below.
-local realEmotion: string? = nil
+-- only through the server-only GetRealElement below.
+local realElement: string? = nil
 
 -- Server-wide multiplier from ServerBoost developer products, independent of
--- emotion boosts. A token guards against a second purchase's reset-to-1.0 firing
+-- element boosts. A token guards against a second purchase's reset-to-1.0 firing
 -- early and clobbering a still-active first purchase's window.
 local serverMultiplier = 1.0
 local serverMultiplierToken = 0
@@ -27,15 +27,15 @@ end
 
 -- Includes serverMultiplier so any caller (Economy, VialProducer's visual read)
 -- gets the true effective multiplier from a single call.
-function BoostState.GetMultiplierForEmotion(emotion: string): number
+function BoostState.GetMultiplierForElement(element: string): number
 	local base = 1
 
 	if currentBoost.isActive then
-		if currentBoost.emotion == "All" then
+		if currentBoost.element == "All" then
 			base = currentBoost.multiplier
-		elseif currentBoost.emotions then
-			base = table.find(currentBoost.emotions, emotion) and currentBoost.multiplier or 1
-		elseif currentBoost.emotion == emotion then
+		elseif currentBoost.elements then
+			base = table.find(currentBoost.elements, element) and currentBoost.multiplier or 1
+		elseif currentBoost.element == element then
 			base = currentBoost.multiplier
 		end
 	end
@@ -61,46 +61,46 @@ function BoostState.SetServerMultiplier(multiplier: number, durationSeconds: num
 	end)
 end
 
--- Server-only: reveals the true boosted emotion during a Mystery Surge.
+-- Server-only: reveals the true boosted element during a Mystery Surge.
 -- This module is shared (ReplicatedStorage), so a client CAN require it, but each
 -- environment (server, each client) runs its own independent copy of this state --
--- a client calling this only ever sees its own local realEmotion (always nil, since
+-- a client calling this only ever sees its own local realElement (always nil, since
 -- only the server ever calls SetBoost), never the server's actual value. Only
 -- BoostRotation.server.lua and Economy.lua (both server-side) should call this.
-function BoostState.GetRealEmotion(): string?
-	return realEmotion
+function BoostState.GetRealElement(): string?
+	return realElement
 end
 
--- Server-only: called exclusively by BoostRotation.server.lua. See GetRealEmotion
+-- Server-only: called exclusively by BoostRotation.server.lua. See GetRealElement
 -- comment above for why no further enforcement is needed.
 function BoostState.SetBoost(
-	emotion: string,
+	element: string,
 	multiplier: number,
 	durationSeconds: number,
-	emotions: { string }?,
-	hiddenEmotion: string?
+	elements: { string }?,
+	hiddenElement: string?
 )
-	currentBoost.emotion = emotion
-	currentBoost.emotions = emotions
+	currentBoost.element = element
+	currentBoost.elements = elements
 	currentBoost.multiplier = multiplier
 	currentBoost.startTime = os.time()
 	currentBoost.endTime = os.time() + durationSeconds
 	currentBoost.isActive = true
-	realEmotion = hiddenEmotion
+	realElement = hiddenElement
 end
 
 -- Server-only: called exclusively by BoostRotation.server.lua.
 function BoostState.ClearBoost()
 	currentBoost.isActive = false
-	currentBoost.emotion = ""
-	currentBoost.emotions = nil
+	currentBoost.element = ""
+	currentBoost.elements = nil
 	currentBoost.multiplier = 1
 	currentBoost.endTime = 0
-	realEmotion = nil
+	realElement = nil
 end
 
 export type PersonalBoost = {
-	emotion: string,
+	element: string,
 	multiplier: number,
 	endTime: number,
 }
@@ -113,9 +113,9 @@ local personalBoosts: { [number]: PersonalBoost } = {}
 -- Server-only: called exclusively by FTUEManager.server.lua (or similar
 -- single-player reward sources). Never call this for anything meant to be visible
 -- to other players -- use SetBoost for that.
-function BoostState.SetPersonalBoost(userId: number, emotion: string, multiplier: number, durationSeconds: number)
+function BoostState.SetPersonalBoost(userId: number, element: string, multiplier: number, durationSeconds: number)
 	personalBoosts[userId] = {
-		emotion = emotion,
+		element = element,
 		multiplier = multiplier,
 		endTime = os.time() + durationSeconds,
 	}

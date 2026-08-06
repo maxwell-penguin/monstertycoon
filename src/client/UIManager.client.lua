@@ -338,16 +338,16 @@ boostHud.Visible = false
 boostHud.Parent = hud
 addCorner(boostHud, 10)
 
-local boostEmotionLabel = Instance.new("TextLabel")
-boostEmotionLabel.Name = "BoostEmotion"
-boostEmotionLabel.Size = UDim2.new(1, -16, 0, 34)
-boostEmotionLabel.Position = UDim2.new(0, 8, 0, 6)
-boostEmotionLabel.BackgroundTransparency = 1
-boostEmotionLabel.Font = Enum.Font.GothamBold
-boostEmotionLabel.TextSize = 24
-boostEmotionLabel.TextColor3 = WHITE
-boostEmotionLabel.Text = ""
-boostEmotionLabel.Parent = boostHud
+local boostElementLabel = Instance.new("TextLabel")
+boostElementLabel.Name = "BoostElement"
+boostElementLabel.Size = UDim2.new(1, -16, 0, 34)
+boostElementLabel.Position = UDim2.new(0, 8, 0, 6)
+boostElementLabel.BackgroundTransparency = 1
+boostElementLabel.Font = Enum.Font.GothamBold
+boostElementLabel.TextSize = 24
+boostElementLabel.TextColor3 = WHITE
+boostElementLabel.Text = ""
+boostElementLabel.Parent = boostHud
 
 local boostTimerLabel = Instance.new("TextLabel")
 boostTimerLabel.Name = "BoostTimer"
@@ -530,16 +530,16 @@ local function createMonsterEntry(instanceId: string, monster: any, mergeGroupId
 	nameLabel.Text = `{monster.name} ({monster.rarity}) {stars}`
 	nameLabel.Parent = entry
 
-	local emotionLabel = Instance.new("TextLabel")
-	emotionLabel.Name = "EmotionLabel"
-	emotionLabel.Size = UDim2.new(0, 80, 1, 0)
-	emotionLabel.Position = UDim2.new(0.5, 0, 0, 0)
-	emotionLabel.BackgroundTransparency = 1
-	emotionLabel.Font = Enum.Font.Gotham
-	emotionLabel.TextSize = 13
-	emotionLabel.TextColor3 = Constants.EMOTION_COLORS[monster.emotion] or WHITE
-	emotionLabel.Text = monster.emotion or ""
-	emotionLabel.Parent = entry
+	local elementLabel = Instance.new("TextLabel")
+	elementLabel.Name = "ElementLabel"
+	elementLabel.Size = UDim2.new(0, 80, 1, 0)
+	elementLabel.Position = UDim2.new(0.5, 0, 0, 0)
+	elementLabel.BackgroundTransparency = 1
+	elementLabel.Font = Enum.Font.Gotham
+	elementLabel.TextSize = 13
+	elementLabel.TextColor3 = Constants.ELEMENT_COLORS[monster.element] or WHITE
+	elementLabel.Text = monster.element or ""
+	elementLabel.Parent = entry
 
 	local slotButton = Instance.new("TextButton")
 	slotButton.Name = "SLOT"
@@ -634,19 +634,19 @@ eggVisual.Name = "EggVisual"
 eggVisual.AnchorPoint = Vector2.new(0.5, 0)
 eggVisual.Position = UDim2.new(0.5, 0, 0, 56)
 eggVisual.Size = UDim2.new(0, 120, 0, 120)
-eggVisual.BackgroundColor3 = Constants.EMOTION_COLORS.Joy
+eggVisual.BackgroundColor3 = Constants.ELEMENT_COLORS.Light
 eggVisual.BorderSizePixel = 0
 eggVisual.Parent = rollPanel
 addCorner(eggVisual, 60)
 
 task.spawn(function()
 	local colorCycle = {
-		Constants.EMOTION_COLORS.Rage,
-		Constants.EMOTION_COLORS.Void,
-		Constants.EMOTION_COLORS.Joy,
-		Constants.EMOTION_COLORS.Dread,
-		Constants.EMOTION_COLORS.Sadness,
-		Constants.EMOTION_COLORS.Nostalgia,
+		Constants.ELEMENT_COLORS.Fire,
+		Constants.ELEMENT_COLORS.Void,
+		Constants.ELEMENT_COLORS.Nature,
+		Constants.ELEMENT_COLORS.Water,
+		Constants.ELEMENT_COLORS.Thunder,
+		Constants.ELEMENT_COLORS.Galaxy,
 	}
 	local index = 1
 	while true do
@@ -850,19 +850,19 @@ hallGridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function(
 end)
 
 -- BiomeData lives server-only, so this is the client's own copy of which
--- emotions belong to which biome, matching BiomeClient.client.lua's approach.
+-- elements belong to which biome, matching BiomeClient.client.lua's approach.
 local BIOME_ORDER = { "Forest", "Waterfall", "Volcano", "Pond" }
 local BIOME_ICONS = { Forest = "🌲", Waterfall = "💧", Volcano = "🌋", Pond = "🌊" }
-local BIOME_EMOTIONS = {
-	Forest = { "Sadness", "Void" },
-	Waterfall = { "Joy", "Nostalgia" },
-	Volcano = { "Rage" },
-	Pond = { "Dread" },
+local BIOME_ELEMENTS = {
+	Forest = { "Nature", "Poison" },
+	Waterfall = { "Water", "Ice" },
+	Volcano = { "Fire", "Magma" },
+	Pond = { "Void", "Galaxy" },
 }
 
-local function getBiomeForEmotion(emotion: string): string?
-	for biomeName, emotions in BIOME_EMOTIONS do
-		if table.find(emotions, emotion) then
+local function getBiomeForElement(element: string): string?
+	for biomeName, elements in BIOME_ELEMENTS do
+		if table.find(elements, element) then
 			return biomeName
 		end
 	end
@@ -917,7 +917,7 @@ local function rebuildBiomeBreakdown(slots: { any })
 	local counts: { [string]: number } = {}
 	for _, slot in slots do
 		if slot.isActive and slot.monster then
-			local biomeName = getBiomeForEmotion(slot.monster.emotion)
+			local biomeName = getBiomeForElement(slot.monster.element)
 			if biomeName then
 				counts[biomeName] = (counts[biomeName] or 0) + 1
 			end
@@ -1001,15 +1001,15 @@ local function createHallSlotFrame(slot: any): Frame
 	label.Parent = slotFrame
 
 	if slot.monster then
-		local emotionColor = Constants.EMOTION_COLORS[slot.monster.emotion] or EMPTY_SLOT_BG
-		slotFrame.BackgroundColor3 = dimColor(emotionColor, 0.6)
+		local elementColor = Constants.ELEMENT_COLORS[slot.monster.element] or EMPTY_SLOT_BG
+		slotFrame.BackgroundColor3 = dimColor(elementColor, 0.6)
 
 		local dot = Instance.new("Frame")
-		dot.Name = "EmotionDot"
+		dot.Name = "ElementDot"
 		dot.AnchorPoint = Vector2.new(1, 0)
 		dot.Position = UDim2.new(1, -2, 0, 2)
 		dot.Size = UDim2.new(0, 8, 0, 8)
-		dot.BackgroundColor3 = emotionColor
+		dot.BackgroundColor3 = elementColor
 		dot.BorderSizePixel = 0
 		dot.Parent = slotFrame
 		addCorner(dot, 4)
@@ -1352,7 +1352,7 @@ end)
 for i, item in Constants.EVENT_MONSTERS do
 	local entry = createShopEntry(
 		item.name,
-		`{item.emotion} • {item.rarity}`,
+		`{item.element} • {item.rarity}`,
 		`{item.tokenCost} token{item.tokenCost == 1 and "" or "s"}`,
 		function()
 			fireAction("EVENT_STATION_PURCHASE", { monsterName = item.name })
@@ -1414,8 +1414,8 @@ mergeMonstersRemote.OnClientEvent:Connect(function(result: any)
 	local color = WHITE
 	local warehouseState = shared.WarehouseClient
 	local monster = warehouseState and warehouseState.monsters and warehouseState.monsters[result.newInstanceId]
-	if monster and monster.emotion then
-		color = Constants.EMOTION_COLORS[monster.emotion] or WHITE
+	if monster and monster.element then
+		color = Constants.ELEMENT_COLORS[monster.element] or WHITE
 	end
 
 	showMergeNotification(result.resultMonsterName, result.resultStars, color)
@@ -1505,11 +1505,11 @@ task.spawn(function()
 		local warningState = shared.BoostWarning
 		if warningState and warningState.isActive then
 			local secondsLeft = math.max(math.floor(warningState.endTime - os.time()), 0)
-			local emotionText = warningState.emotion == "Mystery" and "???" or string.upper(warningState.emotion or "")
-			warningLabel.Text = `INCOMING: {emotionText} SURGE IN {secondsLeft}s`
+			local elementText = warningState.element == "Mystery" and "???" or string.upper(warningState.element or "")
+			warningLabel.Text = `INCOMING: {elementText} SURGE IN {secondsLeft}s`
 
-			local color = warningState.emotion == "Mystery" and Color3.fromHSV(os.clock() % 1, 1, 1)
-				or (Constants.EMOTION_COLORS[warningState.emotion] or WHITE)
+			local color = warningState.element == "Mystery" and Color3.fromHSV(os.clock() % 1, 1, 1)
+				or (Constants.ELEMENT_COLORS[warningState.element] or WHITE)
 			warningBanner.BackgroundColor3 = color
 
 			if not warningBanner.Visible then
@@ -1534,28 +1534,28 @@ task.spawn(function()
 		local boostState = shared.BoostClient
 		if boostState and boostState.isActive then
 			local color
-			if boostState.emotions then
-				color = Constants.EMOTION_COLORS[boostState.emotions[1]] or WHITE
-			elseif boostState.emotion == "All" then
+			if boostState.elements then
+				color = Constants.ELEMENT_COLORS[boostState.elements[1]] or WHITE
+			elseif boostState.element == "All" then
 				color = VOID_STORM_COLOR
-			elseif boostState.emotion == "Mystery" then
+			elseif boostState.element == "Mystery" then
 				color = Color3.fromHSV(os.clock() % 1, 1, 1)
 			else
-				color = Constants.EMOTION_COLORS[boostState.emotion] or WHITE
+				color = Constants.ELEMENT_COLORS[boostState.element] or WHITE
 			end
 			boostHud.BackgroundColor3 = color
 
 			local text
-			if boostState.emotions then
-				text = `{string.upper(boostState.emotions[1])} + {string.upper(boostState.emotions[2])} SURGE — {boostState.multiplier}x`
-			elseif boostState.emotion == "Mystery" then
+			if boostState.elements then
+				text = `{string.upper(boostState.elements[1])} + {string.upper(boostState.elements[2])} SURGE — {boostState.multiplier}x`
+			elseif boostState.element == "Mystery" then
 				text = `??? SURGE — {boostState.multiplier}x`
-			elseif boostState.emotion == "All" then
+			elseif boostState.element == "All" then
 				text = `VOID STORM — {boostState.multiplier}x ALL`
 			else
-				text = `{string.upper(boostState.emotion or "")} SURGE — {boostState.multiplier}x`
+				text = `{string.upper(boostState.element or "")} SURGE — {boostState.multiplier}x`
 			end
-			boostEmotionLabel.Text = text
+			boostElementLabel.Text = text
 
 			local secondsLeft = math.max(math.floor(boostState.endTime - os.time()), 0)
 			boostTimerLabel.Text = string.format("%02d:%02d", math.floor(secondsLeft / 60), secondsLeft % 60)

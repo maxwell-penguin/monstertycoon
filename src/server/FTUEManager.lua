@@ -11,7 +11,7 @@ local RollManager = require(script.Parent.RollManager)
 
 local STARTER_MONSTER = "Sparklet"
 local COMPLETION_XP = 200
-local PERSONAL_BOOST_EMOTION = "Joy"
+local PERSONAL_BOOST_ELEMENT = "Thunder"
 local PERSONAL_BOOST_MULTIPLIER = 3
 local PERSONAL_BOOST_DURATION = 120
 local TWO_MINUTE_MILESTONE_SECONDS = 120
@@ -92,7 +92,7 @@ function FTUEManager.CompleteFTUE(player: Player)
 
 	PlayerManager.SetData(userId, "ftueComplete", true)
 
-	BoostState.SetPersonalBoost(userId, PERSONAL_BOOST_EMOTION, PERSONAL_BOOST_MULTIPLIER, PERSONAL_BOOST_DURATION)
+	BoostState.SetPersonalBoost(userId, PERSONAL_BOOST_ELEMENT, PERSONAL_BOOST_MULTIPLIER, PERSONAL_BOOST_DURATION)
 
 	ftueStepRemote:FireClient(player, { stepName = "complete", firstBoostActive = true })
 

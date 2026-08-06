@@ -16,7 +16,7 @@ local MAX_VIALS_PER_DEPOSIT = 100
 
 local LEVEL_MULTIPLIERS = { 1, 4, 12, 30, 100 }
 local STAR_MULTIPLIERS = { [0] = 1, [1] = 2, [2] = 4, [3] = 8 }
-local WATCHER_EMOTION = "Any"
+local WATCHER_ELEMENT = "Any"
 
 local UPGRADE_COST_TABLES = {
 	environment = Constants.ENVIRONMENT_UPGRADE_COSTS,
@@ -37,22 +37,26 @@ function Economy.GetRollCost(lifetimeRolls: number): number
 	return 500
 end
 
--- Resolves the live boost multiplier for a given player/emotion pair, covering a
--- personal boost (e.g. FTUE's first-login Joy surge, checked first and never
+-- Resolves the live boost multiplier for a given player/element pair, covering a
+-- personal boost (e.g. FTUE's first-login Thunder surge, checked first and never
 -- affecting other players), standard boosts, Void Storm ("All"), Double Surge
--- (emotions array), Mystery Surge (secret real emotion, server-only), The Watcher
--- ("Any" always benefits from any active boost), and the server-wide ServerBoost
--- multiplier (applies regardless of emotion boost).
+-- (elements array), Mystery Surge (secret real element, server-only), the "Any"
+-- wildcard element (always benefits from any active boost), and the server-wide
+-- ServerBoost multiplier (applies regardless of element boost).
 --
--- BoostState.GetMultiplierForEmotion already folds in serverMultiplier for the
+-- The "Any" branch is currently unreachable: the elemental roster has no monster
+-- with element "Any" (the old The Watcher did). Kept so a future wildcard monster
+-- works without re-deriving this, but it is dead as of the elemental pivot.
+--
+-- BoostState.GetMultiplierForElement already folds in serverMultiplier for the
 -- standard-boost path, so that branch must NOT multiply it again here -- every
--- other branch bypasses GetMultiplierForEmotion and so must apply it explicitly,
--- including the "no emotion boost active" case (serverMultiplier still applies).
-function Economy.GetBoostMultiplier(emotion: string, userId: number): number
+-- other branch bypasses GetMultiplierForElement and so must apply it explicitly,
+-- including the "no element boost active" case (serverMultiplier still applies).
+function Economy.GetBoostMultiplier(element: string, userId: number): number
 	local serverMultiplier = BoostState.GetServerMultiplier()
 
 	local personalBoost = BoostState.GetPersonalBoost(userId)
-	if personalBoost and (emotion == WATCHER_EMOTION or personalBoost.emotion == emotion) then
+	if personalBoost and (element == WATCHER_ELEMENT or personalBoost.element == element) then
 		return personalBoost.multiplier * serverMultiplier
 	end
 
@@ -62,23 +66,23 @@ function Economy.GetBoostMultiplier(emotion: string, userId: number): number
 		return serverMultiplier
 	end
 
-	if emotion == WATCHER_EMOTION then
+	if element == WATCHER_ELEMENT then
 		return boost.multiplier * serverMultiplier
 	end
 
-	if boost.emotion == "Mystery" then
-		if BoostState.GetRealEmotion() == emotion then
+	if boost.element == "Mystery" then
+		if BoostState.GetRealElement() == element then
 			return boost.multiplier * serverMultiplier
 		end
 		return serverMultiplier
 	end
 
-	return BoostState.GetMultiplierForEmotion(emotion)
+	return BoostState.GetMultiplierForElement(element)
 end
 
 -- incomeMultiplier is resolved internally from PlayerData rather than accepted as a
 -- parameter, mirroring GetBoostMultiplier -- replaces the Phase 3 hardcoded default=1.
-function Economy.GetVialValue(rarity: string, emotion: string, userId: number, monsterLevel: number, monsterStars: number): number
+function Economy.GetVialValue(rarity: string, element: string, userId: number, monsterLevel: number, monsterStars: number): number
 	local baseValue = Constants.BASE_VIAL_VALUES[rarity]
 	if not baseValue then
 		return 1
@@ -87,7 +91,7 @@ function Economy.GetVialValue(rarity: string, emotion: string, userId: number, m
 	local data = PlayerManager.GetData(userId)
 	local incomeMultiplier = (data and data.incomeMultiplier) or 1
 
-	local boostMultiplier = Economy.GetBoostMultiplier(emotion, userId)
+	local boostMultiplier = Economy.GetBoostMultiplier(element, userId)
 	local levelMultiplier = LEVEL_MULTIPLIERS[monsterLevel] or 1
 	local starMultiplier = STAR_MULTIPLIERS[monsterStars] or 1
 
@@ -102,7 +106,7 @@ function Economy.GetEarnRate(slots: { Types.MonsterSlot }, userId: number): numb
 	for _, slot in slots do
 		if slot.isActive and slot.monster then
 			local monster = slot.monster
-			local value = Economy.GetVialValue(monster.rarity, monster.emotion, userId, monster.level, monster.stars)
+			local value = Economy.GetVialValue(monster.rarity, monster.element, userId, monster.level, monster.stars)
 			total += value / 30
 		end
 	end
@@ -114,7 +118,7 @@ function Economy.ProcessSell(
 	userId: number,
 	vialCount: number,
 	vialRarity: string,
-	vialEmotion: string,
+	vialElement: string,
 	monsterLevel: number,
 	monsterStars: number
 ): (boolean, number)
@@ -134,7 +138,7 @@ function Economy.ProcessSell(
 		return false, 0
 	end
 
-	local unitValue = Economy.GetVialValue(vialRarity, vialEmotion, userId, monsterLevel, monsterStars)
+	local unitValue = Economy.GetVialValue(vialRarity, vialElement, userId, monsterLevel, monsterStars)
 	local totalValue = unitValue * vialCount
 
 	if not PlayerManager.IncrementCoins(userId, totalValue) then

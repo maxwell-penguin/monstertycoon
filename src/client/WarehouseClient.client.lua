@@ -5,15 +5,15 @@ local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local updateWarehouseRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_WAREHOUSE) :: RemoteEvent
 
-local function groupByEmotion(monsters: { [string]: any }): { [string]: { any } }
+local function groupByElement(monsters: { [string]: any }): { [string]: { any } }
 	local groups = {}
 
 	for _, monster in monsters do
-		local emotion = monster.emotion
-		if not groups[emotion] then
-			groups[emotion] = {}
+		local element = monster.element
+		if not groups[element] then
+			groups[element] = {}
 		end
-		table.insert(groups[emotion], monster)
+		table.insert(groups[element], monster)
 	end
 
 	return groups
@@ -32,7 +32,7 @@ updateWarehouseRemote.OnClientEvent:Connect(function(warehouse: any)
 		monsters = monsters,
 		capacity = capacity,
 		count = count,
-		byEmotion = groupByEmotion(monsters),
+		byElement = groupByElement(monsters),
 	}
 
 	print(`[WarehouseClient] Warehouse: {count}/{capacity}`)

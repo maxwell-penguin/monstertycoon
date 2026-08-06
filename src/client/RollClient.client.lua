@@ -16,8 +16,8 @@ local eggResultRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.EGG_RESUL
 local function getResultColor(newInstanceId: string): Color3
 	local warehouseClient = shared.WarehouseClient
 	local monster = warehouseClient and warehouseClient.monsters and warehouseClient.monsters[newInstanceId]
-	if monster and monster.emotion then
-		return Constants.EMOTION_COLORS[monster.emotion] or Color3.new(1, 1, 1)
+	if monster and monster.element then
+		return Constants.ELEMENT_COLORS[monster.element] or Color3.new(1, 1, 1)
 	end
 	return Color3.new(1, 1, 1)
 end

@@ -100,8 +100,8 @@ local function newPart(name: string, shape: Enum.PartType, size: Vector3, color:
 	return part
 end
 
-local function addEmotionDetail(model: Model, emotion: string, eyeL: BasePart, eyeR: BasePart, bodyRadius: number)
-	if emotion == "Sadness" then
+local function addElementDetail(model: Model, element: string, eyeL: BasePart, eyeR: BasePart, bodyRadius: number)
+	if element == "Water" then
 		local tear = newPart(
 			"Teardrop",
 			Enum.PartType.Ball,
@@ -110,7 +110,7 @@ local function addEmotionDetail(model: Model, emotion: string, eyeL: BasePart, e
 			CFrame.new(eyeL.Position + Vector3.new(0, -0.5, -0.1))
 		)
 		tear.Parent = model
-	elseif emotion == "Rage" then
+	elseif element == "Fire" then
 		local browColor = Color3.fromRGB(220, 40, 40)
 		local browSize = Vector3.new(0.2, 0.4, 0.2)
 
@@ -131,7 +131,7 @@ local function addEmotionDetail(model: Model, emotion: string, eyeL: BasePart, e
 			CFrame.new(eyeR.Position + Vector3.new(-0.1, 0.4, 0)) * CFrame.Angles(0, 0, math.rad(25))
 		)
 		browR.Parent = model
-	elseif emotion == "Joy" then
+	elseif element == "Nature" then
 		local mouthColor = Color3.fromRGB(255, 210, 60)
 		local mouthSize = Vector3.new(0.15, 0.15, 0.15)
 		local frontZ = -(bodyRadius * 0.85)
@@ -145,7 +145,7 @@ local function addEmotionDetail(model: Model, emotion: string, eyeL: BasePart, e
 			local dot = newPart("Mouth" .. i, Enum.PartType.Ball, mouthSize, mouthColor, CFrame.new(offset))
 			dot.Parent = model
 		end
-	elseif emotion == "Dread" then
+	elseif element == "Void" then
 		local handColor = Color3.fromRGB(60, 60, 65)
 		local handSize = Vector3.new(0.5, 0.5, 0.5)
 
@@ -154,7 +154,7 @@ local function addEmotionDetail(model: Model, emotion: string, eyeL: BasePart, e
 
 		local handR = newPart("HandR", Enum.PartType.Ball, handSize, handColor, CFrame.new(eyeR.Position + Vector3.new(0, 0, -0.3)))
 		handR.Parent = model
-	elseif emotion == "Nostalgia" then
+	elseif element == "Galaxy" then
 		local mustache = newPart(
 			"Mustache",
 			Enum.PartType.Cylinder,
@@ -164,19 +164,19 @@ local function addEmotionDetail(model: Model, emotion: string, eyeL: BasePart, e
 		)
 		mustache.Parent = model
 	end
-	-- Void: no extra parts.
+	-- All other elements: no extra parts.
 end
 
-function MonsterAI.BuildBlob(emotion: string, rarity: string): Model
+function MonsterAI.BuildBlob(element: string, rarity: string): Model
 	local model = Instance.new("Model")
 	model.Name = "Blob"
 
 	local bodyDiameter = BODY_DIAMETERS[rarity] or BODY_DIAMETERS.Common
 	local bodySize = Vector3.new(bodyDiameter, bodyDiameter, bodyDiameter)
 	local bodyRadius = bodyDiameter / 2
-	local emotionColor = Constants.EMOTION_COLORS[emotion] or Color3.new(1, 1, 1)
+	local elementColor = Constants.ELEMENT_COLORS[element] or Color3.new(1, 1, 1)
 
-	local body = newPart("HumanoidRootPart", Enum.PartType.Ball, bodySize, emotionColor, CFrame.new(0, 0, 0))
+	local body = newPart("HumanoidRootPart", Enum.PartType.Ball, bodySize, elementColor, CFrame.new(0, 0, 0))
 	body.Parent = model
 
 	local eyeSize = Vector3.new(0.6, 0.6, 0.6)
@@ -198,12 +198,12 @@ function MonsterAI.BuildBlob(emotion: string, rarity: string): Model
 	local pupilR = newPart("PupilR", Enum.PartType.Ball, pupilSize, pupilColor, CFrame.new(eyeR.Position + Vector3.new(0, 0, -0.15)))
 	pupilR.Parent = model
 
-	addEmotionDetail(model, emotion, eyeL, eyeR, bodyRadius)
+	addElementDetail(model, element, eyeL, eyeR, bodyRadius)
 
 	local light = Instance.new("PointLight")
 	light.Brightness = 1
 	light.Range = 12
-	light.Color = emotionColor
+	light.Color = elementColor
 	light.Parent = body
 
 	local humanoid = Instance.new("Humanoid")
@@ -214,7 +214,7 @@ function MonsterAI.BuildBlob(emotion: string, rarity: string): Model
 	return model
 end
 
-local function addNameTag(model: Model, name: string, emotion: string)
+local function addNameTag(model: Model, name: string, element: string)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "NameTag"
 	billboard.Size = UDim2.new(0, 120, 0, 20)
@@ -228,7 +228,7 @@ local function addNameTag(model: Model, name: string, emotion: string)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBold
 	label.TextSize = 12
-	label.TextColor3 = Constants.EMOTION_COLORS[emotion] or Color3.new(1, 1, 1)
+	label.TextColor3 = Constants.ELEMENT_COLORS[element] or Color3.new(1, 1, 1)
 	label.Text = name
 	label.Parent = billboard
 end
@@ -336,7 +336,7 @@ end
 --============================================================
 
 function MonsterAI.SpawnMonster(player: Player, slotIndex: number, monster: Monster): boolean
-	local biomeName = BiomeData.GetBiomeForEmotion(monster.emotion)
+	local biomeName = BiomeData.GetBiomeForElement(monster.element)
 	if not biomeName then
 		return false
 	end
@@ -355,10 +355,10 @@ function MonsterAI.SpawnMonster(player: Player, slotIndex: number, monster: Mons
 	local bodyDiameter = BODY_DIAMETERS[monster.rarity] or BODY_DIAMETERS.Common
 	local spawnPosition = randomPointInBiome(biome.center, biome.radius)
 
-	local model = MonsterAI.BuildBlob(monster.emotion, monster.rarity)
+	local model = MonsterAI.BuildBlob(monster.element, monster.rarity)
 	model.Name = `Monster_{player.UserId}_{slotIndex}`
 	model:PivotTo(CFrame.new(spawnPosition + Vector3.new(0, bodyDiameter / 2, 0)))
-	addNameTag(model, monster.name, monster.emotion)
+	addNameTag(model, monster.name, monster.element)
 	model.Parent = monsterModelsFolder
 
 	local key = activeKey(player.UserId, slotIndex)

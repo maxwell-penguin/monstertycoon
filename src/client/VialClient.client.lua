@@ -11,14 +11,14 @@ local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local vialSpawnedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_SPAWNED) :: RemoteEvent
 local vialRemovedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_REMOVED) :: RemoteEvent
 
-vialSpawnedRemote.OnClientEvent:Connect(function(vialId: string, position: Vector3, rarity: string, emotion: string)
+vialSpawnedRemote.OnClientEvent:Connect(function(vialId: string, position: Vector3, rarity: string, element: string)
 	local part = Instance.new("Part")
 	part.Name = "Vial_" .. vialId
 	part.Size = Vector3.new(1.5, 1.5, 1.5)
 	part.Shape = Enum.PartType.Ball
 	part.Anchored = true
 	part.CanCollide = false
-	part.Color = Constants.EMOTION_COLORS[emotion] or Color3.new(1, 1, 1)
+	part.Color = Constants.ELEMENT_COLORS[element] or Color3.new(1, 1, 1)
 	part.Position = position
 
 	local vialIdValue = Instance.new("StringValue")
@@ -36,12 +36,12 @@ vialSpawnedRemote.OnClientEvent:Connect(function(vialId: string, position: Vecto
 	if shared.ParticleManager then
 		local emitter = shared.ParticleManager.CreateParticleEmitter(part, "vialGlow")
 		if emitter then
-			emitter.Color = ColorSequence.new(Constants.EMOTION_COLORS[emotion] or Color3.new(1, 1, 1))
+			emitter.Color = ColorSequence.new(Constants.ELEMENT_COLORS[element] or Color3.new(1, 1, 1))
 		end
 	end
 
 	if shared.SoundManager then
-		shared.SoundManager.PlaySoundAtPosition("vialDrop", emotion, position)
+		shared.SoundManager.PlaySoundAtPosition("vialDrop", element, position)
 	end
 end)
 

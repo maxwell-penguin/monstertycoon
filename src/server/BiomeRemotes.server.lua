@@ -64,7 +64,7 @@ local function connectBiomeTrigger(trigger: BasePart)
 		biomeUnlockPromptRemote:FireClient(player, {
 			biomeName = biomeName,
 			cost = biome.unlockCost,
-			emotions = biome.emotions,
+			elements = biome.elements,
 		})
 	end)
 end
