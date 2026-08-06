@@ -411,7 +411,7 @@ end
 
 createToggleButton("WAREHOUSE", 0, "WarehousePanel")
 createToggleButton("ROLL", 1, "RollPanel")
-createToggleButton("HALL", 2, "HallPanel")
+createToggleButton("MONSTERS", 2, "HallPanel")
 createToggleButton("SHOP", 3, "ShopPanel")
 createToggleButton("EVENT", 4, "EventStationPanel")
 
@@ -797,8 +797,8 @@ end
 
 local hallPanel = Instance.new("Frame")
 hallPanel.Name = "HallPanel"
-hallPanel.Position = UDim2.new(0, 16, 0.5, -200)
-hallPanel.Size = UDim2.new(0, 300, 0, 400)
+hallPanel.Position = UDim2.new(0, 16, 0.5, -230)
+hallPanel.Size = UDim2.new(0, 300, 0, 460)
 hallPanel.BackgroundColor3 = PANEL_BG
 hallPanel.BorderSizePixel = 0
 hallPanel.Visible = false
@@ -808,22 +808,34 @@ panels.HallPanel = hallPanel
 
 local hallTitle = Instance.new("TextLabel")
 hallTitle.Name = "Title"
-hallTitle.Size = UDim2.new(1, -40, 0, 36)
+hallTitle.Size = UDim2.new(1, -40, 0, 24)
 hallTitle.Position = UDim2.new(0, 16, 0, 12)
 hallTitle.BackgroundTransparency = 1
 hallTitle.Font = Enum.Font.GothamBold
 hallTitle.TextSize = 20
 hallTitle.TextColor3 = WHITE
 hallTitle.TextXAlignment = Enum.TextXAlignment.Left
-hallTitle.Text = "MONSTER HALL"
+hallTitle.Text = "MONSTER ENVIRONMENT"
 hallTitle.Parent = hallPanel
+
+local hallCapacitySubtitle = Instance.new("TextLabel")
+hallCapacitySubtitle.Name = "CapacitySubtitle"
+hallCapacitySubtitle.Size = UDim2.new(1, -40, 0, 16)
+hallCapacitySubtitle.Position = UDim2.new(0, 16, 0, 38)
+hallCapacitySubtitle.BackgroundTransparency = 1
+hallCapacitySubtitle.Font = Enum.Font.Gotham
+hallCapacitySubtitle.TextSize = 12
+hallCapacitySubtitle.TextColor3 = Color3.fromRGB(150, 150, 160)
+hallCapacitySubtitle.TextXAlignment = Enum.TextXAlignment.Left
+hallCapacitySubtitle.Text = "Capacity: 0/0 monsters"
+hallCapacitySubtitle.Parent = hallPanel
 
 createCloseButton(hallPanel, "HallPanel")
 
 local hallGrid = Instance.new("ScrollingFrame")
 hallGrid.Name = "SlotGrid"
-hallGrid.Position = UDim2.new(0, 12, 0, 48)
-hallGrid.Size = UDim2.new(1, -24, 1, -100)
+hallGrid.Position = UDim2.new(0, 12, 0, 60)
+hallGrid.Size = UDim2.new(1, -24, 0, 232)
 hallGrid.BackgroundTransparency = 1
 hallGrid.BorderSizePixel = 0
 hallGrid.ScrollBarThickness = 6
@@ -840,12 +852,101 @@ hallGridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function(
 	hallGrid.CanvasSize = UDim2.new(0, 0, 0, hallGridLayout.AbsoluteContentSize.Y + 8)
 end)
 
+-- BiomeData lives server-only, so this is the client's own copy of which
+-- emotions belong to which biome, matching BiomeClient.client.lua's approach.
+local BIOME_ORDER = { "Forest", "Waterfall", "Volcano", "Pond" }
+local BIOME_ICONS = { Forest = "🌲", Waterfall = "💧", Volcano = "🌋", Pond = "🌊" }
+local BIOME_EMOTIONS = {
+	Forest = { "Sadness", "Void" },
+	Waterfall = { "Joy", "Nostalgia" },
+	Volcano = { "Rage" },
+	Pond = { "Dread" },
+}
+
+local function getBiomeForEmotion(emotion: string): string?
+	for biomeName, emotions in BIOME_EMOTIONS do
+		if table.find(emotions, emotion) then
+			return biomeName
+		end
+	end
+	return nil
+end
+
+local biomeSection = Instance.new("Frame")
+biomeSection.Name = "BiomeBreakdown"
+biomeSection.Position = UDim2.new(0, 12, 0, 300)
+biomeSection.Size = UDim2.new(1, -24, 0, 90)
+biomeSection.BackgroundTransparency = 1
+biomeSection.Parent = hallPanel
+
+local biomeHeader = Instance.new("TextLabel")
+biomeHeader.Name = "Header"
+biomeHeader.BackgroundTransparency = 1
+biomeHeader.Size = UDim2.new(1, 0, 0, 14)
+biomeHeader.Font = Enum.Font.GothamBold
+biomeHeader.TextSize = 11
+biomeHeader.TextColor3 = Color3.fromRGB(150, 150, 160)
+biomeHeader.TextXAlignment = Enum.TextXAlignment.Left
+biomeHeader.Text = "BIOME DISTRIBUTION"
+biomeHeader.Parent = biomeSection
+
+local biomeRowsFrame = Instance.new("Frame")
+biomeRowsFrame.Name = "Rows"
+biomeRowsFrame.BackgroundTransparency = 1
+biomeRowsFrame.Position = UDim2.new(0, 0, 0, 16)
+biomeRowsFrame.Size = UDim2.new(1, 0, 1, -16)
+biomeRowsFrame.Parent = biomeSection
+
+local biomeRowsLayout = Instance.new("UIListLayout")
+biomeRowsLayout.Padding = UDim.new(0, 2)
+biomeRowsLayout.Parent = biomeRowsFrame
+
+local biomeRowLabels: { [string]: TextLabel } = {}
+for _, biomeName in BIOME_ORDER do
+	local row = Instance.new("TextLabel")
+	row.Name = "Row_" .. biomeName
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, 0, 0, 16)
+	row.Font = Enum.Font.Gotham
+	row.TextSize = 12
+	row.TextColor3 = WHITE
+	row.TextXAlignment = Enum.TextXAlignment.Left
+	row.Text = `{BIOME_ICONS[biomeName]} {biomeName}: 0 monsters`
+	row.Parent = biomeRowsFrame
+	biomeRowLabels[biomeName] = row
+end
+
+local function rebuildBiomeBreakdown(slots: { any })
+	local counts: { [string]: number } = {}
+	for _, slot in slots do
+		if slot.isActive and slot.monster then
+			local biomeName = getBiomeForEmotion(slot.monster.emotion)
+			if biomeName then
+				counts[biomeName] = (counts[biomeName] or 0) + 1
+			end
+		end
+	end
+
+	local unlocked = (shared.BiomeClient and shared.BiomeClient.unlockedBiomes) or { "Forest" }
+
+	for _, biomeName in BIOME_ORDER do
+		local row = biomeRowLabels[biomeName]
+		if table.find(unlocked, biomeName) then
+			row.TextColor3 = WHITE
+			row.Text = `{BIOME_ICONS[biomeName]} {biomeName}: {counts[biomeName] or 0} monsters`
+		else
+			row.TextColor3 = Color3.fromRGB(110, 110, 120)
+			row.Text = `🔒 {biomeName}`
+		end
+	end
+end
+
 local upgradeHallButton = Instance.new("TextButton")
 upgradeHallButton.Name = "UpgradeHallButton"
 upgradeHallButton.AnchorPoint = Vector2.new(0.5, 1)
 upgradeHallButton.Position = UDim2.new(0.5, 0, 1, -12)
 upgradeHallButton.Size = UDim2.new(1, -24, 0, 36)
-upgradeHallButton.Text = "UPGRADE HALL"
+upgradeHallButton.Text = "UPGRADE ENVIRONMENT"
 upgradeHallButton.TextSize = 14
 upgradeHallButton.Parent = hallPanel
 styleButton(upgradeHallButton)
@@ -854,14 +955,14 @@ onActivated(upgradeHallButton, function()
 	if upgradeHallButton:GetAttribute("Disabled") then
 		return
 	end
-	fireAction("UPGRADE_HALL", nil)
+	fireAction("UPGRADE_ENVIRONMENT", nil)
 end)
 
 local hallSlots: { any } = {}
 local currentHallTier = 1
 
 local function inferHallTier(slotCount: number): number
-	for tier, count in Constants.HALL_SLOT_COUNTS do
+	for tier, count in Constants.ENVIRONMENT_CAPACITY do
 		if count == slotCount then
 			return tier
 		end
@@ -972,11 +1073,23 @@ local function rebuildHallGrid()
 	end
 end
 
+local function countOccupiedSlots(slots: { any }): number
+	local occupied = 0
+	for _, slot in slots do
+		if slot.isActive and slot.monster then
+			occupied += 1
+		end
+	end
+	return occupied
+end
+
 updateHallRemote.OnClientEvent:Connect(function(slots: any)
 	hallSlots = slots or {}
 	currentHallTier = inferHallTier(#hallSlots)
-	shared.HallClient = { slots = hallSlots, hallTier = currentHallTier }
+	shared.HallClient = { slots = hallSlots, environmentTier = currentHallTier }
 	rebuildHallGrid()
+	hallCapacitySubtitle.Text = `Capacity: {countOccupiedSlots(hallSlots)}/{#hallSlots} monsters`
+	rebuildBiomeBreakdown(hallSlots)
 end)
 
 --============================================================
@@ -1495,16 +1608,20 @@ task.spawn(function()
 		rollCostLabel.Text = `Cost: {NumberFormatter.Format(getRollCost())} coins`
 
 		-- Hall upgrade button + selected-slot highlight
-		local nextTierCost = Constants.HALL_UPGRADE_COSTS[currentHallTier + 1]
+		local nextTierCost = Constants.ENVIRONMENT_UPGRADE_COSTS[currentHallTier + 1]
 		local coinsAvailable = (shared.CoinDisplay and shared.CoinDisplay.displayCoins) or 0
 
 		if not nextTierCost then
 			upgradeHallButton.Text = "MAX TIER"
 			upgradeHallButton:SetAttribute("Disabled", true)
 		else
-			upgradeHallButton.Text = `UPGRADE HALL - {NumberFormatter.Format(nextTierCost)}`
+			upgradeHallButton.Text = `UPGRADE ENVIRONMENT - {NumberFormatter.Format(nextTierCost)}`
 			upgradeHallButton:SetAttribute("Disabled", coinsAvailable < nextTierCost)
 		end
+
+		-- Live-refresh biome lock state (BiomeClient publishes shared.BiomeClient
+		-- independently of hallSlots updates, e.g. right after an unlock).
+		rebuildBiomeBreakdown(hallSlots)
 
 		for _, slotFrame in hallGrid:GetChildren() do
 			if slotFrame:IsA("Frame") then

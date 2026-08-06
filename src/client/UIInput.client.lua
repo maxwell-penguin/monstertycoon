@@ -8,7 +8,7 @@ local rollEggRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.ROLL_EGG) :
 local slotMonsterRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SLOT_MONSTER) :: RemoteEvent
 local unslotMonsterRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UNSLOT_MONSTER) :: RemoteEvent
 local mergeMonstersRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MERGE_MONSTERS) :: RemoteEvent
-local upgradeHallRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_HALL) :: RemoteEvent
+local upgradeEnvironmentRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_ENVIRONMENT) :: RemoteEvent
 local upgradeBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_BAG) :: RemoteEvent
 local eventStationPurchaseRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.EVENT_STATION_PURCHASE) :: RemoteEvent
 
@@ -55,8 +55,8 @@ else
 			unslotMonsterRemote:FireServer(payload.slotIndex)
 		elseif action == "MERGE_MONSTERS" then
 			mergeMonstersRemote:FireServer({ instanceIds = payload.instanceIds })
-		elseif action == "UPGRADE_HALL" then
-			upgradeHallRemote:FireServer()
+		elseif action == "UPGRADE_ENVIRONMENT" then
+			upgradeEnvironmentRemote:FireServer()
 		elseif action == "UPGRADE_BAG" then
 			upgradeBagRemote:FireServer({ targetTier = payload.targetTier })
 		elseif action == "EVENT_STATION_PURCHASE" then

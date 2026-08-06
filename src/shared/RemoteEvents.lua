@@ -34,7 +34,7 @@ RemoteEvents.EVENTS = {
 	SERVER_BOOST_TRIGGERED = "ServerBoostTriggered",
 
 	-- Plot
-	UPGRADE_HALL = "UpgradeHall",
+	UPGRADE_ENVIRONMENT = "UpgradeEnvironment",
 	UPGRADE_WAREHOUSE = "UpgradeWarehouse",
 	UPGRADE_BAG = "UpgradeBag",
 	PLOT_UPDATED = "PlotUpdated",

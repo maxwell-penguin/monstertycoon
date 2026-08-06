@@ -9,4 +9,13 @@ BiomeData.BIOMES = {
 	Pond = { emotions = { "Dread" }, unlockCost = 2000000 },
 }
 
+function BiomeData.GetBiomeForEmotion(emotion: string): string?
+	for biomeName, biome in BiomeData.BIOMES do
+		if table.find(biome.emotions, emotion) then
+			return biomeName
+		end
+	end
+	return nil
+end
+
 return BiomeData

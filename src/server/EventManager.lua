@@ -192,8 +192,8 @@ local function randomPositionInPlot(player: Player): Vector3?
 	end
 
 	local data = PlayerManager.GetData(player.UserId)
-	local hallTier = (data and data.hallTier) or 1
-	local plotSize = Constants.PLOT_SIZES[hallTier] or Constants.PLOT_SIZES[1]
+	local environmentTier = (data and data.environmentTier) or 1
+	local plotSize = Constants.PLOT_SIZES[environmentTier] or Constants.PLOT_SIZES[1]
 
 	local offsetX = (math.random() * 2 - 1) * (plotSize.width / 2 - SHARD_PLOT_EDGE_MARGIN)
 	local offsetZ = (math.random() * 2 - 1) * (plotSize.depth / 2 - SHARD_PLOT_EDGE_MARGIN)

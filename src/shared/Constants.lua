@@ -27,7 +27,7 @@ Constants.ROLL_COST_THRESHOLDS = {
 	{ maxRolls = math.huge, cost = 80000 },
 }
 
-Constants.HALL_UPGRADE_COSTS = {
+Constants.ENVIRONMENT_UPGRADE_COSTS = {
 	[1] = 0,
 	[2] = 50000,
 	[3] = 5000000,
@@ -35,12 +35,22 @@ Constants.HALL_UPGRADE_COSTS = {
 	[5] = 50000000000,
 }
 
-Constants.HALL_SLOT_COUNTS = {
+Constants.ENVIRONMENT_CAPACITY = {
 	[1] = 9,
 	[2] = 15,
 	[3] = 24,
 	[4] = 36,
 	[5] = 48,
+}
+
+-- Max monsters roaming each biome at once, independent of environment tier --
+-- caps how many of a player's slotted monsters can be assigned to any one
+-- biome (via GetMonstersByBiome), not the total roster size.
+Constants.BIOME_CAPACITY_LIMITS = {
+	Forest = 12,
+	Waterfall = 10,
+	Volcano = 8,
+	Pond = 6,
 }
 
 Constants.WAREHOUSE_UPGRADE_COSTS = {

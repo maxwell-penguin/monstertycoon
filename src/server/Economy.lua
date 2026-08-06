@@ -19,7 +19,7 @@ local STAR_MULTIPLIERS = { [0] = 1, [1] = 2, [2] = 4, [3] = 8 }
 local WATCHER_EMOTION = "Any"
 
 local UPGRADE_COST_TABLES = {
-	hall = Constants.HALL_UPGRADE_COSTS,
+	environment = Constants.ENVIRONMENT_UPGRADE_COSTS,
 	warehouse = Constants.WAREHOUSE_UPGRADE_COSTS,
 	plot = Constants.PLOT_UPGRADE_COSTS,
 }

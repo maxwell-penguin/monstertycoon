@@ -6,7 +6,7 @@ local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
 local Economy = require(script.Parent.Economy)
-local HallManager = require(script.Parent.HallManager)
+local MonsterEnvironment = require(script.Parent.HallManager)
 local WarehouseManager = require(script.Parent.WarehouseManager)
 local AntiCheatLog = require(script.Parent.AntiCheatLog)
 
@@ -36,7 +36,7 @@ local CONFIG = {
 }
 
 local MAX_WAREHOUSE = Constants.WAREHOUSE_CAPACITY[5] + 230
-local MAX_HALL = Constants.HALL_SLOT_COUNTS[5] + 60
+local MAX_ENVIRONMENT = Constants.ENVIRONMENT_CAPACITY[5] + 60
 local COIN_CEILING = 1e18
 
 local banStore = DataStoreService:GetDataStore("Bans")
@@ -54,7 +54,7 @@ local lastPositions: { [number]: { position: Vector3, time: number } } = {}
 --============================================================
 
 function AntiCheat.CheckEarnRate(player: Player): (boolean, string)
-	local slots = HallManager.GetSlots(player)
+	local slots = MonsterEnvironment.GetSlots(player)
 	local earnRate = Economy.GetEarnRate(slots, player.UserId)
 
 	local baseline = Constants.HALL_BASE_SLOTS * Constants.BASE_VIAL_VALUES.Common / 30
@@ -102,10 +102,10 @@ end
 
 function AntiCheat.CheckInventorySize(player: Player): (boolean, string)
 	local warehouseCount = select(1, WarehouseManager.GetCapacityInfo(player))
-	local hallCount = #HallManager.GetSlots(player)
+	local environmentCount = #MonsterEnvironment.GetSlots(player)
 
-	if warehouseCount > MAX_WAREHOUSE or hallCount > MAX_HALL then
-		return false, `inventory_overflow: warehouse={warehouseCount} hall={hallCount}`
+	if warehouseCount > MAX_WAREHOUSE or environmentCount > MAX_ENVIRONMENT then
+		return false, `inventory_overflow: warehouse={warehouseCount} environment={environmentCount}`
 	end
 
 	return true, ""

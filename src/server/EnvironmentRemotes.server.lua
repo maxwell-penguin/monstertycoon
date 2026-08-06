@@ -10,7 +10,7 @@ local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 
 local slotMonsterRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SLOT_MONSTER) :: RemoteEvent
 local unslotMonsterRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UNSLOT_MONSTER) :: RemoteEvent
-local upgradeHallRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_HALL) :: RemoteEvent
+local upgradeEnvironmentRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_ENVIRONMENT) :: RemoteEvent
 
 local slotLimiter = RateLimiter.CreateLimiter(5, 1)
 local unslotLimiter = RateLimiter.CreateLimiter(5, 1)
@@ -27,7 +27,7 @@ slotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: any,
 	RateLimiter.TrackRemoteCall(userId)
 
 	if not slotLimiter:Check(userId) then
-		warn(`[HallRemotes] Slot rate limit exceeded for user {userId}`)
+		warn(`[EnvironmentRemotes] Slot rate limit exceeded for user {userId}`)
 		return
 	end
 
@@ -47,7 +47,7 @@ unslotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: an
 	RateLimiter.TrackRemoteCall(userId)
 
 	if not unslotLimiter:Check(userId) then
-		warn(`[HallRemotes] Unslot rate limit exceeded for user {userId}`)
+		warn(`[EnvironmentRemotes] Unslot rate limit exceeded for user {userId}`)
 		return
 	end
 
@@ -58,15 +58,15 @@ unslotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: an
 	HallManager.UnslotMonster(player, slotIndex)
 end)
 
-upgradeHallRemote.OnServerEvent:Connect(function(player: Player)
+upgradeEnvironmentRemote.OnServerEvent:Connect(function(player: Player)
 	local userId = player.UserId
 	RateLimiter.TrackRemoteCall(userId)
 
 	if not upgradeLimiter:Check(userId) then
-		warn(`[HallRemotes] Upgrade rate limit exceeded for user {userId}`)
+		warn(`[EnvironmentRemotes] Upgrade rate limit exceeded for user {userId}`)
 		return
 	end
 
-	local success = HallManager.UpgradeHall(player)
-	upgradeHallRemote:FireClient(player, success)
+	local success = HallManager.UpgradeMonsterEnvironment(player)
+	upgradeEnvironmentRemote:FireClient(player, success)
 end)

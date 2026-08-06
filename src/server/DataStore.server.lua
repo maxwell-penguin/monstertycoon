@@ -31,7 +31,7 @@ local function defaultData(): PlayerData
 		lifetimeRolls = 0,
 		townLevel = 1,
 		townXP = 0,
-		hallTier = 1,
+		environmentTier = 1,
 		warehouseTier = 1,
 		bagTier = 1,
 		totalPlaytime = 0,
@@ -99,7 +99,7 @@ local function onPlayerAdded(player: Player)
 
 	PlayerManager.Load(player.UserId, data)
 	PlotManager.AssignPlot(player)
-	HallManager.InitHall(player)
+	HallManager.InitMonsterEnvironment(player)
 	WarehouseManager.InitWarehouse(player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
 	BagManager.InitBag(player)
@@ -129,7 +129,7 @@ end
 local function onPlayerRemoving(player: Player)
 	BoostState.ClearPersonalBoost(player.UserId)
 	PlotManager.ReleasePlot(player)
-	HallManager.ClearHall(player)
+	HallManager.ClearMonsterEnvironment(player)
 	VialProducer.StopProduction(player)
 	DropboxManager.CleanupDropbox(player)
 	CrateManager.CleanupCrates(player)
