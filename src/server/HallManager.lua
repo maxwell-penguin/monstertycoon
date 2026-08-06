@@ -10,7 +10,7 @@ local BiomeData = require(script.Parent.BiomeData)
 
 -- Module/file stays named HallManager (require path unchanged everywhere), but
 -- monsters are no longer slotted onto physical pedestals -- slots are now a
--- roster cap and each slotted monster roams a biome based on its emotion.
+-- roster cap and each slotted monster roams a biome based on its element.
 local MonsterEnvironment = {}
 
 local playerSlots: { [number]: { Types.MonsterSlot } } = {}
@@ -150,7 +150,7 @@ function MonsterEnvironment.GetActiveMonsters(player: Player): { Types.MonsterSl
 	return active
 end
 
--- Groups slotted monsters by which biome their emotion belongs to, e.g.
+-- Groups slotted monsters by which biome their element belongs to, e.g.
 -- {Forest = {monster1, monster2}, Volcano = {monster3}} -- used by MonsterAI
 -- to know which monsters roam which biome.
 function MonsterEnvironment.GetMonstersByBiome(player: Player): { [string]: { Types.Monster } }
@@ -158,7 +158,7 @@ function MonsterEnvironment.GetMonstersByBiome(player: Player): { [string]: { Ty
 
 	for _, slot in MonsterEnvironment.GetActiveMonsters(player) do
 		local monster = slot.monster :: Types.Monster
-		local biomeName = BiomeData.GetBiomeForEmotion(monster.emotion)
+		local biomeName = BiomeData.GetBiomeForElement(monster.element)
 		if biomeName then
 			local list = grouped[biomeName]
 			if not list then
@@ -180,7 +180,7 @@ function MonsterEnvironment.GetRoamingMonsters(player: Player): { RoamingMonster
 
 	for _, slot in MonsterEnvironment.GetActiveMonsters(player) do
 		local monster = slot.monster :: Types.Monster
-		local biomeName = BiomeData.GetBiomeForEmotion(monster.emotion)
+		local biomeName = BiomeData.GetBiomeForElement(monster.element)
 		if biomeName then
 			table.insert(roaming, { monster = monster, biomeName = biomeName, slotIndex = slot.slotIndex })
 		end

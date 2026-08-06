@@ -66,7 +66,6 @@ local activeShards: { [string]: Shard } = {}
 local shardHuntCounts: { [number]: number } = {}
 
 local serverLuckExpiry = 0
-local personalLuckExpiry: { [number]: number } = {}
 
 local function broadcastAll(remote: RemoteEvent, payload: any)
 	for _, player in Players:GetPlayers() do
@@ -98,26 +97,6 @@ end
 
 function EventManager.IsServerLuckActive(): boolean
 	return os.time() < serverLuckExpiry
-end
-
---============================================================
--- Per-player luck (SessionRewards' bonusLuck) -- unlike GrantServerLuck
--- above, this must NOT affect other players, so it gets its own expiry table
--- rather than reusing the server-wide flag.
---============================================================
-
-function EventManager.GrantPersonalLuck(userId: number, duration: number)
-	personalLuckExpiry[userId] = os.time() + duration
-end
-
-function EventManager.IsPersonalLuckActive(userId: number): boolean
-	local expiry = personalLuckExpiry[userId]
-	return expiry ~= nil and os.time() < expiry
-end
-
--- Called by SessionRewards.StopSessionRewards on PlayerRemoving.
-function EventManager.ClearPersonalLuck(userId: number)
-	personalLuckExpiry[userId] = nil
 end
 
 --============================================================

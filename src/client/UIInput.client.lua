@@ -11,7 +11,6 @@ local mergeMonstersRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MERGE
 local upgradeEnvironmentRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_ENVIRONMENT) :: RemoteEvent
 local upgradeBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPGRADE_BAG) :: RemoteEvent
 local eventStationPurchaseRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.EVENT_STATION_PURCHASE) :: RemoteEvent
-local requestSessionRewardRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.REQUEST_SESSION_REWARD) :: RemoteEvent
 
 local DEBOUNCE_WINDOW = 0.3
 local lastFireTime: { [string]: number } = {}
@@ -62,8 +61,6 @@ else
 			upgradeBagRemote:FireServer({ targetTier = payload.targetTier })
 		elseif action == "EVENT_STATION_PURCHASE" then
 			eventStationPurchaseRemote:FireServer({ monsterName = payload.monsterName })
-		elseif action == "REQUEST_SESSION_REWARD" then
-			requestSessionRewardRemote:FireServer(payload.milestoneIndex)
 		end
 	end)
 end

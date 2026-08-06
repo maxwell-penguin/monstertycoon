@@ -47,7 +47,7 @@ function RollManager.PerformRoll(player: Player): (boolean, string, string, any)
 	end
 
 	local townLevel = RollManager.GetTownLevel(player)
-	local monsterName, rarity = RollTable.RollMonster(townLevel, userId)
+	local monsterName, rarity = RollTable.RollMonster(townLevel)
 
 	local added, newInstanceId = WarehouseManager.AddMonster(player, monsterName)
 	if not added then

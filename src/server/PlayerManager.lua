@@ -80,35 +80,12 @@ function PlayerManager.DecrementCoins(userId: number, amount: number): boolean
 	return true
 end
 
--- TEMP: remove before launch
-function PlayerManager.GiveTestCoins(player: Player)
-	local userId = player.UserId
-	local data = playerData[userId]
-	if not data then
-		return
-	end
-	data.coins = 999999999999
-	dirtyFlags[userId] = true
-end
-
 function PlayerManager.IsDirty(userId: number): boolean
 	return dirtyFlags[userId] == true
 end
 
 function PlayerManager.ClearDirty(userId: number)
 	dirtyFlags[userId] = false
-end
-
--- Cheap accessor for the join timestamp (os.time(), set once in
--- DataStore.server.lua before PlayerManager.Load) -- avoids the deepCopy
--- GetData() does, since callers like SessionRewards poll this every few
--- seconds for every online player.
-function PlayerManager.GetSessionStartTime(userId: number): number?
-	local data = playerData[userId]
-	if not data then
-		return nil
-	end
-	return data.sessionStartTime
 end
 
 function PlayerManager.GetLoadedUserIds(): { number }

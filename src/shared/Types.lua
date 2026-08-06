@@ -1,7 +1,7 @@
 export type Monster = {
 	id: string,
 	name: string,
-	emotion: string,
+	element: string,
 	rarity: string,
 	level: number,
 	stars: number,
@@ -52,8 +52,8 @@ export type Plot = {
 }
 
 export type BoostState = {
-	emotion: string,
-	emotions: { string }?,
+	element: string,
+	elements: { string }?,
 	multiplier: number,
 	startTime: number,
 	endTime: number,

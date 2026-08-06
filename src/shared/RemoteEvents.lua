@@ -13,7 +13,6 @@ RemoteEvents.EVENTS = {
 	MONSTER_PRODUCED = "MonsterProduced",
 	UPDATE_HALL = "UpdateHall",
 	UPDATE_WAREHOUSE = "UpdateWarehouse",
-	OPEN_WAREHOUSE = "OpenWarehouse",
 
 	-- Vials
 	PICKUP_VIAL = "PickupVial",
@@ -42,22 +41,10 @@ RemoteEvents.EVENTS = {
 
 	-- Session
 	SESSION_REWARD = "SessionReward",
-	REQUEST_SESSION_REWARD = "RequestSessionReward",
 	PLAYER_DATA_LOADED = "PlayerDataLoaded",
 
 	-- Town
 	TOWN_UPDATED = "TownUpdated",
-
-	-- Leaderboard
-	LEADERBOARD_UPDATE = "LeaderboardUpdate",
-
-	-- Codex
-	CODEX_DISCOVERY = "CodexDiscovery",
-
-	-- Biomes
-	BIOME_UNLOCK_PROMPT = "BiomeUnlockPrompt",
-	BIOME_UNLOCKED = "BiomeUnlocked",
-	UNLOCK_BIOME = "UnlockBiome",
 
 	-- Monetization
 	SET_WALK_SPEED = "SetWalkSpeed",

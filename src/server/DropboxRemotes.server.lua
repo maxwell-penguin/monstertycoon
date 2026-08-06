@@ -1,44 +1,22 @@
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local DropboxManager = require(script.Parent.DropboxManager)
+local RateLimiter = require(script.Parent.RateLimiter)
 
-local DEPOSIT_TOUCH_COOLDOWN = 2
+local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+local depositBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.DEPOSIT_BAG) :: RemoteEvent
 
-local lastTouchDeposit: { [number]: number } = {}
+local depositLimiter = RateLimiter.CreateLimiter(1, 2)
 
-local function connectSellPointTouch(sellPoint: Model)
-	local platform = sellPoint:FindFirstChild("SellPlatform")
-	if not platform or not platform:IsA("BasePart") then
+depositBagRemote.OnServerEvent:Connect(function(player: Player)
+	local userId = player.UserId
+	RateLimiter.TrackRemoteCall(userId)
+
+	if not depositLimiter:Check(userId) then
+		warn(`[DropboxRemotes] Rate limit exceeded for user {userId}`)
 		return
 	end
 
-	platform.Touched:Connect(function(hitPart: BasePart)
-		local character = hitPart:FindFirstAncestorOfClass("Model")
-		if not character then
-			return
-		end
-
-		local player = Players:GetPlayerFromCharacter(character)
-		if not player then
-			return
-		end
-
-		local userId = player.UserId
-		local now = os.clock()
-		local last = lastTouchDeposit[userId]
-		if last and (now - last) < DEPOSIT_TOUCH_COOLDOWN then
-			return
-		end
-		lastTouchDeposit[userId] = now
-
-		DropboxManager.ProcessDeposit(player)
-	end)
-end
-
-local sellPoint = Workspace:WaitForChild("SellPoint") :: Model
-connectSellPointTouch(sellPoint)
-
-Players.PlayerRemoving:Connect(function(player: Player)
-	lastTouchDeposit[player.UserId] = nil
+	DropboxManager.ProcessDeposit(player)
 end)

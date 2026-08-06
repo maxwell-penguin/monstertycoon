@@ -200,7 +200,7 @@ end
 
 cancelButton.MouseButton1Click:Connect(closePopup)
 
-local function openPopup(biomeName: string, cost: number, emotions: { string })
+local function openPopup(biomeName: string, cost: number, elements: { string })
 	currentBiomeName = biomeName
 
 	local visuals = BIOME_VISUALS[biomeName] or { icon = "❓", color = Color3.fromRGB(150, 150, 150) }
@@ -215,12 +215,12 @@ local function openPopup(biomeName: string, cost: number, emotions: { string })
 		end
 	end
 
-	for _, emotion in emotions do
-		local emotionColor = Constants.EMOTION_COLORS[emotion] or Color3.new(1, 1, 1)
+	for _, element in elements do
+		local elementColor = Constants.ELEMENT_COLORS[element] or Color3.new(1, 1, 1)
 
 		local chip = Instance.new("Frame")
-		chip.Name = "Chip_" .. emotion
-		chip.BackgroundColor3 = emotionColor
+		chip.Name = "Chip_" .. element
+		chip.BackgroundColor3 = elementColor
 		chip.BackgroundTransparency = 0.75
 		chip.AutomaticSize = Enum.AutomaticSize.X
 		chip.Size = UDim2.new(0, 0, 1, 0)
@@ -241,7 +241,7 @@ local function openPopup(biomeName: string, cost: number, emotions: { string })
 		chipLabel.Font = Enum.Font.Gotham
 		chipLabel.TextSize = 11
 		chipLabel.TextColor3 = Color3.new(1, 1, 1)
-		chipLabel.Text = emotion
+		chipLabel.Text = element
 		chipLabel.Parent = chip
 	end
 
@@ -284,7 +284,7 @@ biomeUnlockPromptRemote.OnClientEvent:Connect(function(payload: any)
 		return
 	end
 
-	openPopup(payload.biomeName, payload.cost or 0, payload.emotions or {})
+	openPopup(payload.biomeName, payload.cost or 0, payload.elements or {})
 end)
 
 --============================================================
