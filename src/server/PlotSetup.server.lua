@@ -177,7 +177,7 @@ local function createBaseTerrain()
 	terrain:SetMaterialColor(Enum.Material.Mud, Color3.fromRGB(15, 25, 35))
 
 	terrain:FillCylinder(CFrame.new(0, 0, 0), 2, 100, Enum.Material.Grass)
-	terrain:FillCylinder(CFrame.new(-80, 0, -80), 2, 40, Enum.Material.Basalt)
+	terrain:FillCylinder(CFrame.new(-90, 0, -90), 2, 40, Enum.Material.Basalt)
 	terrain:FillCylinder(CFrame.new(80, 0, -80), 2, 40, Enum.Material.Grass)
 	terrain:FillCylinder(CFrame.new(0, 0, -70), 2, 35, Enum.Material.Mud)
 end
@@ -187,45 +187,81 @@ local function createSellPoint()
 	sellPoint.Name = "SellPoint"
 	sellPoint.Parent = Workspace
 
-	local platform = createCylinder(
-		"SellPlatform",
-		padSize(18, 2),
-		Color3.fromRGB(0, 220, 100),
-		Enum.Material.Neon,
+	local ground = createCylinder(
+		"SellGround",
+		Vector3.new(0.5, 20, 20),
+		Color3.fromRGB(15, 35, 15),
+		Enum.Material.SmoothPlastic,
 		0,
-		CFrame.new(0, 1, 40) * UPRIGHT_CYLINDER,
+		CFrame.new(0, 0.5, 40) * UPRIGHT_CYLINDER,
 		true
 	)
-	platform.Parent = sellPoint
+	ground.Parent = sellPoint
 
-	local ring = createCylinder(
-		"OuterRing",
-		padSize(22, 0.3),
-		Color3.fromRGB(0, 255, 120),
+	local ring1 = createCylinder(
+		"NeonRing1",
+		Vector3.new(0.3, 22, 22),
+		Color3.fromRGB(0, 255, 100),
 		Enum.Material.Neon,
-		0.4,
-		CFrame.new(0, 0.15, 40) * UPRIGHT_CYLINDER,
+		0.3,
+		CFrame.new(0, 0.6, 40) * UPRIGHT_CYLINDER,
 		false
 	)
-	ring.Parent = sellPoint
+	ring1.Parent = sellPoint
 
 	local ring2 = createCylinder(
-		"OuterRing2",
-		padSize(26, 0.3),
-		Color3.fromRGB(0, 255, 120),
+		"NeonRing2",
+		Vector3.new(0.2, 25, 25),
+		Color3.fromRGB(0, 200, 80),
 		Enum.Material.Neon,
-		0.7,
-		CFrame.new(0, 0.15, 40) * UPRIGHT_CYLINDER,
+		0.5,
+		CFrame.new(0, 0.65, 40) * UPRIGHT_CYLINDER,
 		false
 	)
 	ring2.Parent = sellPoint
 
+	local ring3 = createCylinder(
+		"NeonRing3",
+		Vector3.new(0.15, 28, 28),
+		Color3.fromRGB(0, 150, 60),
+		Enum.Material.Neon,
+		0.7,
+		CFrame.new(0, 0.7, 40) * UPRIGHT_CYLINDER,
+		false
+	)
+	ring3.Parent = sellPoint
+
+	local pillarOffsets = {
+		Vector3.new(8.5, 3, 8.5),
+		Vector3.new(8.5, 3, -8.5),
+		Vector3.new(-8.5, 3, 8.5),
+		Vector3.new(-8.5, 3, -8.5),
+	}
+	for i, offset in pillarOffsets do
+		local pillar = createCylinder(
+			"SellPillar_" .. i,
+			Vector3.new(0.8, 6, 0.8),
+			Color3.fromRGB(0, 255, 100),
+			Enum.Material.Neon,
+			0.2,
+			CFrame.new(Vector3.new(0, 0, 40) + offset) * UPRIGHT_CYLINDER,
+			false
+		)
+		pillar.Parent = sellPoint
+	end
+
+	local light = Instance.new("PointLight")
+	light.Brightness = 3
+	light.Range = 40
+	light.Color = Color3.fromRGB(0, 255, 100)
+	light.Parent = ground
+
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "SellLabel"
-	billboard.Size = UDim2.new(4, 0, 2, 0)
-	billboard.StudsOffset = Vector3.new(0, 4, 0)
+	billboard.Size = UDim2.new(0, 120, 0, 40)
+	billboard.StudsOffset = Vector3.new(0, 6, 0)
 	billboard.AlwaysOnTop = true
-	billboard.Parent = platform
+	billboard.Parent = ground
 
 	local label = Instance.new("TextLabel")
 	label.Name = "Text"
@@ -233,15 +269,15 @@ local function createSellPoint()
 	label.BackgroundTransparency = 1
 	label.Text = "SELL"
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 24
-	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextSize = 28
+	label.TextColor3 = Color3.fromRGB(0, 255, 100)
 	label.Parent = billboard
 
 	local spawnLocation = Instance.new("SpawnLocation")
 	spawnLocation.Name = "SpawnLocation"
 	spawnLocation.Anchored = true
 	spawnLocation.Size = Vector3.new(6, 1, 6)
-	spawnLocation.Position = Vector3.new(0, 1, 60)
+	spawnLocation.Position = Vector3.new(0, 1, 62)
 	spawnLocation.Parent = Workspace
 end
 
@@ -253,26 +289,32 @@ local function createForestDecorations()
 	local rng = Random.new(123)
 
 	local TREE_VARIANTS = {
-		{ trunkDiameter = 1.2, trunkHeight = 12, topSize = Vector3.new(4, 5, 4), topColor = Color3.fromRGB(50, 130, 60) },
-		{ trunkDiameter = 2, trunkHeight = 6, topSize = Vector3.new(6, 4, 6), topColor = Color3.fromRGB(70, 150, 50) },
-		{ trunkDiameter = 1.5, trunkHeight = 9, topSize = Vector3.new(5, 5, 5), topColor = Color3.fromRGB(40, 120, 55) },
+		{ trunkDiameter = 1.2, trunkHeight = 12, topSize = Vector3.new(4, 5, 4), topColor = Color3.fromRGB(50, 130, 60), twisted = false },
+		{ trunkDiameter = 2, trunkHeight = 6, topSize = Vector3.new(6, 4, 6), topColor = Color3.fromRGB(70, 150, 50), twisted = false },
+		{ trunkDiameter = 1.5, trunkHeight = 9, topSize = Vector3.new(5, 5, 5), topColor = Color3.fromRGB(40, 120, 55), twisted = false },
+		{ trunkDiameter = 1.8, trunkHeight = 10, topSize = Vector3.new(7, 6, 7), topColor = Color3.fromRGB(35, 100, 45), twisted = true },
 	}
 	local TRUNK_COLOR = Color3.fromRGB(90, 65, 35)
+	local EXCLUSION_RADIUS = 70
 
 	local spawned = 0
-	while spawned < 40 do
+	while spawned < 65 do
 		local angle = rng:NextNumber(0, math.pi * 2)
-		local radius = rng:NextNumber(85, 98)
+		local radius = rng:NextNumber(72, 98)
 		local x = math.cos(angle) * radius
 		local z = math.sin(angle) * radius
 
-		if (x * x + z * z) < (85 * 85) then
+		if (x * x + z * z) < (EXCLUSION_RADIUS * EXCLUSION_RADIUS) then
 			continue
 		end
 
 		spawned += 1
 
 		local variant = TREE_VARIANTS[rng:NextInteger(1, #TREE_VARIANTS)]
+		local tiltCFrame = CFrame.new()
+		if variant.twisted then
+			tiltCFrame = CFrame.Angles(math.rad(rng:NextNumber(-5, 5)), 0, math.rad(rng:NextNumber(-5, 5)))
+		end
 
 		local trunk = createCylinder(
 			"Tree_" .. spawned,
@@ -280,7 +322,7 @@ local function createForestDecorations()
 			TRUNK_COLOR,
 			Enum.Material.SmoothPlastic,
 			0,
-			CFrame.new(x, 1 + variant.trunkHeight / 2, z) * UPRIGHT_CYLINDER,
+			CFrame.new(x, 1 + variant.trunkHeight / 2, z) * tiltCFrame * UPRIGHT_CYLINDER,
 			true
 		)
 		trunk.Parent = folder
@@ -296,37 +338,79 @@ local function createForestDecorations()
 		top.Parent = folder
 	end
 
-	for i = 1, 8 do
+	-- Inner ring of smaller trees hugging the boundary (68-75, straddling the
+	-- 70-stud exclusion) -- a denser treeline right at the forest edge.
+	local INNER_TRUNK_DIAMETER, INNER_TRUNK_HEIGHT = 1, 5
+	local INNER_TOP_SIZE = Vector3.new(3, 4, 3)
+	local INNER_TOP_COLOR = Color3.fromRGB(55, 140, 55)
+
+	for i = 1, 20 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(68, 75)
+		local x = math.cos(angle) * radius
+		local z = math.sin(angle) * radius
+
+		local trunk = createCylinder(
+			"InnerTree_" .. i,
+			padSize(INNER_TRUNK_DIAMETER, INNER_TRUNK_HEIGHT),
+			TRUNK_COLOR,
+			Enum.Material.SmoothPlastic,
+			0,
+			CFrame.new(x, 1 + INNER_TRUNK_HEIGHT / 2, z) * UPRIGHT_CYLINDER,
+			true
+		)
+		trunk.Parent = folder
+
+		local top = createBall(
+			"InnerTree_" .. i .. "_Top",
+			INNER_TOP_SIZE,
+			INNER_TOP_COLOR,
+			Enum.Material.Grass,
+			0,
+			Vector3.new(x, 1 + INNER_TRUNK_HEIGHT + INNER_TOP_SIZE.Y / 2, z)
+		)
+		top.Parent = folder
+	end
+
+	local MUSHROOM_COLORS = {
+		Color3.fromRGB(190, 130, 230), -- purple
+		Color3.fromRGB(230, 130, 190), -- pink
+		Color3.fromRGB(130, 170, 230), -- blue
+		Color3.fromRGB(100, 220, 200), -- teal
+	}
+
+	for i = 1, 14 do
 		local angle = rng:NextNumber(0, math.pi * 2)
 		local radius = rng:NextNumber(60, 90)
 		local x = math.cos(angle) * radius
 		local z = math.sin(angle) * radius
+		local capColor = MUSHROOM_COLORS[((i - 1) % #MUSHROOM_COLORS) + 1]
 
 		local stem = createCylinder(
 			"Mushroom_" .. i .. "_Stem",
-			padSize(1.2, 5),
+			padSize(1.5, 7),
 			Color3.fromRGB(210, 190, 230),
 			Enum.Material.SmoothPlastic,
 			0,
-			CFrame.new(x, 1 + 2.5, z) * UPRIGHT_CYLINDER,
+			CFrame.new(x, 1 + 3.5, z) * UPRIGHT_CYLINDER,
 			true
 		)
 		stem.Parent = folder
 
 		local cap = createBall(
 			"Mushroom_" .. i .. "_Cap",
-			Vector3.new(6, 4, 6),
-			Color3.fromRGB(190, 130, 230),
+			Vector3.new(8, 5, 8),
+			capColor,
 			Enum.Material.Neon,
 			0.15,
-			Vector3.new(x, 1 + 5 + 2, z)
+			Vector3.new(x, 1 + 7 + 2.5, z)
 		)
 		cap.Parent = folder
 
 		local light = Instance.new("PointLight")
 		light.Brightness = 1.5
 		light.Range = 15
-		light.Color = Color3.fromRGB(180, 100, 255)
+		light.Color = capColor
 		light.Parent = cap
 	end
 end
@@ -334,10 +418,10 @@ end
 -- Gate/trigger sit along the straight line from the farm center (0,0,0) toward
 -- the biome's own center, `biome.radius` studs out from that center -- i.e.
 -- the point where a straight walk from spawn first reaches the biome edge.
-local function createBiomeGate(biomeName: string, biome, gateColor: Color3)
+local function createBiomeGate(biomeName: string, biome, gateColor: Color3, overridePosition: Vector3?)
 	local dir = biome.center
 	local dirUnit = dir.Magnitude > 0 and dir.Unit or Vector3.new(0, 0, 1)
-	local gatePos = biome.center - dirUnit * biome.radius
+	local gatePos = overridePosition or (biome.center - dirUnit * biome.radius)
 
 	local gate = createBlock(
 		"BiomeGate_" .. biomeName,
@@ -382,14 +466,15 @@ local function createVolcano()
 	folder.Name = "VolcanoDecorations"
 	folder.Parent = Workspace
 
-	local center = Vector3.new(-80, 0, -80)
-	local basaltColor = Color3.fromRGB(60, 30, 10)
+	local center = Vector3.new(-90, 0, -90)
+	local basaltColor = Color3.fromRGB(50, 25, 8)
+	local rng = Random.new(55)
 
 	local segments = {
-		{ size = Vector3.new(8, 30, 30), y = 15 },
-		{ size = Vector3.new(8, 22, 22), y = 30 },
-		{ size = Vector3.new(8, 16, 14), y = 43 },
-		{ size = Vector3.new(8, 10, 7), y = 53 },
+		{ size = Vector3.new(8, 40, 40), y = 20 },
+		{ size = Vector3.new(8, 30, 30), y = 38 },
+		{ size = Vector3.new(8, 20, 18), y = 52 },
+		{ size = Vector3.new(8, 12, 8), y = 62 },
 	}
 
 	for i, segment in segments do
@@ -405,39 +490,72 @@ local function createVolcano()
 		part.Parent = folder
 	end
 
-	local peakY = segments[#segments].y
-
 	local crater = createBall(
 		"CraterGlow",
-		Vector3.new(8, 8, 8),
-		Color3.fromRGB(255, 60, 0),
+		Vector3.new(10, 10, 10),
+		Color3.fromRGB(255, 50, 0),
 		Enum.Material.Neon,
-		0.2,
-		center + Vector3.new(0, peakY, 0)
+		0.15,
+		center + Vector3.new(0, 67, 0)
 	)
 	crater.Parent = folder
 
 	local light = Instance.new("PointLight")
-	light.Brightness = 5
-	light.Range = 60
-	light.Color = Color3.fromRGB(255, 80, 20)
+	light.Brightness = 8
+	light.Range = 100
+	light.Color = Color3.fromRGB(255, 80, 0)
 	light.Parent = crater
 
-	for i = 1, 4 do
-		local y = peakY - (i - 1) * 12
+	-- 6 lava strips cascading down the south (+Z) face, each stepping a bit
+	-- further outward and tilting a bit more as it goes to hug the cone's taper.
+	local flowYs = { 55, 48, 40, 33, 26, 19 }
+	for i, y in flowYs do
+		local outward = 6 + (i - 1) * 1.5
+		local tilt = math.rad(8 + i)
 		local flow = createBlock(
 			"LavaFlow_" .. i,
-			Vector3.new(0.2, 8, 2),
-			Color3.fromRGB(255, 100, 0),
+			Vector3.new(1.5, 0.3, 18),
+			Color3.fromRGB(255, 120, 0),
 			Enum.Material.Neon,
-			0.3,
-			CFrame.new(center + Vector3.new(0, y, 12)),
+			0.2,
+			CFrame.new(center + Vector3.new(0, y, outward)) * CFrame.Angles(tilt, 0, 0),
 			false
 		)
 		flow.Parent = folder
 	end
 
-	createBiomeGate("Volcano", BiomeData.BIOMES.Volcano, Color3.fromRGB(255, 80, 20))
+	for i = 1, 3 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local dist = rng:NextNumber(15, 25)
+		local pos = center + Vector3.new(math.cos(angle) * dist, rng:NextNumber(2, 6), math.sin(angle) * dist)
+
+		local glow = createBall("LavaGlow_" .. i, Vector3.new(4, 4, 4), Color3.fromRGB(255, 80, 0), Enum.Material.Neon, 0.4, pos)
+		glow.Parent = folder
+	end
+
+	for i = 1, 12 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local dist = rng:NextNumber(0, 30)
+		local pos = center + Vector3.new(math.cos(angle) * dist, 1, math.sin(angle) * dist)
+		local size = rng:NextNumber(2, 5)
+
+		local rock = createBlock(
+			"BasaltRock_" .. i,
+			Vector3.new(size, size * 0.7, size),
+			Color3.fromRGB(40, 20, 5),
+			Enum.Material.Basalt,
+			0,
+			CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0),
+			true
+		)
+		rock.Parent = folder
+	end
+
+	-- BiomeData.BIOMES.Volcano.center now matches this position; the gate still
+	-- gets an explicit override since "roughly (-45,-45)" is the straight-line
+	-- midpoint to spawn, not the edge-of-biome-radius point createBiomeGate's
+	-- default formula would otherwise produce.
+	createBiomeGate("Volcano", BiomeData.BIOMES.Volcano, Color3.fromRGB(255, 80, 20), Vector3.new(-45, 0, -45))
 end
 
 local function createWaterfall()

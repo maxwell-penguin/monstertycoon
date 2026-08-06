@@ -4,7 +4,7 @@ local BiomeData = {}
 
 BiomeData.BIOMES = {
 	Forest = { emotions = { "Sadness", "Void" }, unlockCost = 0, center = Vector3.new(0, 0, 0), radius = 100 },
-	Volcano = { emotions = { "Rage" }, unlockCost = 500000, center = Vector3.new(-80, 0, -80), radius = 40 },
+	Volcano = { emotions = { "Rage" }, unlockCost = 500000, center = Vector3.new(-90, 0, -90), radius = 40 },
 	Waterfall = { emotions = { "Joy", "Nostalgia" }, unlockCost = 50000, center = Vector3.new(80, 0, -80), radius = 40 },
 	Pond = { emotions = { "Dread" }, unlockCost = 2000000, center = Vector3.new(0, 0, -70), radius = 35 },
 }
