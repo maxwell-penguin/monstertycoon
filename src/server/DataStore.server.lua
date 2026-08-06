@@ -9,6 +9,7 @@ local PlayerManager = require(script.Parent.PlayerManager)
 local EarnRateUpdater = require(script.Parent.EarnRateUpdater)
 local PlotManager = require(script.Parent.PlotManager)
 local HallManager = require(script.Parent.HallManager)
+local MonsterAI = require(script.Parent.MonsterAI)
 local VialProducer = require(script.Parent.VialProducer)
 local DropboxManager = require(script.Parent.DropboxManager)
 local WarehouseManager = require(script.Parent.WarehouseManager)
@@ -18,8 +19,6 @@ local TownManager = require(script.Parent.TownManager)
 local MonetizationManager = require(script.Parent.MonetizationManager)
 local FTUEManager = require(script.Parent.FTUEManager)
 local AntiCheat = require(script.Parent.AntiCheat)
-local SessionRewards = require(script.Parent.SessionRewards)
-local CodexManager = require(script.Parent.CodexManager)
 
 type PlayerData = Types.PlayerData
 
@@ -33,7 +32,7 @@ local function defaultData(): PlayerData
 		lifetimeRolls = 0,
 		townLevel = 1,
 		townXP = 0,
-		hallTier = 1,
+		environmentTier = 1,
 		warehouseTier = 1,
 		bagTier = 1,
 		totalPlaytime = 0,
@@ -47,8 +46,9 @@ local function defaultData(): PlayerData
 		hasBoostInsider = false,
 		ftueComplete = false,
 		eventTokens = 0,
-		discoveredMonsters = {},
 		unlockedBiomes = { "Forest" },
+		hasMagnet = false,
+		autoPickupExpiry = 0,
 	}
 end
 
@@ -96,17 +96,18 @@ local function onPlayerAdded(player: Player)
 	local data = loadData(player.UserId)
 	data.sessionStartTime = os.time()
 
+	-- Constants.SESSION_REWARDS milestones aren't wired to fire yet (Phase 16 FTUE).
+	-- When that system lands, each claimed milestone should also call
+	-- TownManager.AddXP(player, Constants.XP_REWARDS.sessionMilestone).
+
 	PlayerManager.Load(player.UserId, data)
-	PlayerManager.GiveTestCoins(player) -- TEMP: remove before launch
-	-- DEPRECATED: plots replaced by biome world
-	-- PlotManager.AssignPlot(player)
-	HallManager.InitHall(player)
+	PlotManager.AssignPlot(player)
+	HallManager.InitMonsterEnvironment(player)
+	MonsterAI.SpawnAllMonsters(player)
 	WarehouseManager.InitWarehouse(player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
 	BagManager.InitBag(player)
 	TownManager.InitTown(player)
-	SessionRewards.InitSessionRewards(player)
-	CodexManager.InitCodex(player)
 
 	-- Non-blocking: UserOwnsGamePassAsync is a real network call made once per
 	-- gamepass (10 of them), sequentially. Blocking onPlayerAdded on all 10 would
@@ -114,6 +115,13 @@ local function onPlayerAdded(player: Player)
 	-- PLAYER_DATA_LOADED itself once it finishes so the client still learns the
 	-- final ownedGamepasses set, just a moment later.
 	task.spawn(MonetizationManager.CheckGamepasses, player)
+
+	if os.time() < data.autoPickupExpiry then
+		local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+		local setAutoPickupRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SET_AUTO_PICKUP) :: RemoteEvent
+		setAutoPickupRemote:FireClient(player, data.autoPickupExpiry)
+	end
+
 	task.spawn(FTUEManager.StartFTUE, player)
 
 	VialProducer.StartProduction(player)
@@ -131,11 +139,9 @@ end
 
 local function onPlayerRemoving(player: Player)
 	BoostState.ClearPersonalBoost(player.UserId)
-	SessionRewards.StopSessionRewards(player)
-	CodexManager.ClearCodex(player)
-	-- DEPRECATED: plots replaced by biome world
-	-- PlotManager.ReleasePlot(player)
-	HallManager.ClearHall(player)
+	PlotManager.ReleasePlot(player)
+	HallManager.ClearMonsterEnvironment(player)
+	MonsterAI.DespawnAllMonsters(player)
 	VialProducer.StopProduction(player)
 	DropboxManager.CleanupDropbox(player)
 	CrateManager.CleanupCrates(player)

@@ -6,9 +6,12 @@ local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
 local Economy = require(script.Parent.Economy)
 local WarehouseManager = require(script.Parent.WarehouseManager)
-local MonsterVisuals = require(script.Parent.MonsterVisuals)
+local BiomeData = require(script.Parent.BiomeData)
 
-local HallManager = {}
+-- Module/file stays named HallManager (require path unchanged everywhere), but
+-- monsters are no longer slotted onto physical pedestals -- slots are now a
+-- roster cap and each slotted monster roams a biome based on its emotion.
+local MonsterEnvironment = {}
 
 local playerSlots: { [number]: { Types.MonsterSlot } } = {}
 
@@ -23,11 +26,11 @@ local function buildEmptySlots(count: number): { Types.MonsterSlot }
 	return slots
 end
 
-function HallManager.InitHall(player: Player)
+function MonsterEnvironment.InitMonsterEnvironment(player: Player)
 	local userId = player.UserId
 	local data = PlayerManager.GetData(userId)
-	local hallTier = (data and data.hallTier) or 1
-	local slotCount = Constants.HALL_SLOT_COUNTS[hallTier] or Constants.HALL_BASE_SLOTS
+	local environmentTier = (data and data.environmentTier) or 1
+	local slotCount = Constants.ENVIRONMENT_CAPACITY[environmentTier] or Constants.HALL_BASE_SLOTS
 
 	local slots = buildEmptySlots(slotCount)
 	playerSlots[userId] = slots
@@ -35,24 +38,15 @@ function HallManager.InitHall(player: Player)
 	updateHallRemote:FireClient(player, slots)
 end
 
-function HallManager.ClearHall(player: Player)
-	local slots = playerSlots[player.UserId]
-	if slots then
-		for _, slot in slots do
-			if slot.monster then
-				MonsterVisuals.RemoveMonsterFromPad(player, slot.slotIndex)
-			end
-		end
-	end
-
+function MonsterEnvironment.ClearMonsterEnvironment(player: Player)
 	playerSlots[player.UserId] = nil
 end
 
-function HallManager.GetSlots(player: Player): { Types.MonsterSlot }
+function MonsterEnvironment.GetSlots(player: Player): { Types.MonsterSlot }
 	return playerSlots[player.UserId] or {}
 end
 
-function HallManager.SlotMonster(player: Player, slotIndex: number, instanceId: string): boolean
+function MonsterEnvironment.SlotMonster(player: Player, slotIndex: number, instanceId: string): boolean
 	local slots = playerSlots[player.UserId]
 	if not slots then
 		return false
@@ -76,14 +70,12 @@ function HallManager.SlotMonster(player: Player, slotIndex: number, instanceId: 
 
 	WarehouseManager.RemoveMonster(player, instanceId)
 
-	MonsterVisuals.SpawnMonsterOnPad(player, slotIndex, monster.name, monster.emotion, monster.rarity)
-
 	updateHallRemote:FireClient(player, slots)
 
 	return true
 end
 
-function HallManager.UnslotMonster(player: Player, slotIndex: number): boolean
+function MonsterEnvironment.UnslotMonster(player: Player, slotIndex: number): boolean
 	local slots = playerSlots[player.UserId]
 	if not slots then
 		return false
@@ -101,14 +93,12 @@ function HallManager.UnslotMonster(player: Player, slotIndex: number): boolean
 	slot.monster = nil
 	slot.isActive = false
 
-	MonsterVisuals.RemoveMonsterFromPad(player, slotIndex)
-
 	updateHallRemote:FireClient(player, slots)
 
 	return true
 end
 
-function HallManager.UpgradeHall(player: Player): boolean
+function MonsterEnvironment.UpgradeMonsterEnvironment(player: Player): boolean
 	local userId = player.UserId
 	local slots = playerSlots[userId]
 	if not slots then
@@ -120,8 +110,8 @@ function HallManager.UpgradeHall(player: Player): boolean
 		return false
 	end
 
-	local currentTier = data.hallTier
-	local cost = Economy.GetUpgradeCost("hall", currentTier)
+	local currentTier = data.environmentTier
+	local cost = Economy.GetUpgradeCost("environment", currentTier)
 	if cost == math.huge then
 		return false
 	end
@@ -131,20 +121,20 @@ function HallManager.UpgradeHall(player: Player): boolean
 	end
 
 	local newTier = currentTier + 1
-	local newSlotCount = Constants.HALL_SLOT_COUNTS[newTier] or #slots
+	local newSlotCount = Constants.ENVIRONMENT_CAPACITY[newTier] or #slots
 
 	for i = #slots + 1, newSlotCount do
 		slots[i] = { slotIndex = i, monster = nil, isActive = false }
 	end
 
-	PlayerManager.SetData(userId, "hallTier", newTier)
+	PlayerManager.SetData(userId, "environmentTier", newTier)
 
 	updateHallRemote:FireClient(player, slots)
 
 	return true
 end
 
-function HallManager.GetActiveMonsters(player: Player): { Types.MonsterSlot }
+function MonsterEnvironment.GetActiveMonsters(player: Player): { Types.MonsterSlot }
 	local slots = playerSlots[player.UserId]
 	if not slots then
 		return {}
@@ -160,4 +150,43 @@ function HallManager.GetActiveMonsters(player: Player): { Types.MonsterSlot }
 	return active
 end
 
-return HallManager
+-- Groups slotted monsters by which biome their emotion belongs to, e.g.
+-- {Forest = {monster1, monster2}, Volcano = {monster3}} -- used by MonsterAI
+-- to know which monsters roam which biome.
+function MonsterEnvironment.GetMonstersByBiome(player: Player): { [string]: { Types.Monster } }
+	local grouped: { [string]: { Types.Monster } } = {}
+
+	for _, slot in MonsterEnvironment.GetActiveMonsters(player) do
+		local monster = slot.monster :: Types.Monster
+		local biomeName = BiomeData.GetBiomeForEmotion(monster.emotion)
+		if biomeName then
+			local list = grouped[biomeName]
+			if not list then
+				list = {}
+				grouped[biomeName] = list
+			end
+			table.insert(list, monster)
+		end
+	end
+
+	return grouped
+end
+
+export type RoamingMonster = { monster: Types.Monster, biomeName: string, slotIndex: number }
+
+-- Flat array version of GetMonstersByBiome, one entry per slotted monster.
+function MonsterEnvironment.GetRoamingMonsters(player: Player): { RoamingMonster }
+	local roaming: { RoamingMonster } = {}
+
+	for _, slot in MonsterEnvironment.GetActiveMonsters(player) do
+		local monster = slot.monster :: Types.Monster
+		local biomeName = BiomeData.GetBiomeForEmotion(monster.emotion)
+		if biomeName then
+			table.insert(roaming, { monster = monster, biomeName = biomeName, slotIndex = slot.slotIndex })
+		end
+	end
+
+	return roaming
+end
+
+return MonsterEnvironment

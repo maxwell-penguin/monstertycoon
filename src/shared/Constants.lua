@@ -1,7 +1,7 @@
 local Constants = {}
 
 Constants.PLOT_MAX_PLAYERS = 10
-Constants.VIAL_PICKUP_RADIUS = 15 -- TODO: temporarily widened from 8 for testing tolerance; dial back down once SlotPositioner spacing is confirmed comfortable
+Constants.VIAL_PICKUP_RADIUS = 8
 Constants.DROPBOX_RADIUS = 10
 Constants.WAREHOUSE_BASE_CAPACITY = 30
 Constants.HALL_BASE_SLOTS = 9
@@ -27,7 +27,7 @@ Constants.ROLL_COST_THRESHOLDS = {
 	{ maxRolls = math.huge, cost = 80000 },
 }
 
-Constants.HALL_UPGRADE_COSTS = {
+Constants.ENVIRONMENT_UPGRADE_COSTS = {
 	[1] = 0,
 	[2] = 50000,
 	[3] = 5000000,
@@ -35,12 +35,22 @@ Constants.HALL_UPGRADE_COSTS = {
 	[5] = 50000000000,
 }
 
-Constants.HALL_SLOT_COUNTS = {
+Constants.ENVIRONMENT_CAPACITY = {
 	[1] = 9,
 	[2] = 15,
 	[3] = 24,
 	[4] = 36,
 	[5] = 48,
+}
+
+-- Max monsters roaming each biome at once, independent of environment tier --
+-- caps how many of a player's slotted monsters can be assigned to any one
+-- biome (via GetMonstersByBiome), not the total roster size.
+Constants.BIOME_CAPACITY_LIMITS = {
+	Forest = 12,
+	Waterfall = 10,
+	Volcano = 8,
+	Pond = 6,
 }
 
 Constants.WAREHOUSE_UPGRADE_COSTS = {
@@ -143,7 +153,6 @@ Constants.SESSION_REWARDS = {
 	{ seconds = 300, reward = "coins", amount = 5000, bonusLuck = true, luckDuration = 120 },
 	{ seconds = 900, reward = "egg", rarity = "Uncommon" },
 	{ seconds = 1800, reward = "bagVoucher" },
-	{ seconds = 2700, reward = "coins", amount = 10000 },
 	{ seconds = 3600, reward = "egg", rarity = "Rare", bonusTownXP = true },
 	{ seconds = 7200, reward = "egg", rarity = "Epic", chance = 0.3 },
 }
@@ -162,8 +171,7 @@ Constants.GAMEPASS_IDS = {
 	Income5x = 0,
 	Income7x = 0,
 	Income10x = 0,
-	AutoMerge = 0,
-	VoidPass = 0,
+	Magnet = 0,
 }
 
 Constants.PRODUCT_IDS = {
@@ -176,6 +184,7 @@ Constants.PRODUCT_IDS = {
 	MythicEgg = 0,
 	StarterPack = 0,
 	VoidPack = 0,
+	AutoPickup = 0,
 }
 
 -- Shared (not an EventStation-local) because the client-built Event Station panel

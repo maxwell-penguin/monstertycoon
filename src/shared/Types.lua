@@ -25,7 +25,7 @@ export type PlayerData = {
 	lifetimeRolls: number,
 	townLevel: number,
 	townXP: number,
-	hallTier: number,
+	environmentTier: number,
 	warehouseTier: number,
 	bagTier: number,
 	totalPlaytime: number,
@@ -39,8 +39,9 @@ export type PlayerData = {
 	hasBoostInsider: boolean,
 	ftueComplete: boolean,
 	eventTokens: number,
-	discoveredMonsters: { string },
 	unlockedBiomes: { string },
+	hasMagnet: boolean,
+	autoPickupExpiry: number,
 }
 
 export type Plot = {

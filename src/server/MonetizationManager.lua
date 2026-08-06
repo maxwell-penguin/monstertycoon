@@ -19,7 +19,8 @@ local PRODUCT_IDS = Constants.PRODUCT_IDS
 local LUCK_BOOST_DURATION = 900
 local SERVER_BOOST_MULTIPLIER = 1.5
 local SERVER_BOOST_DURATION = 600
-local SPEED_BOOTS_WALK_SPEED = 21
+local SPEED_BOOTS_WALK_SPEED = 28
+local AUTO_PICKUP_DURATION = 600
 
 local INCOME_TIER_ORDER = { "Income2x", "Income3x", "Income5x", "Income7x", "Income10x" }
 local INCOME_MULTIPLIERS = { Income2x = 2, Income3x = 3, Income5x = 5, Income7x = 7, Income10x = 10 }
@@ -28,6 +29,8 @@ local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local setWalkSpeedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SET_WALK_SPEED) :: RemoteEvent
 local luckBoostActiveRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.LUCK_BOOST_ACTIVE) :: RemoteEvent
 local playerDataLoadedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
+local setMagnetRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SET_MAGNET) :: RemoteEvent
+local setAutoPickupRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SET_AUTO_PICKUP) :: RemoteEvent
 
 local processedReceiptsStore = DataStoreService:GetDataStore("ProcessedReceipts")
 
@@ -95,6 +98,9 @@ function MonetizationManager.ApplyGamepassEffect(player: Player, gamepassName: s
 		BagManager.GrantBagTier(player, 5)
 	elseif gamepassName == "SpeedBoots" then
 		setWalkSpeedRemote:FireClient(player, SPEED_BOOTS_WALK_SPEED)
+	elseif gamepassName == "Magnet" then
+		PlayerManager.SetData(userId, "hasMagnet", true)
+		setMagnetRemote:FireClient(player, { enabled = true })
 	elseif gamepassName == "BoostInsider" then
 		PlayerManager.SetData(userId, "hasBoostInsider", true)
 	elseif gamepassName == "ExtraPlot" then
@@ -164,6 +170,15 @@ local function grantVoidPack(player: Player)
 	MonetizationManager.ApplyGamepassEffect(player, "SpeedBoots")
 end
 
+-- Consumable, unlike Magnet -- a timed flag rather than a permanent gamepass
+-- effect, restored on rejoin by DataStore.server.lua checking autoPickupExpiry.
+local function grantAutoPickup(player: Player)
+	local userId = player.UserId
+	local expiryTime = os.time() + AUTO_PICKUP_DURATION
+	PlayerManager.SetData(userId, "autoPickupExpiry", expiryTime)
+	setAutoPickupRemote:FireClient(player, expiryTime)
+end
+
 -- Keyed by product ID. With today's placeholder IDs (all 0) this table can only
 -- ever hold one live entry -- expected per spec, not a bug: a real receipt would
 -- never arrive with ProductId=0, so this path is dormant until real IDs land.
@@ -177,6 +192,7 @@ local PRODUCT_HANDLERS: { [number]: (Player) -> () } = {
 	[PRODUCT_IDS.MythicEgg] = grantMythicEgg,
 	[PRODUCT_IDS.StarterPack] = grantStarterPack,
 	[PRODUCT_IDS.VoidPack] = grantVoidPack,
+	[PRODUCT_IDS.AutoPickup] = grantAutoPickup,
 }
 
 local function getProcessedReceiptsKey(userId: number): string

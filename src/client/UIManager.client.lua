@@ -1,9 +1,6 @@
-print("[UIManager] script started")
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
@@ -13,27 +10,6 @@ local NumberFormatter = require(ReplicatedStorage.NumberFormatter)
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local UserInputService = game:GetService("UserInputService")
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
--- So RollClient.client.lua and FTUEClient.client.lua can read it without
--- re-detecting.
-shared.isMobile = isMobile
-
-local MIN_TAP_TARGET = 44
-
--- Only bumps Offset-sized dimensions up to the minimum (Scale-sized ones
--- already track a parent that's sized appropriately) -- never shrinks
--- anything, and it's a no-op entirely on desktop.
-local function ensureTapTarget(button: GuiObject)
-	if not isMobile then
-		return
-	end
-	local size = button.Size
-	local width = (size.X.Scale == 0 and size.X.Offset < MIN_TAP_TARGET) and MIN_TAP_TARGET or size.X.Offset
-	local height = (size.Y.Scale == 0 and size.Y.Offset < MIN_TAP_TARGET) and MIN_TAP_TARGET or size.Y.Offset
-	button.Size = UDim2.new(size.X.Scale, width, size.Y.Scale, height)
-end
-
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local updateHallRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_HALL) :: RemoteEvent
 local mergeMonstersRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MERGE_MONSTERS) :: RemoteEvent
@@ -41,19 +17,11 @@ local playerDataLoadedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PL
 local eggResultRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.EGG_RESULT) :: RemoteEvent
 local sessionRewardRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SESSION_REWARD) :: RemoteEvent
 
--- RewardsPanel's session clock; captured once here (script init == join) so
--- both the ticking display and the claimable-card check share one clock.
-local sessionStartTick = tick()
-local leaderboardUpdateRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.LEADERBOARD_UPDATE) :: RemoteEvent
-local codexDiscoveryRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.CODEX_DISCOVERY) :: RemoteEvent
-
 -- BindableEvent so UIInput.client.lua (a separate LocalScript, can't be require()'d)
 -- can hear about button clicks without UIManager reaching into RemoteEvents itself.
 -- Created before any button is wired so the firing side never races the listener.
 local actionEvent = Instance.new("BindableEvent")
-print("[UIManager] about to set shared.UIActionEvent")
 shared.UIActionEvent = actionEvent
-print("[UIManager] shared.UIActionEvent set")
 
 local function fireAction(action: string, payload: any)
 	actionEvent:Fire(action, payload)
@@ -145,7 +113,6 @@ local function styleButton(button: TextButton)
 	button.AutoButtonColor = false
 	button.BorderSizePixel = 0
 	button:SetAttribute("IsTweening", false)
-	ensureTapTarget(button)
 
 	addCorner(button, 6)
 	addStroke(button)
@@ -218,19 +185,16 @@ hud.BackgroundTransparency = 1
 hud.Parent = screenGui
 panels.HUD = hud
 
--- Coin counter (top-center)
+-- Coin counter (top-left)
 local coinFrame = Instance.new("Frame")
 coinFrame.Name = "CoinCounter"
-coinFrame.AnchorPoint = Vector2.new(0.5, 0)
-coinFrame.Position = UDim2.new(0.5, 0, 0, 12)
-coinFrame.Size = UDim2.new(0, 320, 0, 70)
+coinFrame.Position = UDim2.new(0, 16, 0, 16)
+coinFrame.Size = UDim2.new(0, 220, 0, 60)
 coinFrame.BackgroundColor3 = PANEL_BG
 coinFrame.BackgroundTransparency = 0.3
 coinFrame.BorderSizePixel = 0
 coinFrame.Parent = hud
 addCorner(coinFrame, 8)
-local coinFrameStroke = addStroke(coinFrame, Color3.fromRGB(180, 140, 0))
-coinFrameStroke.Transparency = 0.5
 
 local coinAmountLabel = Instance.new("TextLabel")
 coinAmountLabel.Name = "CoinAmount"
@@ -238,9 +202,9 @@ coinAmountLabel.Size = UDim2.new(1, -16, 0, 34)
 coinAmountLabel.Position = UDim2.new(0, 8, 0, 4)
 coinAmountLabel.BackgroundTransparency = 1
 coinAmountLabel.Font = Enum.Font.GothamBold
-coinAmountLabel.TextSize = 32
+coinAmountLabel.TextSize = 28
 coinAmountLabel.TextColor3 = GOLD
-coinAmountLabel.TextXAlignment = Enum.TextXAlignment.Center
+coinAmountLabel.TextXAlignment = Enum.TextXAlignment.Left
 coinAmountLabel.Text = "0"
 coinAmountLabel.Parent = coinFrame
 
@@ -272,16 +236,15 @@ earnRateLabel.BackgroundTransparency = 1
 earnRateLabel.Font = Enum.Font.Gotham
 earnRateLabel.TextSize = 14
 earnRateLabel.TextColor3 = GRAY
-earnRateLabel.TextXAlignment = Enum.TextXAlignment.Center
+earnRateLabel.TextXAlignment = Enum.TextXAlignment.Left
 earnRateLabel.Text = "+0/sec"
 earnRateLabel.Parent = coinFrame
 
--- Bag indicator (top-left -- moved off top-right to make room for the new
--- LeaderboardPanel there; top-left was vacated by CoinCounter's move to
--- top-center)
+-- Bag indicator (top-right)
 local bagFrame = Instance.new("Frame")
 bagFrame.Name = "BagIndicator"
-bagFrame.Position = UDim2.new(0, 16, 0, 16)
+bagFrame.AnchorPoint = Vector2.new(1, 0)
+bagFrame.Position = UDim2.new(1, -16, 0, 16)
 bagFrame.Size = UDim2.new(0, 160, 0, 60)
 bagFrame.BackgroundColor3 = PANEL_BG
 bagFrame.BackgroundTransparency = 0.3
@@ -319,11 +282,11 @@ addCorner(bagBarFill, 4)
 
 local bagPulseTween: Tween? = nil
 
--- Town level indicator (top-left, stacked below the bag indicator -- the new
--- wider/taller CoinCounter now occupies top-center)
+-- Town level indicator (top-center)
 local townFrame = Instance.new("Frame")
 townFrame.Name = "TownLevelIndicator"
-townFrame.Position = UDim2.new(0, 16, 0, 84)
+townFrame.AnchorPoint = Vector2.new(0.5, 0)
+townFrame.Position = UDim2.new(0.5, 0, 0, 16)
 townFrame.Size = UDim2.new(0, 200, 0, 60)
 townFrame.BackgroundColor3 = PANEL_BG
 townFrame.BackgroundTransparency = 0.3
@@ -358,143 +321,6 @@ xpBarFill.BackgroundColor3 = PURPLE
 xpBarFill.BorderSizePixel = 0
 xpBarFill.Parent = xpBarTrack
 addCorner(xpBarFill, 3)
-
--- Leaderboard panel (top-right)
-local leaderboardPanel = Instance.new("Frame")
-leaderboardPanel.Name = "LeaderboardPanel"
-leaderboardPanel.AnchorPoint = Vector2.new(1, 0)
-leaderboardPanel.Position = UDim2.new(1, -16, 0, 16)
-leaderboardPanel.Size = UDim2.new(0, 200, 0, 220)
-leaderboardPanel.BackgroundColor3 = Color3.fromRGB(12, 9, 22)
-leaderboardPanel.BackgroundTransparency = 0.2
-leaderboardPanel.BorderSizePixel = 0
-leaderboardPanel.Parent = hud
-addCorner(leaderboardPanel, 10)
-local leaderboardStroke = addStroke(leaderboardPanel, Color3.fromRGB(80, 50, 140))
-leaderboardStroke.Transparency = 0.3
-
-local leaderboardHeader = Instance.new("TextLabel")
-leaderboardHeader.Name = "Header"
-leaderboardHeader.Size = UDim2.new(1, 0, 0, 30)
-leaderboardHeader.BackgroundTransparency = 1
-leaderboardHeader.Font = Enum.Font.GothamBold
-leaderboardHeader.TextSize = 13
-leaderboardHeader.TextColor3 = Color3.fromRGB(180, 140, 255)
-leaderboardHeader.TextXAlignment = Enum.TextXAlignment.Center
-leaderboardHeader.Text = "TOP EARNERS"
-leaderboardHeader.Parent = leaderboardPanel
-
-local LEADERBOARD_RANK_COLORS = {
-	Color3.fromRGB(255, 210, 50), -- 1st: gold
-	Color3.fromRGB(200, 200, 200), -- 2nd: silver
-	Color3.fromRGB(200, 140, 80), -- 3rd: bronze
-	Color3.fromRGB(140, 120, 180), -- 4th: dim purple
-	Color3.fromRGB(140, 120, 180), -- 5th: dim purple
-}
-
-type LeaderboardRow = {
-	frame: Frame,
-	rank: TextLabel,
-	name: TextLabel,
-	earnings: TextLabel,
-	defaultColor: Color3,
-	defaultTransparency: number,
-}
-
-local leaderboardRows: { LeaderboardRow } = {}
-
-for i = 1, 5 do
-	local rowColor = Color3.fromRGB(20, 15, 35)
-	local rowTransparency = (i % 2 == 1) and 0.5 or 1
-
-	local row = Instance.new("Frame")
-	row.Name = "Row_" .. i
-	row.Size = UDim2.new(1, -16, 0, 34)
-	row.Position = UDim2.new(0, 8, 0, 32 + (i - 1) * 36)
-	row.BackgroundColor3 = rowColor
-	row.BackgroundTransparency = rowTransparency
-	row.BorderSizePixel = 0
-	row.Parent = leaderboardPanel
-
-	local rankLabel = Instance.new("TextLabel")
-	rankLabel.Name = "Rank"
-	rankLabel.Size = UDim2.new(0, 24, 1, 0)
-	rankLabel.BackgroundTransparency = 1
-	rankLabel.Font = Enum.Font.GothamBold
-	rankLabel.TextSize = 13
-	rankLabel.TextColor3 = LEADERBOARD_RANK_COLORS[i]
-	rankLabel.Text = tostring(i)
-	rankLabel.Parent = row
-
-	local rowNameLabel = Instance.new("TextLabel")
-	rowNameLabel.Name = "PlayerName"
-	rowNameLabel.Size = UDim2.new(0, 100, 1, 0)
-	rowNameLabel.Position = UDim2.new(0, 28, 0, 0)
-	rowNameLabel.BackgroundTransparency = 1
-	rowNameLabel.Font = Enum.Font.Gotham
-	rowNameLabel.TextSize = 12
-	rowNameLabel.TextColor3 = WHITE
-	rowNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	rowNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	rowNameLabel.Text = "---"
-	rowNameLabel.Parent = row
-
-	local earningsLabel = Instance.new("TextLabel")
-	earningsLabel.Name = "Earnings"
-	earningsLabel.Size = UDim2.new(0, 60, 1, 0)
-	earningsLabel.Position = UDim2.new(1, -60, 0, 0)
-	earningsLabel.BackgroundTransparency = 1
-	earningsLabel.Font = Enum.Font.GothamBold
-	earningsLabel.TextSize = 12
-	earningsLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
-	earningsLabel.TextXAlignment = Enum.TextXAlignment.Right
-	earningsLabel.Text = ""
-	earningsLabel.Parent = row
-
-	leaderboardRows[i] = {
-		frame = row,
-		rank = rankLabel,
-		name = rowNameLabel,
-		earnings = earningsLabel,
-		defaultColor = rowColor,
-		defaultTransparency = rowTransparency,
-	}
-end
-
-local LOCAL_PLAYER_ROW_COLOR = Color3.fromRGB(40, 25, 70)
-
-leaderboardUpdateRemote.OnClientEvent:Connect(function(top: any)
-	if typeof(top) ~= "table" then
-		return
-	end
-
-	for i = 1, 5 do
-		local row = leaderboardRows[i]
-		local entry = top[i]
-		local isLocalPlayer = false
-
-		if entry then
-			row.name.Text = entry.playerName
-			row.earnings.Text = NumberFormatter.Format(entry.coins)
-			isLocalPlayer = entry.playerName == player.Name
-		else
-			row.name.Text = "---"
-			row.earnings.Text = ""
-		end
-
-		local targetColor = isLocalPlayer and LOCAL_PLAYER_ROW_COLOR or row.defaultColor
-		local targetTransparency = isLocalPlayer and 0 or row.defaultTransparency
-
-		-- Flash white, then tween both color and transparency back to their
-		-- (possibly just-changed, e.g. local-player-highlight) target state.
-		row.frame.BackgroundColor3 = Color3.new(1, 1, 1)
-		row.frame.BackgroundTransparency = 0.2
-		TweenService:Create(row.frame, TweenInfo.new(0.3), {
-			BackgroundColor3 = targetColor,
-			BackgroundTransparency = targetTransparency,
-		}):Play()
-	end
-end)
 
 -- Boost HUD (bottom-center, hidden when no boost)
 local BOOST_HUD_HIDDEN_Y = 90
@@ -560,29 +386,14 @@ warningLabel.Text = ""
 warningLabel.Parent = warningBanner
 
 -- Bottom-left toggle buttons
-local MOBILE_NAV_BUTTON_HEIGHT = 36
-local MOBILE_NAV_BUTTON_GAP = 4
-local MOBILE_NAV_START_Y = 0.35
-
-local function createToggleButton(label: string, order: number, panelName: string, onShow: (() -> ())?)
+local function createToggleButton(label: string, order: number, panelName: string)
 	local button = Instance.new("TextButton")
 	button.Name = label .. "ToggleButton"
-
-	if isMobile then
-		-- Top-anchored scale-based stack (vs. desktop's bottom-anchored one)
-		-- so it starts below the HUD header row and stays clear of the
-		-- boost HUD, which is wide enough on mobile to reach this column.
-		button.Position = UDim2.new(0, 16, MOBILE_NAV_START_Y, order * (MOBILE_NAV_BUTTON_HEIGHT + MOBILE_NAV_BUTTON_GAP))
-		button.Size = UDim2.new(0, 80, 0, MOBILE_NAV_BUTTON_HEIGHT)
-		button.TextSize = 12
-	else
-		button.AnchorPoint = Vector2.new(0, 1)
-		button.Position = UDim2.new(0, 16, 1, -16 - (order * 44))
-		button.Size = UDim2.new(0, 110, 0, 36)
-		button.TextSize = 16
-	end
-
+	button.AnchorPoint = Vector2.new(0, 1)
+	button.Position = UDim2.new(0, 16, 1, -16 - (order * 44))
+	button.Size = UDim2.new(0, 110, 0, 36)
 	button.Text = label
+	button.TextSize = 16
 	button.Parent = hud
 	styleButton(button)
 
@@ -593,58 +404,16 @@ local function createToggleButton(label: string, order: number, panelName: strin
 				UIManagerAPI.HidePanel(panelName)
 			else
 				UIManagerAPI.ShowPanel(panelName)
-				if onShow then
-					onShow()
-				end
 			end
 		end
 	end)
 end
 
--- Codex's rebuild function is defined once the panel itself is built further
--- down; forward-declared here so the nav button (grouped with the others)
--- can still be wired to call it, without moving this button's creation after
--- that whole panel section.
-local rebuildCodexGrid: (() -> ())? = nil
-local refreshRewardsPanel: (() -> ())? = nil
-
 createToggleButton("WAREHOUSE", 0, "WarehousePanel")
 createToggleButton("ROLL", 1, "RollPanel")
-createToggleButton("HALL", 2, "HallPanel")
+createToggleButton("MONSTERS", 2, "HallPanel")
 createToggleButton("SHOP", 3, "ShopPanel")
 createToggleButton("EVENT", 4, "EventStationPanel")
-createToggleButton("CODEX", 5, "CodexPanel", function()
-	if rebuildCodexGrid then
-		rebuildCodexGrid()
-	end
-end)
-
--- RewardsPanel's toggle lives on the right edge, vertically centered --
--- a mirror of the left nav stack rather than a member of it, so it doesn't
--- use createToggleButton's order-based stacking math.
-local rewardsNavButton = Instance.new("TextButton")
-rewardsNavButton.Name = "RewardsToggleButton"
-rewardsNavButton.AnchorPoint = Vector2.new(1, 0.5)
-rewardsNavButton.Position = UDim2.new(1, -16, 0.5, -20)
-rewardsNavButton.Size = UDim2.new(0, 110, 0, 36)
-rewardsNavButton.TextSize = 16
-rewardsNavButton.Text = "🎁🕐"
-rewardsNavButton.Parent = hud
-styleButton(rewardsNavButton)
-
-onActivated(rewardsNavButton, function()
-	local panel = panels.RewardsPanel
-	if panel then
-		if panel.Visible then
-			UIManagerAPI.HidePanel("RewardsPanel")
-		else
-			UIManagerAPI.ShowPanel("RewardsPanel")
-			if refreshRewardsPanel then
-				refreshRewardsPanel()
-			end
-		end
-	end
-end)
 
 --============================================================
 -- Warehouse Panel
@@ -740,12 +509,9 @@ local function computeMergeGroups(monsters: { [string]: any }): { [string]: { st
 end
 
 local function createMonsterEntry(instanceId: string, monster: any, mergeGroupIds: { string }?): Frame
-	local rowTextSize = isMobile and 11 or 14
-	local rowButtonTextSize = isMobile and 11 or 13
-
 	local entry = Instance.new("Frame")
 	entry.Name = "Entry_" .. instanceId
-	entry.Size = UDim2.new(1, 0, 0, isMobile and 44 or 48)
+	entry.Size = UDim2.new(1, 0, 0, 48)
 	entry.BackgroundColor3 = Color3.fromRGB(26, 26, 38)
 	entry.BorderSizePixel = 0
 	addCorner(entry, 6)
@@ -758,7 +524,7 @@ local function createMonsterEntry(instanceId: string, monster: any, mergeGroupId
 	nameLabel.Position = UDim2.new(0, 8, 0, 0)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Font = Enum.Font.Gotham
-	nameLabel.TextSize = rowTextSize
+	nameLabel.TextSize = 14
 	nameLabel.TextColor3 = WHITE
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
 	nameLabel.Text = `{monster.name} ({monster.rarity}) {stars}`
@@ -770,7 +536,7 @@ local function createMonsterEntry(instanceId: string, monster: any, mergeGroupId
 	emotionLabel.Position = UDim2.new(0.5, 0, 0, 0)
 	emotionLabel.BackgroundTransparency = 1
 	emotionLabel.Font = Enum.Font.Gotham
-	emotionLabel.TextSize = rowTextSize
+	emotionLabel.TextSize = 13
 	emotionLabel.TextColor3 = Constants.EMOTION_COLORS[monster.emotion] or WHITE
 	emotionLabel.Text = monster.emotion or ""
 	emotionLabel.Parent = entry
@@ -780,7 +546,7 @@ local function createMonsterEntry(instanceId: string, monster: any, mergeGroupId
 	slotButton.Size = UDim2.new(0, 60, 0, 32)
 	slotButton.Position = UDim2.new(1, -140, 0.5, -16)
 	slotButton.Text = "SLOT"
-	slotButton.TextSize = rowButtonTextSize
+	slotButton.TextSize = 13
 	slotButton.Parent = entry
 	styleButton(slotButton)
 
@@ -798,7 +564,7 @@ local function createMonsterEntry(instanceId: string, monster: any, mergeGroupId
 		mergeButton.Size = UDim2.new(0, 60, 0, 32)
 		mergeButton.Position = UDim2.new(1, -72, 0.5, -16)
 		mergeButton.Text = "MERGE"
-		mergeButton.TextSize = rowButtonTextSize
+		mergeButton.TextSize = 13
 		mergeButton.Parent = entry
 		styleButton(mergeButton)
 
@@ -892,51 +658,48 @@ task.spawn(function()
 	end
 end)
 
--- Slow continuous rotation drives eggVisual.Rotation (a native GuiObject
--- property) directly every Heartbeat tick -- no UIRotation instance. The
--- NumberValue tracks the current angle so the jiggle tween below can pause
--- the loop and hand control back without a visible snap.
-local eggRotationValue = Instance.new("NumberValue")
-eggRotationValue.Value = 0
-eggRotationValue.Parent = eggVisual
+-- Slow continuous rotation via a NumberValue driving a UIRotation (rather than
+-- tweening UIRotation.Rotation directly, whose repeat would otherwise snap back
+-- to 0 visibly -- 360 and 0 look identical, so the wrap via modulo is seamless).
+local eggRotation = Instance.new("UIRotation")
+eggRotation.Rotation = 0
+eggRotation.Parent = eggVisual
 
-local EGG_ROTATION_SPEED = 45 -- degrees/second (360 over 8s, matches old tween duration)
-local eggJiggling = false
+local eggBaseRotationValue = Instance.new("NumberValue")
+eggBaseRotationValue.Value = 0
+eggBaseRotationValue.Parent = eggVisual
 
-task.spawn(function()
-	while true do
-		local dt = RunService.Heartbeat:Wait()
-		if not eggJiggling then
-			eggRotationValue.Value = (eggRotationValue.Value + EGG_ROTATION_SPEED * dt) % 360
-			eggVisual.Rotation = eggRotationValue.Value
-		end
-	end
-end)
+local eggJiggleValue = Instance.new("NumberValue")
+eggJiggleValue.Value = 0
+eggJiggleValue.Parent = eggVisual
 
--- Every 3 seconds, a quick ±5 degree jiggle chained over 0.3s total, tweening
--- eggVisual.Rotation itself. The continuous loop above pauses for the duration
--- so the two don't fight over the same property, then resumes from the
--- jiggle's landing angle (always the pre-jiggle base, since the last leg
--- targets +0).
+local function updateEggRotation()
+	eggRotation.Rotation = (eggBaseRotationValue.Value % 360) + eggJiggleValue.Value
+end
+
+eggBaseRotationValue:GetPropertyChangedSignal("Value"):Connect(updateEggRotation)
+eggJiggleValue:GetPropertyChangedSignal("Value"):Connect(updateEggRotation)
+
+TweenService:Create(
+	eggBaseRotationValue,
+	TweenInfo.new(8, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false),
+	{ Value = 360 }
+):Play()
+
+-- Every 3 seconds, a quick ±5 degree jiggle chained over 0.3s total, layered on
+-- top of the continuous rotation via the separate jiggle value.
 task.spawn(function()
 	while true do
 		task.wait(3)
 
-		eggJiggling = true
-		local baseRotation = eggVisual.Rotation
-
-		for _, offset in { 5, -5, 0 } do
-			local jiggleTween = TweenService:Create(
-				eggVisual,
-				TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
-				{ Rotation = baseRotation + offset }
-			)
+		for _, target in { 5, -5, 0 } do
+			local jiggleTween =
+				TweenService:Create(eggJiggleValue, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+					Value = target,
+				})
 			jiggleTween:Play()
 			jiggleTween.Completed:Wait()
 		end
-
-		eggRotationValue.Value = eggVisual.Rotation % 360
-		eggJiggling = false
 	end
 end)
 
@@ -957,7 +720,7 @@ local function createRollButton(label: string, count: number, xPos: number)
 	button.Size = UDim2.new(0, 110, 0, 40)
 	button.Position = UDim2.new(0, xPos, 0, 224)
 	button.Text = label
-	button.TextSize = isMobile and 14 or 15
+	button.TextSize = 15
 	button.Parent = rollPanel
 	styleButton(button)
 
@@ -1034,8 +797,8 @@ end
 
 local hallPanel = Instance.new("Frame")
 hallPanel.Name = "HallPanel"
-hallPanel.Position = UDim2.new(0, 16, 0.5, -200)
-hallPanel.Size = UDim2.new(0, 300, 0, 400)
+hallPanel.Position = UDim2.new(0, 16, 0.5, -230)
+hallPanel.Size = UDim2.new(0, 300, 0, 460)
 hallPanel.BackgroundColor3 = PANEL_BG
 hallPanel.BorderSizePixel = 0
 hallPanel.Visible = false
@@ -1045,22 +808,34 @@ panels.HallPanel = hallPanel
 
 local hallTitle = Instance.new("TextLabel")
 hallTitle.Name = "Title"
-hallTitle.Size = UDim2.new(1, -40, 0, 36)
+hallTitle.Size = UDim2.new(1, -40, 0, 24)
 hallTitle.Position = UDim2.new(0, 16, 0, 12)
 hallTitle.BackgroundTransparency = 1
 hallTitle.Font = Enum.Font.GothamBold
 hallTitle.TextSize = 20
 hallTitle.TextColor3 = WHITE
 hallTitle.TextXAlignment = Enum.TextXAlignment.Left
-hallTitle.Text = "MONSTER HALL"
+hallTitle.Text = "MONSTER ENVIRONMENT"
 hallTitle.Parent = hallPanel
+
+local hallCapacitySubtitle = Instance.new("TextLabel")
+hallCapacitySubtitle.Name = "CapacitySubtitle"
+hallCapacitySubtitle.Size = UDim2.new(1, -40, 0, 16)
+hallCapacitySubtitle.Position = UDim2.new(0, 16, 0, 38)
+hallCapacitySubtitle.BackgroundTransparency = 1
+hallCapacitySubtitle.Font = Enum.Font.Gotham
+hallCapacitySubtitle.TextSize = 12
+hallCapacitySubtitle.TextColor3 = Color3.fromRGB(150, 150, 160)
+hallCapacitySubtitle.TextXAlignment = Enum.TextXAlignment.Left
+hallCapacitySubtitle.Text = "Capacity: 0/0 monsters"
+hallCapacitySubtitle.Parent = hallPanel
 
 createCloseButton(hallPanel, "HallPanel")
 
 local hallGrid = Instance.new("ScrollingFrame")
 hallGrid.Name = "SlotGrid"
-hallGrid.Position = UDim2.new(0, 12, 0, 48)
-hallGrid.Size = UDim2.new(1, -24, 1, -100)
+hallGrid.Position = UDim2.new(0, 12, 0, 60)
+hallGrid.Size = UDim2.new(1, -24, 0, 232)
 hallGrid.BackgroundTransparency = 1
 hallGrid.BorderSizePixel = 0
 hallGrid.ScrollBarThickness = 6
@@ -1077,12 +852,101 @@ hallGridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function(
 	hallGrid.CanvasSize = UDim2.new(0, 0, 0, hallGridLayout.AbsoluteContentSize.Y + 8)
 end)
 
+-- BiomeData lives server-only, so this is the client's own copy of which
+-- emotions belong to which biome, matching BiomeClient.client.lua's approach.
+local BIOME_ORDER = { "Forest", "Waterfall", "Volcano", "Pond" }
+local BIOME_ICONS = { Forest = "🌲", Waterfall = "💧", Volcano = "🌋", Pond = "🌊" }
+local BIOME_EMOTIONS = {
+	Forest = { "Sadness", "Void" },
+	Waterfall = { "Joy", "Nostalgia" },
+	Volcano = { "Rage" },
+	Pond = { "Dread" },
+}
+
+local function getBiomeForEmotion(emotion: string): string?
+	for biomeName, emotions in BIOME_EMOTIONS do
+		if table.find(emotions, emotion) then
+			return biomeName
+		end
+	end
+	return nil
+end
+
+local biomeSection = Instance.new("Frame")
+biomeSection.Name = "BiomeBreakdown"
+biomeSection.Position = UDim2.new(0, 12, 0, 300)
+biomeSection.Size = UDim2.new(1, -24, 0, 90)
+biomeSection.BackgroundTransparency = 1
+biomeSection.Parent = hallPanel
+
+local biomeHeader = Instance.new("TextLabel")
+biomeHeader.Name = "Header"
+biomeHeader.BackgroundTransparency = 1
+biomeHeader.Size = UDim2.new(1, 0, 0, 14)
+biomeHeader.Font = Enum.Font.GothamBold
+biomeHeader.TextSize = 11
+biomeHeader.TextColor3 = Color3.fromRGB(150, 150, 160)
+biomeHeader.TextXAlignment = Enum.TextXAlignment.Left
+biomeHeader.Text = "BIOME DISTRIBUTION"
+biomeHeader.Parent = biomeSection
+
+local biomeRowsFrame = Instance.new("Frame")
+biomeRowsFrame.Name = "Rows"
+biomeRowsFrame.BackgroundTransparency = 1
+biomeRowsFrame.Position = UDim2.new(0, 0, 0, 16)
+biomeRowsFrame.Size = UDim2.new(1, 0, 1, -16)
+biomeRowsFrame.Parent = biomeSection
+
+local biomeRowsLayout = Instance.new("UIListLayout")
+biomeRowsLayout.Padding = UDim.new(0, 2)
+biomeRowsLayout.Parent = biomeRowsFrame
+
+local biomeRowLabels: { [string]: TextLabel } = {}
+for _, biomeName in BIOME_ORDER do
+	local row = Instance.new("TextLabel")
+	row.Name = "Row_" .. biomeName
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, 0, 0, 16)
+	row.Font = Enum.Font.Gotham
+	row.TextSize = 12
+	row.TextColor3 = WHITE
+	row.TextXAlignment = Enum.TextXAlignment.Left
+	row.Text = `{BIOME_ICONS[biomeName]} {biomeName}: 0 monsters`
+	row.Parent = biomeRowsFrame
+	biomeRowLabels[biomeName] = row
+end
+
+local function rebuildBiomeBreakdown(slots: { any })
+	local counts: { [string]: number } = {}
+	for _, slot in slots do
+		if slot.isActive and slot.monster then
+			local biomeName = getBiomeForEmotion(slot.monster.emotion)
+			if biomeName then
+				counts[biomeName] = (counts[biomeName] or 0) + 1
+			end
+		end
+	end
+
+	local unlocked = (shared.BiomeClient and shared.BiomeClient.unlockedBiomes) or { "Forest" }
+
+	for _, biomeName in BIOME_ORDER do
+		local row = biomeRowLabels[biomeName]
+		if table.find(unlocked, biomeName) then
+			row.TextColor3 = WHITE
+			row.Text = `{BIOME_ICONS[biomeName]} {biomeName}: {counts[biomeName] or 0} monsters`
+		else
+			row.TextColor3 = Color3.fromRGB(110, 110, 120)
+			row.Text = `🔒 {biomeName}`
+		end
+	end
+end
+
 local upgradeHallButton = Instance.new("TextButton")
 upgradeHallButton.Name = "UpgradeHallButton"
 upgradeHallButton.AnchorPoint = Vector2.new(0.5, 1)
 upgradeHallButton.Position = UDim2.new(0.5, 0, 1, -12)
 upgradeHallButton.Size = UDim2.new(1, -24, 0, 36)
-upgradeHallButton.Text = "UPGRADE HALL"
+upgradeHallButton.Text = "UPGRADE ENVIRONMENT"
 upgradeHallButton.TextSize = 14
 upgradeHallButton.Parent = hallPanel
 styleButton(upgradeHallButton)
@@ -1091,14 +955,14 @@ onActivated(upgradeHallButton, function()
 	if upgradeHallButton:GetAttribute("Disabled") then
 		return
 	end
-	fireAction("UPGRADE_HALL", nil)
+	fireAction("UPGRADE_ENVIRONMENT", nil)
 end)
 
 local hallSlots: { any } = {}
 local currentHallTier = 1
 
 local function inferHallTier(slotCount: number): number
-	for tier, count in Constants.HALL_SLOT_COUNTS do
+	for tier, count in Constants.ENVIRONMENT_CAPACITY do
 		if count == slotCount then
 			return tier
 		end
@@ -1209,704 +1073,73 @@ local function rebuildHallGrid()
 	end
 end
 
+local function countOccupiedSlots(slots: { any }): number
+	local occupied = 0
+	for _, slot in slots do
+		if slot.isActive and slot.monster then
+			occupied += 1
+		end
+	end
+	return occupied
+end
+
 updateHallRemote.OnClientEvent:Connect(function(slots: any)
 	hallSlots = slots or {}
 	currentHallTier = inferHallTier(#hallSlots)
-	shared.HallClient = { slots = hallSlots, hallTier = currentHallTier }
+	shared.HallClient = { slots = hallSlots, environmentTier = currentHallTier }
 	rebuildHallGrid()
+	hallCapacitySubtitle.Text = `Capacity: {countOccupiedSlots(hallSlots)}/{#hallSlots} monsters`
+	rebuildBiomeBreakdown(hallSlots)
 end)
 
 --============================================================
 -- Shop Panel
 --============================================================
 
--- Its own function scope (not inline at module level, like every other panel
--- used to be) because the accumulated locals across all panels pushed the
--- top-level chunk past Luau's 200-local-register limit per function.
-local function createShopPanel(screenGui: ScreenGui, isMobile: boolean): Frame
-	type ShopItem = {
-		name: string,
-		desc: string,
-		icon: string,
-		priceText: string,
-		kind: "coins" | "product" | "gamepass",
-		key: string?,
-		targetTier: number?,
-	}
+local shopPanel = Instance.new("Frame")
+shopPanel.Name = "ShopPanel"
+shopPanel.Position = UDim2.new(0.5, -250, 0.5, -300)
+shopPanel.Size = UDim2.new(0, 500, 0, 600)
+shopPanel.BackgroundColor3 = PANEL_BG
+shopPanel.BorderSizePixel = 0
+shopPanel.Visible = false
+shopPanel.Parent = screenGui
+addCorner(shopPanel, 12)
+panels.ShopPanel = shopPanel
 
-	local SHOP_TAB_ORDER = { "EGGS", "BOOSTS", "UPGRADES", "PASSES", "VOID PASS" }
-	local SHOP_TAB_COLORS: { [string]: Color3 } = {
-		EGGS = Color3.fromRGB(200, 150, 50),
-		BOOSTS = Color3.fromRGB(100, 200, 100),
-		UPGRADES = Color3.fromRGB(80, 150, 220),
-		PASSES = Color3.fromRGB(150, 80, 220),
-		["VOID PASS"] = Color3.fromRGB(200, 100, 200),
-	}
+local shopTitle = Instance.new("TextLabel")
+shopTitle.Name = "Title"
+shopTitle.Size = UDim2.new(1, -40, 0, 36)
+shopTitle.Position = UDim2.new(0, 16, 0, 12)
+shopTitle.BackgroundTransparency = 1
+shopTitle.Font = Enum.Font.GothamBold
+shopTitle.TextSize = 20
+shopTitle.TextColor3 = WHITE
+shopTitle.TextXAlignment = Enum.TextXAlignment.Left
+shopTitle.Text = "SHOP"
+shopTitle.Parent = shopPanel
 
-	local SHOP_ITEMS: { [string]: { ShopItem } } = {
-		EGGS = {
-			{
-				name = "Rare Egg",
-				desc = "Guaranteed Rare or better",
-				icon = "🥚",
-				priceText = "149 R$",
-				kind = "product",
-				key = "RareEgg",
-			},
-			{
-				name = "Epic Egg",
-				desc = "Guaranteed Epic or better",
-				icon = "🥚",
-				priceText = "349 R$",
-				kind = "product",
-				key = "EpicEgg",
-			},
-			{
-				name = "Legendary Egg",
-				desc = "Guaranteed Legendary or better",
-				icon = "🥚",
-				priceText = "699 R$",
-				kind = "product",
-				key = "LegendaryEgg",
-			},
-			{
-				name = "Mythic Egg",
-				desc = "Guaranteed Mythic monster",
-				icon = "🥚",
-				priceText = "1999 R$",
-				kind = "product",
-				key = "MythicEgg",
-			},
-			{
-				name = "Starter Pack",
-				desc = "Infinite Bag + Luck Boost + Rare Egg",
-				icon = "🎁",
-				priceText = "299 R$",
-				kind = "product",
-				key = "StarterPack",
-			},
-			{
-				name = "Void Pack",
-				desc = "Epic Egg + Luck Boost + Speed Boots",
-				icon = "🎁",
-				priceText = "599 R$",
-				kind = "product",
-				key = "VoidPack",
-			},
-		},
-		BOOSTS = {
-			{
-				name = "Luck Boost",
-				desc = "+50% egg odds for 15 min",
-				icon = "🍀",
-				priceText = "99 R$",
-				kind = "product",
-				key = "LuckBoost",
-			},
-			{
-				name = "Merge Boost",
-				desc = "Next 5 merges free",
-				icon = "⚡",
-				priceText = "59 R$",
-				kind = "product",
-				key = "MergeBoost",
-			},
-			{
-				name = "Server Boost",
-				desc = "Whole server 1.5x earnings 10 min",
-				icon = "🌐",
-				priceText = "199 R$",
-				kind = "product",
-				key = "ServerBoost",
-			},
-			{
-				name = "2x Income",
-				desc = "Permanent 2x all earnings",
-				icon = "💰",
-				priceText = "GAMEPASS",
-				kind = "gamepass",
-				key = "Income2x",
-			},
-			{
-				name = "3x Income",
-				desc = "Permanent 3x all earnings",
-				icon = "💰",
-				priceText = "GAMEPASS",
-				kind = "gamepass",
-				key = "Income3x",
-			},
-			{
-				name = "5x Income",
-				desc = "Permanent 5x all earnings",
-				icon = "💰",
-				priceText = "GAMEPASS",
-				kind = "gamepass",
-				key = "Income5x",
-			},
-			{
-				name = "7x Income",
-				desc = "Permanent 7x all earnings",
-				icon = "💰",
-				priceText = "GAMEPASS",
-				kind = "gamepass",
-				key = "Income7x",
-			},
-			{
-				name = "10x Income",
-				desc = "Permanent 10x all earnings",
-				icon = "💰",
-				priceText = "GAMEPASS",
-				kind = "gamepass",
-				key = "Income10x",
-			},
-		},
-		UPGRADES = {
-			{
-				name = "Satchel",
-				desc = "25 vial bag capacity",
-				icon = "👜",
-				priceText = `{NumberFormatter.Format(500)} coins`,
-				kind = "coins",
-				targetTier = 2,
-			},
-			{
-				name = "Backpack",
-				desc = "50 vial bag capacity",
-				icon = "👜",
-				priceText = `{NumberFormatter.Format(3000)} coins`,
-				kind = "coins",
-				targetTier = 3,
-			},
-			{
-				name = "Vault Pack",
-				desc = "100 vial bag capacity",
-				icon = "👜",
-				priceText = `{NumberFormatter.Format(15000)} coins`,
-				kind = "coins",
-				targetTier = 4,
-			},
-			{
-				name = "Void Carrier",
-				desc = "250 vial bag capacity",
-				icon = "👜",
-				priceText = "199 R$",
-				kind = "gamepass",
-				key = "VoidCarrier",
-			},
-			{
-				name = "Infinite Bag",
-				desc = "Unlimited vial carry",
-				icon = "👜",
-				priceText = "499 R$",
-				kind = "gamepass",
-				key = "InfiniteBag",
-			},
-			{
-				name = "Speed Boots",
-				desc = "+30% walk speed permanently",
-				icon = "👟",
-				priceText = "149 R$",
-				kind = "gamepass",
-				key = "SpeedBoots",
-			},
-			{
-				name = "Extra Plot",
-				desc = "Second monster plot slot",
-				icon = "🏭",
-				priceText = "399 R$",
-				kind = "gamepass",
-				key = "ExtraPlot",
-			},
-			{
-				name = "Boost Insider",
-				desc = "See next boost 15s early",
-				icon = "👁",
-				priceText = "299 R$",
-				kind = "gamepass",
-				key = "BoostInsider",
-			},
-		},
-		PASSES = {
-			{
-				name = "Infinite Bag",
-				desc = "Unlimited vial carry forever",
-				icon = "👜",
-				priceText = "499 R$",
-				kind = "gamepass",
-				key = "InfiniteBag",
-			},
-			{
-				name = "Speed Boots",
-				desc = "+30% walk speed forever",
-				icon = "👟",
-				priceText = "149 R$",
-				kind = "gamepass",
-				key = "SpeedBoots",
-			},
-			{
-				name = "Boost Insider",
-				desc = "Preview next boost early",
-				icon = "👁",
-				priceText = "299 R$",
-				kind = "gamepass",
-				key = "BoostInsider",
-			},
-			{
-				name = "Extra Plot",
-				desc = "Second monster plot",
-				icon = "🏭",
-				priceText = "399 R$",
-				kind = "gamepass",
-				key = "ExtraPlot",
-			},
-			{
-				name = "Auto Merge",
-				desc = "Warehouse auto-merges monsters",
-				icon = "⚙",
-				priceText = "299 R$",
-				kind = "gamepass",
-				key = "AutoMerge",
-			},
-		},
-	}
+createCloseButton(shopPanel, "ShopPanel")
 
-	local shopPanel = Instance.new("Frame")
-	shopPanel.Name = "ShopPanel"
-	if isMobile then
-		shopPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-		shopPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
-		shopPanel.Size = UDim2.new(0.98, 0, 0.85, 0)
-	else
-		shopPanel.Position = UDim2.new(0.5, -320, 0.5, -280)
-		shopPanel.Size = UDim2.new(0, 640, 0, 560)
-	end
-	shopPanel.BackgroundColor3 = Color3.fromRGB(12, 9, 22)
-	shopPanel.BackgroundTransparency = 0
-	shopPanel.BorderSizePixel = 0
-	-- Header/tab bar below sit flush against the panel edges with square corners
-	-- of their own; without this they'd visibly poke out past the panel's own
-	-- rounded UICorner instead of being clipped to match it.
-	shopPanel.ClipsDescendants = true
-	shopPanel.Visible = false
-	shopPanel.Parent = screenGui
-	addCorner(shopPanel, 16)
-	local shopStroke = addStroke(shopPanel, Color3.fromRGB(80, 50, 140))
-	shopStroke.Thickness = 1
-	panels.ShopPanel = shopPanel
+local shopList = Instance.new("ScrollingFrame")
+shopList.Name = "ShopList"
+shopList.Position = UDim2.new(0, 16, 0, 56)
+shopList.Size = UDim2.new(1, -32, 1, -72)
+shopList.BackgroundTransparency = 1
+shopList.BorderSizePixel = 0
+shopList.ScrollBarThickness = 6
+shopList.CanvasSize = UDim2.new(0, 0, 0, 0)
+shopList.Parent = shopPanel
 
-	-- Header
-	local shopHeader = Instance.new("Frame")
-	shopHeader.Name = "Header"
-	shopHeader.Size = UDim2.new(1, 0, 0, 50)
-	shopHeader.BackgroundColor3 = Color3.fromRGB(18, 14, 32)
-	shopHeader.BorderSizePixel = 0
-	shopHeader.Parent = shopPanel
+local shopListLayout = Instance.new("UIListLayout")
+shopListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+shopListLayout.Padding = UDim.new(0, 6)
+shopListLayout.Parent = shopList
 
-	local shopTitle = Instance.new("TextLabel")
-	shopTitle.Name = "Title"
-	shopTitle.Size = UDim2.new(1, -80, 1, 0)
-	shopTitle.BackgroundTransparency = 1
-	shopTitle.Font = Enum.Font.GothamBold
-	shopTitle.TextSize = 20
-	shopTitle.TextColor3 = WHITE
-	shopTitle.Text = "VOID SHOP"
-	shopTitle.Parent = shopHeader
+shopListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	shopList.CanvasSize = UDim2.new(0, 0, 0, shopListLayout.AbsoluteContentSize.Y + 8)
+end)
 
-	createCloseButton(shopHeader, "ShopPanel")
-
-	-- Tab bar
-	local shopTabBar = Instance.new("Frame")
-	shopTabBar.Name = "TabBar"
-	shopTabBar.Size = UDim2.new(1, 0, 0, 44)
-	shopTabBar.Position = UDim2.new(0, 0, 0, 50)
-	shopTabBar.BackgroundColor3 = Color3.fromRGB(10, 8, 20)
-	shopTabBar.BorderSizePixel = 0
-	shopTabBar.Parent = shopPanel
-
-	local shopTabButtons: { [string]: TextButton } = {}
-
-	for i, tabName in SHOP_TAB_ORDER do
-		local tabButton = Instance.new("TextButton")
-		tabButton.Name = "Tab_" .. tabName:gsub("%s", "")
-		tabButton.Size = UDim2.new(1 / #SHOP_TAB_ORDER, 0, 1, 0)
-		tabButton.Position = UDim2.new((i - 1) / #SHOP_TAB_ORDER, 0, 0, 0)
-		tabButton.BackgroundColor3 = Color3.fromRGB(30, 22, 50)
-		tabButton.BackgroundTransparency = 1
-		tabButton.BorderSizePixel = 0
-		tabButton.AutoButtonColor = false
-		tabButton.Font = Enum.Font.GothamBold
-		tabButton.TextSize = isMobile and 11 or 13
-		tabButton.TextColor3 = SHOP_TAB_COLORS[tabName]
-		tabButton.Text = tabName
-		tabButton.Parent = shopTabBar
-
-		local bottomBorder = Instance.new("Frame")
-		bottomBorder.Name = "BottomBorder"
-		bottomBorder.AnchorPoint = Vector2.new(0, 1)
-		bottomBorder.Position = UDim2.new(0, 0, 1, 0)
-		bottomBorder.Size = UDim2.new(1, 0, 0, 2)
-		bottomBorder.BackgroundColor3 = SHOP_TAB_COLORS[tabName]
-		bottomBorder.BorderSizePixel = 0
-		bottomBorder.Visible = false
-		bottomBorder.Parent = tabButton
-
-		shopTabButtons[tabName] = tabButton
-	end
-
-	local function updateShopTabVisuals(active: string)
-		for tabName, button in shopTabButtons do
-			local isActive = tabName == active
-			button.BackgroundTransparency = isActive and 0 or 1
-			local border = button:FindFirstChild("BottomBorder")
-			if border then
-				border.Visible = isActive
-			end
-		end
-	end
-
-	-- Grid content (EGGS/BOOSTS/UPGRADES/PASSES)
-	local shopContent = Instance.new("ScrollingFrame")
-	shopContent.Name = "Content"
-	shopContent.Size = UDim2.new(1, -20, 1, -114)
-	shopContent.Position = UDim2.new(0, 10, 0, 104)
-	shopContent.BackgroundTransparency = 1
-	shopContent.BorderSizePixel = 0
-	shopContent.ScrollBarThickness = 6
-	shopContent.CanvasSize = UDim2.new(0, 0, 0, 0)
-	shopContent.Parent = shopPanel
-
-	-- CanvasGroup so the whole grid can fade as one unit on tab switch (Group-
-	-- Transparency composites all descendants together); AutomaticSize keeps it
-	-- exactly as tall as its content so nothing gets clipped by the CanvasGroup
-	-- itself -- the outer ScrollingFrame above handles the real viewport/scroll.
-	local shopCardCanvas = Instance.new("CanvasGroup")
-	shopCardCanvas.Name = "CardCanvas"
-	shopCardCanvas.Size = UDim2.new(1, 0, 0, 0)
-	shopCardCanvas.AutomaticSize = Enum.AutomaticSize.Y
-	shopCardCanvas.BackgroundTransparency = 1
-	shopCardCanvas.BorderSizePixel = 0
-	shopCardCanvas.Parent = shopContent
-
-	local shopGridLayout = Instance.new("UIGridLayout")
-	shopGridLayout.CellSize = isMobile and UDim2.new(0, 140, 0, 110) or UDim2.new(0, 190, 0, 120)
-	shopGridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
-	shopGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	shopGridLayout.Parent = shopCardCanvas
-
-	shopGridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		shopContent.CanvasSize = UDim2.new(0, 0, 0, shopGridLayout.AbsoluteContentSize.Y + 8)
-	end)
-
-	local OWNED_COLOR = Color3.fromRGB(60, 60, 60)
-	local ROBUX_TAG_COLOR = Color3.fromRGB(0, 180, 80)
-	local COIN_TAG_COLOR = Color3.fromRGB(180, 140, 0)
-
-	local function isShopItemOwned(item: ShopItem): boolean
-		if item.kind ~= "gamepass" or not item.key then
-			return false
-		end
-		local monetization = shared.MonetizationClient
-		return monetization ~= nil and monetization.ownedGamepasses[item.key] == true
-	end
-
-	local function buyShopItem(item: ShopItem)
-		if item.kind == "coins" then
-			fireAction("UPGRADE_BAG", { targetTier = item.targetTier })
-		elseif item.kind == "product" then
-			shared.MonetizationClient.PromptPurchase("product", Constants.PRODUCT_IDS[item.key])
-		elseif item.kind == "gamepass" then
-			shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS[item.key])
-		end
-	end
-
-	local function createShopItemCard(item: ShopItem, tabName: string, tabColor: Color3): (Frame, () -> ())
-		local card = Instance.new("Frame")
-		card.Name = "Card_" .. item.name:gsub("%s", "")
-		card.Size = UDim2.new(0, 190, 0, 120)
-		card.BackgroundColor3 = Color3.fromRGB(20, 15, 35)
-		card.BorderSizePixel = 0
-		card:SetAttribute("Tab", tabName)
-		addCorner(card, 10)
-		local cardStroke = addStroke(card, Color3.fromRGB(60, 40, 100))
-		cardStroke.Thickness = 0.5
-
-		local icon = Instance.new("TextLabel")
-		icon.Name = "Icon"
-		icon.Size = UDim2.new(0, 32, 0, 32)
-		icon.Position = UDim2.new(0, 8, 0, 8)
-		icon.BackgroundTransparency = 1
-		icon.Font = Enum.Font.GothamBold
-		icon.TextSize = 24
-		icon.Text = item.icon
-		icon.Parent = card
-
-		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Name = "NameLabel"
-		nameLabel.Size = UDim2.new(1, -48, 0, 18)
-		nameLabel.Position = UDim2.new(0, 44, 0, 8)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Font = Enum.Font.GothamBold
-		nameLabel.TextSize = isMobile and 11 or 13
-		nameLabel.TextColor3 = WHITE
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-		nameLabel.Text = item.name
-		nameLabel.Parent = card
-
-		local descLabel = Instance.new("TextLabel")
-		descLabel.Name = "DescriptionLabel"
-		descLabel.Size = UDim2.new(1, -16, 0, 40)
-		descLabel.Position = UDim2.new(0, 8, 0, 44)
-		descLabel.BackgroundTransparency = 1
-		descLabel.Font = Enum.Font.Gotham
-		descLabel.TextSize = isMobile and 10 or 11
-		descLabel.TextColor3 = Color3.fromRGB(160, 140, 200)
-		descLabel.TextXAlignment = Enum.TextXAlignment.Left
-		descLabel.TextYAlignment = Enum.TextYAlignment.Top
-		descLabel.TextWrapped = true
-		descLabel.Text = item.desc
-		descLabel.Parent = card
-
-		local priceTag = Instance.new("Frame")
-		priceTag.Name = "PriceTag"
-		priceTag.AnchorPoint = Vector2.new(1, 0)
-		priceTag.Position = UDim2.new(1, -8, 0, 8)
-		priceTag.Size = UDim2.new(0, 74, 0, 16)
-		priceTag.BorderSizePixel = 0
-		addCorner(priceTag, 4)
-		priceTag.Parent = card
-
-		local priceLabel = Instance.new("TextLabel")
-		priceLabel.Name = "PriceLabel"
-		priceLabel.Size = UDim2.fromScale(1, 1)
-		priceLabel.BackgroundTransparency = 1
-		priceLabel.Font = Enum.Font.GothamBold
-		priceLabel.TextSize = 11
-		priceLabel.TextColor3 = WHITE
-		priceLabel.Parent = priceTag
-
-		local buyButton = Instance.new("TextButton")
-		buyButton.Name = "BuyButton"
-		buyButton.Size = UDim2.new(1, -16, 0, 28)
-		buyButton.Position = UDim2.new(0, 8, 1, -36)
-		buyButton.AutoButtonColor = false
-		buyButton.BorderSizePixel = 0
-		buyButton.Font = Enum.Font.GothamBold
-		buyButton.TextSize = 12
-		buyButton.TextColor3 = WHITE
-		addCorner(buyButton, 6)
-		buyButton.Parent = card
-
-		local function refresh()
-			if isShopItemOwned(item) then
-				priceTag.BackgroundColor3 = OWNED_COLOR
-				priceLabel.Text = "OWNED"
-				buyButton.BackgroundColor3 = OWNED_COLOR
-				buyButton.Text = "OWNED"
-				buyButton.Active = false
-			else
-				priceTag.BackgroundColor3 = (item.kind == "coins") and COIN_TAG_COLOR or ROBUX_TAG_COLOR
-				priceLabel.Text = item.priceText
-				buyButton.BackgroundColor3 = tabColor
-				buyButton.Text = "BUY"
-				buyButton.Active = true
-			end
-		end
-		refresh()
-
-		buyButton.MouseButton1Click:Connect(function()
-			if not buyButton.Active then
-				return
-			end
-			if shared.SoundManager then
-				shared.SoundManager.PlaySound("buttonClick")
-			end
-			buyShopItem(item)
-		end)
-
-		return card, refresh
-	end
-
-	local shopCardRefreshers: { () -> () } = {}
-	local shopCardOrder = 0
-
-	for _, tabName in { "EGGS", "BOOSTS", "UPGRADES", "PASSES" } do
-		local tabColor = SHOP_TAB_COLORS[tabName]
-		for _, item in SHOP_ITEMS[tabName] do
-			local card, refresh = createShopItemCard(item, tabName, tabColor)
-			card.LayoutOrder = shopCardOrder
-			shopCardOrder += 1
-			card.Visible = tabName == "EGGS"
-			card.Parent = shopCardCanvas
-			table.insert(shopCardRefreshers, refresh)
-		end
-	end
-
-	playerDataLoadedRemote.OnClientEvent:Connect(function()
-		for _, refresh in shopCardRefreshers do
-			refresh()
-		end
-	end)
-
-	-- VOID PASS content -- single featured layout, not the item grid above.
-	local voidPassContent = Instance.new("Frame")
-	voidPassContent.Name = "VoidPassContent"
-	voidPassContent.Size = UDim2.new(1, -20, 1, -114)
-	voidPassContent.Position = UDim2.new(0, 10, 0, 104)
-	voidPassContent.BackgroundTransparency = 1
-	voidPassContent.BorderSizePixel = 0
-	voidPassContent.Visible = false
-	voidPassContent.Parent = shopPanel
-
-	local voidPassCanvas = Instance.new("CanvasGroup")
-	voidPassCanvas.Name = "VoidPassCanvas"
-	voidPassCanvas.Size = UDim2.fromScale(1, 1)
-	voidPassCanvas.BackgroundTransparency = 1
-	voidPassCanvas.BorderSizePixel = 0
-	voidPassCanvas.Parent = voidPassContent
-
-	local voidFeaturedCard = Instance.new("Frame")
-	voidFeaturedCard.Name = "FeaturedCard"
-	voidFeaturedCard.Size = UDim2.new(1, 0, 0, 160)
-	voidFeaturedCard.BackgroundColor3 = Color3.fromRGB(40, 15, 60)
-	voidFeaturedCard.BorderSizePixel = 0
-	addCorner(voidFeaturedCard, 12)
-	voidFeaturedCard.Parent = voidPassCanvas
-
-	local voidGradient = Instance.new("UIGradient")
-	voidGradient.Color = ColorSequence.new(Color3.fromRGB(60, 25, 90), Color3.fromRGB(30, 10, 50))
-	voidGradient.Rotation = 90
-	voidGradient.Parent = voidFeaturedCard
-
-	local voidPassTitle = Instance.new("TextLabel")
-	voidPassTitle.Name = "Title"
-	voidPassTitle.Size = UDim2.new(1, -32, 0, 40)
-	voidPassTitle.Position = UDim2.new(0, 16, 0, 16)
-	voidPassTitle.BackgroundTransparency = 1
-	voidPassTitle.Font = Enum.Font.GothamBlack
-	voidPassTitle.TextSize = 28
-	voidPassTitle.TextColor3 = WHITE
-	voidPassTitle.TextXAlignment = Enum.TextXAlignment.Left
-	voidPassTitle.Text = "VOID PASS"
-	voidPassTitle.Parent = voidFeaturedCard
-
-	local voidPassPrice = Instance.new("TextLabel")
-	voidPassPrice.Name = "Price"
-	voidPassPrice.Size = UDim2.new(1, -32, 0, 24)
-	voidPassPrice.Position = UDim2.new(0, 16, 0, 60)
-	voidPassPrice.BackgroundTransparency = 1
-	voidPassPrice.Font = Enum.Font.GothamBold
-	voidPassPrice.TextSize = 18
-	voidPassPrice.TextColor3 = Color3.fromRGB(220, 180, 255)
-	voidPassPrice.TextXAlignment = Enum.TextXAlignment.Left
-	voidPassPrice.Text = "99 R$ / month"
-	voidPassPrice.Parent = voidFeaturedCard
-
-	local voidBenefitsList = Instance.new("Frame")
-	voidBenefitsList.Name = "Benefits"
-	voidBenefitsList.Size = UDim2.new(1, 0, 0, 110)
-	voidBenefitsList.Position = UDim2.new(0, 0, 0, 176)
-	voidBenefitsList.BackgroundTransparency = 1
-	voidBenefitsList.Parent = voidPassCanvas
-
-	local voidBenefitsLayout = Instance.new("UIListLayout")
-	voidBenefitsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	voidBenefitsLayout.Padding = UDim.new(0, 4)
-	voidBenefitsLayout.Parent = voidBenefitsList
-
-	local VOID_PASS_BENEFITS = {
-		"✓ 1 free daily egg roll",
-		"✓ Exclusive monthly monster skin",
-		"✓ VIP server tag",
-		"✓ Global trade board access",
-	}
-
-	for i, text in VOID_PASS_BENEFITS do
-		local benefitLabel = Instance.new("TextLabel")
-		benefitLabel.Name = "Benefit_" .. i
-		benefitLabel.Size = UDim2.new(1, 0, 0, 20)
-		benefitLabel.BackgroundTransparency = 1
-		benefitLabel.Font = Enum.Font.Gotham
-		benefitLabel.TextSize = 13
-		benefitLabel.TextColor3 = Color3.fromRGB(210, 200, 230)
-		benefitLabel.TextXAlignment = Enum.TextXAlignment.Left
-		benefitLabel.LayoutOrder = i
-		benefitLabel.Text = text
-		benefitLabel.Parent = voidBenefitsList
-	end
-
-	local voidPassBuyButton = Instance.new("TextButton")
-	voidPassBuyButton.Name = "VoidPassBuyButton"
-	voidPassBuyButton.Size = UDim2.new(1, 0, 0, 44)
-	voidPassBuyButton.Position = UDim2.new(0, 0, 0, 300)
-	voidPassBuyButton.BackgroundColor3 = Color3.fromRGB(150, 60, 200)
-	voidPassBuyButton.AutoButtonColor = false
-	voidPassBuyButton.BorderSizePixel = 0
-	voidPassBuyButton.Font = Enum.Font.GothamBold
-	voidPassBuyButton.TextSize = 16
-	voidPassBuyButton.TextColor3 = WHITE
-	voidPassBuyButton.Text = "BUY"
-	addCorner(voidPassBuyButton, 8)
-	voidPassBuyButton.Parent = voidPassCanvas
-
-	voidPassBuyButton.MouseButton1Click:Connect(function()
-		if shared.SoundManager then
-			shared.SoundManager.PlaySound("buttonClick")
-		end
-		shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS.VoidPass)
-	end)
-
-	-- Tab switching: fade the outgoing canvas out, swap which cards/content are
-	-- visible while invisible, then fade the (possibly different) incoming
-	-- canvas back in.
-	local shopActiveTab = "EGGS"
-	updateShopTabVisuals(shopActiveTab)
-
-	local function setShopActiveTab(newTab: string)
-		if newTab == shopActiveTab then
-			return
-		end
-
-		local outgoingCanvas = (shopActiveTab == "VOID PASS") and voidPassCanvas or shopCardCanvas
-
-		local fadeOut = TweenService:Create(outgoingCanvas, TweenInfo.new(0.1), { GroupTransparency = 1 })
-		fadeOut.Completed:Connect(function()
-			shopContent.Visible = newTab ~= "VOID PASS"
-			voidPassContent.Visible = newTab == "VOID PASS"
-
-			if newTab ~= "VOID PASS" then
-				for _, card in shopCardCanvas:GetChildren() do
-					if card:IsA("Frame") and card:GetAttribute("Tab") then
-						card.Visible = card:GetAttribute("Tab") == newTab
-					end
-				end
-			end
-
-			shopActiveTab = newTab
-			updateShopTabVisuals(shopActiveTab)
-
-			local incomingCanvas = (shopActiveTab == "VOID PASS") and voidPassCanvas or shopCardCanvas
-			incomingCanvas.GroupTransparency = 1
-			TweenService:Create(incomingCanvas, TweenInfo.new(0.1), { GroupTransparency = 0 }):Play()
-		end)
-		fadeOut:Play()
-	end
-
-	for tabName, button in shopTabButtons do
-		button.MouseButton1Click:Connect(function()
-			if shared.SoundManager then
-				shared.SoundManager.PlaySound("buttonClick")
-			end
-			setShopActiveTab(tabName)
-		end)
-	end
-	return shopPanel
-end
-
-local shopPanel = createShopPanel(screenGui, isMobile)
-
--- Generic list-row builder. Used to belong to the old Shop Panel; kept here
--- since Event Station below still builds its token-purchase rows with it.
 local function createShopEntry(itemName: string, description: string, priceText: string, onBuy: () -> ()): Frame
 	local entry = Instance.new("Frame")
 	entry.Name = "ShopEntry_" .. (itemName:gsub("%s", ""))
@@ -1968,6 +1201,83 @@ local function createShopEntry(itemName: string, description: string, priceText:
 	end)
 
 	return entry
+end
+
+local shopEntryOrder = 0
+
+local function addShopEntry(entry: Frame)
+	entry.LayoutOrder = shopEntryOrder
+	shopEntryOrder += 1
+	entry.Parent = shopList
+end
+
+local GAMEPASS_SHOP_ITEMS = {
+	{ key = "InfiniteBag", name = "Infinite Bag", description = "Unlimited bag capacity, forever." },
+	{ key = "VoidCarrier", name = "Void Carrier", description = "250 bag capacity, forever." },
+	{ key = "SpeedBoots", name = "Speed Boots", description = "+30% walk speed." },
+	{ key = "BoostInsider", name = "Boost Insider", description = "Insider perks during boosts." },
+	{ key = "ExtraPlot", name = "Extra Plot", description = "An additional plot (coming soon)." },
+	{ key = "Income2x", name = "2x Income", description = "Double coin earnings." },
+	{ key = "Income3x", name = "3x Income", description = "Triple coin earnings." },
+	{ key = "Income5x", name = "5x Income", description = "5x coin earnings." },
+	{ key = "Income7x", name = "7x Income", description = "7x coin earnings." },
+	{ key = "Income10x", name = "10x Income", description = "10x coin earnings." },
+	{ key = "Magnet", name = "Magnet", description = "Auto-collect vials within 20 studs." },
+}
+
+for _, item in GAMEPASS_SHOP_ITEMS do
+	local entry = createShopEntry(item.name, item.description, "ROBUX", function()
+		shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS[item.key])
+	end)
+	entry:SetAttribute("GamepassKey", item.key)
+	addShopEntry(entry)
+end
+
+local PRODUCT_SHOP_ITEMS = {
+	{ key = "LuckBoost", name = "Luck Boost", description = "+50% egg odds for 15 minutes." },
+	{ key = "MergeBoost", name = "Merge Boost", description = "5 free merges." },
+	{ key = "ServerBoost", name = "Server Boost", description = "1.5x server-wide earnings for 10 minutes." },
+	{ key = "RareEgg", name = "Rare Egg", description = "Guaranteed Rare or better monster." },
+	{ key = "EpicEgg", name = "Epic Egg", description = "Guaranteed Epic or better monster." },
+	{ key = "LegendaryEgg", name = "Legendary Egg", description = "Guaranteed Legendary or better monster." },
+	{ key = "MythicEgg", name = "Mythic Egg", description = "Guaranteed Mythic monster." },
+	{ key = "StarterPack", name = "Starter Pack", description = "Infinite Bag + Luck Boost + Rare Egg." },
+	{ key = "VoidPack", name = "Void Pack", description = "Epic Egg + Luck Boost + Speed Boots." },
+	{ key = "AutoPickup", name = "Auto Pickup", description = "Auto-collect all vials for 10 minutes." },
+}
+
+for _, item in PRODUCT_SHOP_ITEMS do
+	local entry = createShopEntry(item.name, item.description, "ROBUX", function()
+		shared.MonetizationClient.PromptPurchase("product", Constants.PRODUCT_IDS[item.key])
+	end)
+	addShopEntry(entry)
+end
+
+for tier = 2, #Constants.BAG_TIERS do
+	local tierDef = Constants.BAG_TIERS[tier]
+	local priceText: string
+	local onBuy: () -> ()
+
+	if tierDef.robux then
+		priceText = "ROBUX"
+		local gamepassKey = (tier == 5) and "VoidCarrier" or "InfiniteBag"
+		onBuy = function()
+			shared.MonetizationClient.PromptPurchase("gamepass", Constants.GAMEPASS_IDS[gamepassKey])
+		end
+	else
+		priceText = `{NumberFormatter.Format(tierDef.cost)} coins`
+		onBuy = function()
+			fireAction("UPGRADE_BAG", { targetTier = tier })
+		end
+	end
+
+	local entry = createShopEntry(
+		`Bag: {tierDef.name}`,
+		`Upgrade bag to {NumberFormatter.Format(tierDef.capacity)} capacity.`,
+		priceText,
+		onBuy
+	)
+	addShopEntry(entry)
 end
 
 --============================================================
@@ -2056,1091 +1366,6 @@ for i, item in Constants.EVENT_MONSTERS do
 end
 
 --============================================================
--- Codex Panel
---============================================================
-
--- Its own function scope (not inline at module level, like every other panel
--- used to be) because the accumulated locals across all panels pushed the
--- top-level chunk past Luau's 200-local-register limit per function.
-local function createCodexPanel(screenGui: ScreenGui, isMobile: boolean): Frame
-	-- Descriptions/display names duplicated from MonsterData.lua (ServerScriptService-
-	-- only, unreachable from the client) -- flavor text isn't secret, so hardcoding a
-	-- client copy here is the same tradeoff RollClient.client.lua already makes for its
-	-- decoy name list.
-	local CODEX_ORDER = {
-		-- Sadness lineage
-		{
-			name = "Weeper",
-			displayName = "Weeper",
-			emotion = "Sadness",
-			rarity = "Common",
-			level = 1,
-			description = "A tiny teardrop blob. Pale blue.",
-		},
-		{
-			name = "Glumpling",
-			displayName = "Glumpling",
-			emotion = "Sadness",
-			rarity = "Uncommon",
-			level = 2,
-			description = "Big watery eyes. Sighs constantly.",
-		},
-		{
-			name = "Soaker",
-			displayName = "Soaker",
-			emotion = "Sadness",
-			rarity = "Rare",
-			level = 3,
-			description = "Waterlogged, always dripping.",
-		},
-		{
-			name = "Cryo",
-			displayName = "Cryo",
-			emotion = "Sadness",
-			rarity = "Epic",
-			level = 4,
-			description = "Frozen solid. Ice crystallizes around it.",
-		},
-		{
-			name = "Abyssal",
-			displayName = "Abyssal",
-			emotion = "Sadness",
-			rarity = "Legendary",
-			level = 5,
-			description = "Absorbs all light around it.",
-		},
-		-- Rage lineage
-		{
-			name = "Ember",
-			displayName = "Ember",
-			emotion = "Rage",
-			rarity = "Common",
-			level = 1,
-			description = "Small sparking blob. Always trembling.",
-		},
-		{
-			name = "Furon",
-			displayName = "Furon",
-			emotion = "Rage",
-			rarity = "Uncommon",
-			level = 2,
-			description = "Shaking with rage. Eyes on fire.",
-		},
-		{
-			name = "Scorcher",
-			displayName = "Scorcher",
-			emotion = "Rage",
-			rarity = "Rare",
-			level = 3,
-			description = "Lava cracks cover its body.",
-		},
-		{
-			name = "Inferno",
-			displayName = "Inferno",
-			emotion = "Rage",
-			rarity = "Epic",
-			level = 4,
-			description = "Surrounded by a heat haze.",
-		},
-		{
-			name = "Pyroclast",
-			displayName = "Pyroclast",
-			emotion = "Rage",
-			rarity = "Legendary",
-			level = 5,
-			description = "Walking eruption. Ground cracks beneath it.",
-		},
-		-- Joy lineage
-		{
-			name = "Sparklet",
-			displayName = "Sparklet",
-			emotion = "Joy",
-			rarity = "Common",
-			level = 1,
-			description = "Tiny bouncing blob. Can't stop moving.",
-		},
-		{
-			name = "Sunkling",
-			displayName = "Sunkling",
-			emotion = "Joy",
-			rarity = "Uncommon",
-			level = 2,
-			description = "Fat round blob with jazz hands.",
-		},
-		{
-			name = "Radiant",
-			displayName = "Radiant",
-			emotion = "Joy",
-			rarity = "Rare",
-			level = 3,
-			description = "Glows so bright it hurts to look at.",
-		},
-		{
-			name = "Solaris",
-			displayName = "Solaris",
-			emotion = "Joy",
-			rarity = "Epic",
-			level = 4,
-			description = "Miniature sun orbits around it.",
-		},
-		{
-			name = "Luminar",
-			displayName = "Luminar",
-			emotion = "Joy",
-			rarity = "Legendary",
-			level = 5,
-			description = "Pure light given form.",
-		},
-		-- Dread lineage
-		{
-			name = "Shiver",
-			displayName = "Shiver",
-			emotion = "Dread",
-			rarity = "Common",
-			level = 1,
-			description = "Tiny trembling blob. Hides its face.",
-		},
-		{
-			name = "Lurk",
-			displayName = "Lurk",
-			emotion = "Dread",
-			rarity = "Uncommon",
-			level = 2,
-			description = "Whispers to itself. Wide toothy mouth.",
-		},
-		{
-			name = "Phantom",
-			displayName = "Phantom",
-			emotion = "Dread",
-			rarity = "Rare",
-			level = 3,
-			description = "Invisible except for its eyes.",
-		},
-		{
-			name = "Specter",
-			displayName = "Specter",
-			emotion = "Dread",
-			rarity = "Epic",
-			level = 4,
-			description = "Passes through walls. Leaves cold spots.",
-		},
-		{
-			name = "Eclipse",
-			displayName = "Eclipse",
-			emotion = "Dread",
-			rarity = "Legendary",
-			level = 5,
-			description = "Half blinding white, half void black.",
-		},
-		-- Void lineage
-		{ name = "Mote", displayName = "Mote", emotion = "Void", rarity = "Common", level = 1, description = "A tiny speck of nothing." },
-		{
-			name = "Nullling",
-			displayName = "Nullling",
-			emotion = "Void",
-			rarity = "Uncommon",
-			level = 2,
-			description = "Black hole eyes. Floats silently.",
-		},
-		{
-			name = "Rift",
-			displayName = "Rift",
-			emotion = "Void",
-			rarity = "Rare",
-			level = 3,
-			description = "Tears in its body show other dimensions.",
-		},
-		{
-			name = "Sunder",
-			displayName = "Sunder",
-			emotion = "Void",
-			rarity = "Epic",
-			level = 4,
-			description = "Reality warps around it.",
-		},
-		{
-			name = "Null",
-			displayName = "Null",
-			emotion = "Void",
-			rarity = "Legendary",
-			level = 5,
-			description = "The absence of everything.",
-		},
-		-- Nostalgia lineage
-		{
-			name = "Wisp",
-			displayName = "Wisp",
-			emotion = "Nostalgia",
-			rarity = "Common",
-			level = 1,
-			description = "Faded pastel blob. Hums quietly.",
-		},
-		{
-			name = "Reminisce",
-			displayName = "Reminisce",
-			emotion = "Nostalgia",
-			rarity = "Uncommon",
-			level = 2,
-			description = "Old-timey moustache. Looks slightly faded.",
-		},
-		{
-			name = "Reverie",
-			displayName = "Reverie",
-			emotion = "Nostalgia",
-			rarity = "Rare",
-			level = 3,
-			description = "Old photographs drift around it.",
-		},
-		{
-			name = "Chronos",
-			displayName = "Chronos",
-			emotion = "Nostalgia",
-			rarity = "Epic",
-			level = 4,
-			description = "Ages whatever it touches.",
-		},
-		{
-			name = "Eternity",
-			displayName = "Eternity",
-			emotion = "Nostalgia",
-			rarity = "Legendary",
-			level = 5,
-			description = "A living memory of everything.",
-		},
-		-- Mythic
-		{
-			name = "TheWatcher",
-			displayName = "The Watcher",
-			emotion = "Any",
-			rarity = "Mythic",
-			level = 6,
-			description = "Produces nothing. During any boost: 50x output.",
-		},
-		{
-			name = "Unknown",
-			displayName = "???",
-			emotion = "Unknown",
-			rarity = "Mythic",
-			level = 6,
-			description = "Nobody knows what this is.",
-		},
-		{
-			name = "VoidNull",
-			displayName = "Null",
-			emotion = "Void",
-			rarity = "Mythic",
-			level = 6,
-			description = "White vial. No sound. No particles.",
-		},
-	}
-
-	local codexEntryByName: { [string]: any } = {}
-	for _, entry in CODEX_ORDER do
-		codexEntryByName[entry.name] = entry
-	end
-
-	local TOTAL_MONSTER_COUNT = #CODEX_ORDER
-
-	local CODEX_MILESTONES = {
-		{ percentage = 10, label = "Void Explorer", description = "Title badge" },
-		{ percentage = 25, label = "Collector", description = "Exclusive monster skin" },
-		{ percentage = 50, label = "Bonus Roll", description = "Bonus daily egg roll" },
-		{ percentage = 75, label = "Void Scholar", description = "Animated title" },
-		{ percentage = 100, label = "???", description = "???" },
-	}
-
-	local RAINBOW_COLORS = {
-		Color3.fromRGB(255, 80, 80),
-		Color3.fromRGB(255, 180, 60),
-		Color3.fromRGB(255, 240, 80),
-		Color3.fromRGB(100, 220, 120),
-		Color3.fromRGB(90, 180, 255),
-		Color3.fromRGB(180, 110, 255),
-	}
-
-	-- Shimmer used for both the MYTHIC tab button and Mythic-rarity star rows.
-	local function startRainbowCycle(instance: Instance, property: string)
-		task.spawn(function()
-			local index = 1
-			while true do
-				index = (index % #RAINBOW_COLORS) + 1
-				local tween =
-					TweenService:Create(instance, TweenInfo.new(0.5, Enum.EasingStyle.Sine), { [property] = RAINBOW_COLORS[index] })
-				tween:Play()
-				tween.Completed:Wait()
-			end
-		end)
-	end
-
-	local RARITY_VIEWPORT_SIZE = {
-		Common = 1,
-		Uncommon = 1.2,
-		Rare = 1.4,
-		Epic = 1.6,
-		Legendary = 1.8,
-		Mythic = 2.2,
-	}
-
-	local RARITY_STAR_COLORS = {
-		Common = Color3.fromRGB(170, 170, 170),
-		Uncommon = Color3.fromRGB(80, 150, 220),
-		Rare = Color3.fromRGB(80, 200, 120),
-		Epic = Color3.fromRGB(170, 100, 220),
-		Legendary = Color3.fromRGB(255, 210, 60),
-		Mythic = Color3.new(1, 1, 1), -- overridden by the rainbow cycle below
-	}
-
-	-- The card's own internal proportions have to track the mobile grid's
-	-- smaller CellSize (120x150 vs. 150x180) too, or the top/bottom areas below
-	-- -- both hardcoded against the desktop height -- would overflow past a
-	-- shrunk mobile cell and overlap the row underneath instead of just looking
-	-- smaller.
-	local CODEX_CARD_WIDTH = isMobile and 120 or 150
-	local CODEX_CARD_HEIGHT = isMobile and 150 or 180
-	local CODEX_TOP_HEIGHT = isMobile and 82 or 100
-	local CODEX_BOTTOM_HEIGHT = CODEX_CARD_HEIGHT - CODEX_TOP_HEIGHT
-
-	local function createMonsterViewport(rarity: string, level: number, color: Color3): ViewportFrame
-		local viewport = Instance.new("ViewportFrame")
-		viewport.Name = "Preview"
-		viewport.Size = UDim2.new(1, 0, 0, CODEX_TOP_HEIGHT)
-		viewport.BackgroundTransparency = 1
-
-		local worldModel = Instance.new("WorldModel")
-		worldModel.Parent = viewport
-
-		local sphere = Instance.new("Part")
-		sphere.Name = "Preview"
-		sphere.Shape = Enum.PartType.Ball
-		local size = RARITY_VIEWPORT_SIZE[rarity] or 1
-		sphere.Size = Vector3.new(size, size, size)
-		sphere.Color = color
-		sphere.Material = Enum.Material.SmoothPlastic
-		sphere.Anchored = true
-		sphere.CanCollide = false
-		sphere.Parent = worldModel
-
-		local camera = Instance.new("Camera")
-		camera.CFrame = CFrame.new(Vector3.new(0, 0, 4), Vector3.new(0, 0, 0))
-		camera.Parent = viewport
-		viewport.CurrentCamera = camera
-
-		local starRow = Instance.new("TextLabel")
-		starRow.Name = "Stars"
-		starRow.AnchorPoint = Vector2.new(0, 1)
-		starRow.Position = UDim2.new(0, 0, 1, -2)
-		starRow.Size = UDim2.new(1, 0, 0, 16)
-		starRow.BackgroundTransparency = 1
-		starRow.Font = Enum.Font.GothamBold
-		starRow.TextSize = 12
-		starRow.TextColor3 = RARITY_STAR_COLORS[rarity] or Color3.new(1, 1, 1)
-		starRow.Text = string.rep("★", level)
-		starRow.Parent = viewport
-
-		if rarity == "Mythic" then
-			startRainbowCycle(starRow, "TextColor3")
-		end
-
-		return viewport
-	end
-
-	local CODEX_UNDISCOVERED_BG = Color3.fromRGB(10, 8, 18)
-	local CODEX_DISCOVERED_BG = Color3.fromRGB(18, 14, 32)
-	local CODEX_UNDISCOVERED_COLOR = Color3.fromRGB(20, 20, 20)
-
-	local function createCodexCard(entry: any, discoveredFlag: boolean): Frame
-		local emotionColor = Constants.EMOTION_COLORS[entry.emotion] or Color3.fromRGB(150, 150, 150)
-
-		local card = Instance.new("Frame")
-		card.Name = "Card_" .. entry.name
-		card.Size = UDim2.new(0, CODEX_CARD_WIDTH, 0, CODEX_CARD_HEIGHT)
-		card.BackgroundColor3 = discoveredFlag and CODEX_DISCOVERED_BG or CODEX_UNDISCOVERED_BG
-		card.BorderSizePixel = 0
-		addCorner(card, 10)
-
-		local stroke = addStroke(card, emotionColor)
-		stroke.Thickness = 1
-		stroke.Transparency = 0.6
-
-		local topArea = Instance.new("Frame")
-		topArea.Name = "TopArea"
-		topArea.Size = UDim2.new(1, 0, 0, CODEX_TOP_HEIGHT)
-		topArea.BackgroundColor3 = emotionColor
-		topArea.BackgroundTransparency = 0.85
-		topArea.BorderSizePixel = 0
-		topArea.ClipsDescendants = true
-		topArea.Parent = card
-		addCorner(topArea, 10)
-
-		local viewport = createMonsterViewport(entry.rarity, entry.level, discoveredFlag and emotionColor or CODEX_UNDISCOVERED_COLOR)
-		viewport.Parent = topArea
-
-		if not discoveredFlag then
-			local gradient = Instance.new("UIGradient")
-			gradient.Color = ColorSequence.new(Color3.fromRGB(60, 60, 60), Color3.fromRGB(0, 0, 0))
-			gradient.Rotation = 90
-			gradient.Parent = viewport
-		end
-
-		local bottomArea = Instance.new("Frame")
-		bottomArea.Name = "BottomArea"
-		bottomArea.Size = UDim2.new(1, 0, 0, CODEX_BOTTOM_HEIGHT)
-		bottomArea.Position = UDim2.new(0, 0, 0, CODEX_TOP_HEIGHT)
-		bottomArea.BackgroundTransparency = 1
-		bottomArea.ClipsDescendants = true
-		bottomArea.Parent = card
-
-		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Name = "Name"
-		nameLabel.Size = UDim2.new(1, -12, 0, 18)
-		nameLabel.Position = UDim2.new(0, 6, 0, 4)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Font = Enum.Font.GothamBold
-		nameLabel.TextSize = 13
-		nameLabel.TextColor3 = WHITE
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-		nameLabel.Text = discoveredFlag and entry.displayName or "???"
-		nameLabel.Parent = bottomArea
-
-		local emotionLabel = Instance.new("TextLabel")
-		emotionLabel.Name = "Emotion"
-		emotionLabel.Size = UDim2.new(1, -12, 0, 14)
-		emotionLabel.Position = UDim2.new(0, 6, 0, 22)
-		emotionLabel.BackgroundTransparency = 1
-		emotionLabel.Font = Enum.Font.Gotham
-		emotionLabel.TextSize = 11
-		emotionLabel.TextColor3 = emotionColor
-		emotionLabel.Text = entry.emotion
-		emotionLabel.Parent = bottomArea
-
-		local descLabel = Instance.new("TextLabel")
-		descLabel.Name = "Description"
-		descLabel.Size = UDim2.new(1, -12, 0, 26)
-		descLabel.Position = UDim2.new(0, 6, 0, 40)
-		descLabel.BackgroundTransparency = 1
-		descLabel.Font = Enum.Font.Gotham
-		descLabel.TextSize = 10
-		descLabel.TextColor3 = Color3.fromRGB(140, 120, 170)
-		descLabel.TextWrapped = true
-		descLabel.ClipsDescendants = true
-		descLabel.Text = discoveredFlag and entry.description or "Collect this monster to reveal its secrets."
-		descLabel.Parent = bottomArea
-
-		return card
-	end
-
-	local codexPanel = Instance.new("Frame")
-	codexPanel.Name = "CodexPanel"
-	if isMobile then
-		codexPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-		codexPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
-		codexPanel.Size = UDim2.new(0.98, 0, 0.88, 0)
-	else
-		codexPanel.Position = UDim2.new(0.5, -360, 0.5, -280)
-		codexPanel.Size = UDim2.new(0, 720, 0, 560)
-	end
-	codexPanel.BackgroundColor3 = Color3.fromRGB(10, 8, 20)
-	codexPanel.BorderSizePixel = 0
-	codexPanel.Visible = false
-	codexPanel.Parent = screenGui
-	addCorner(codexPanel, 14)
-	local codexPanelStroke = addStroke(codexPanel, Color3.fromRGB(80, 50, 140))
-	codexPanelStroke.Thickness = 1
-	panels.CodexPanel = codexPanel
-
-	local codexHeader = Instance.new("Frame")
-	codexHeader.Name = "Header"
-	codexHeader.Size = UDim2.new(1, 0, 0, 50)
-	codexHeader.BackgroundTransparency = 1
-	codexHeader.Parent = codexPanel
-
-	local codexTitle = Instance.new("TextLabel")
-	codexTitle.Name = "Title"
-	codexTitle.Size = UDim2.new(0, 300, 1, 0)
-	codexTitle.Position = UDim2.new(0, 16, 0, 0)
-	codexTitle.BackgroundTransparency = 1
-	codexTitle.Font = Enum.Font.GothamBold
-	codexTitle.TextSize = 22
-	codexTitle.TextColor3 = Color3.fromRGB(180, 140, 255)
-	codexTitle.TextXAlignment = Enum.TextXAlignment.Left
-	codexTitle.Text = "VOID CODEX"
-	codexTitle.Parent = codexHeader
-
-	local codexCountLabel = Instance.new("TextLabel")
-	codexCountLabel.Name = "DiscoveryCount"
-	codexCountLabel.AnchorPoint = Vector2.new(1, 0.5)
-	codexCountLabel.Position = UDim2.new(1, -50, 0.5, 0)
-	codexCountLabel.Size = UDim2.new(0, 160, 0, 22)
-	codexCountLabel.BackgroundTransparency = 1
-	codexCountLabel.Font = Enum.Font.GothamBold
-	codexCountLabel.TextSize = 13
-	codexCountLabel.TextColor3 = Color3.fromRGB(120, 100, 180)
-	codexCountLabel.TextXAlignment = Enum.TextXAlignment.Right
-	codexCountLabel.Text = `[0/{TOTAL_MONSTER_COUNT}] DISCOVERED`
-	codexCountLabel.Parent = codexHeader
-
-	local codexCountStroke = Instance.new("UIStroke")
-	codexCountStroke.Thickness = 1
-	codexCountStroke.Color = Color3.fromRGB(255, 210, 60)
-	codexCountStroke.Enabled = false
-	codexCountStroke.Parent = codexCountLabel
-
-	createCloseButton(codexPanel, "CodexPanel")
-
-	local codexTabBar = Instance.new("Frame")
-	codexTabBar.Name = "TabBar"
-	codexTabBar.Size = UDim2.new(1, 0, 0, 44)
-	codexTabBar.Position = UDim2.new(0, 0, 0, 50)
-	codexTabBar.BackgroundColor3 = Color3.fromRGB(10, 8, 20)
-	codexTabBar.BorderSizePixel = 0
-	codexTabBar.Parent = codexPanel
-
-	local CODEX_TAB_ORDER = { "ALL", "SADNESS", "RAGE", "JOY", "DREAD", "VOID", "NOSTALGIA", "MYTHIC" }
-	local CODEX_TAB_COLORS: { [string]: Color3 } = {
-		ALL = Color3.fromRGB(200, 190, 220),
-		SADNESS = Color3.fromRGB(100, 150, 220),
-		RAGE = Color3.fromRGB(220, 80, 80),
-		JOY = Color3.fromRGB(255, 210, 60),
-		DREAD = Color3.fromRGB(150, 90, 200),
-		VOID = Color3.fromRGB(150, 140, 170),
-		NOSTALGIA = Color3.fromRGB(230, 140, 180),
-		MYTHIC = Color3.new(1, 1, 1), -- overridden by the rainbow cycle below
-	}
-
-	local function matchesCodexTab(entry: any, tabName: string): boolean
-		if tabName == "ALL" then
-			return true
-		elseif tabName == "MYTHIC" then
-			return entry.level == 6
-		else
-			return entry.emotion:upper() == tabName
-		end
-	end
-
-	local codexTabButtons: { [string]: TextButton } = {}
-	local codexActiveTab = "ALL"
-
-	local function updateCodexTabVisuals()
-		for tabName, button in codexTabButtons do
-			local isActive = tabName == codexActiveTab
-			button.BackgroundTransparency = isActive and 0 or 1
-			local border = button:FindFirstChild("BottomBorder")
-			if border then
-				border.Visible = isActive
-			end
-		end
-	end
-
-	local codexCards: { [string]: Frame } = {}
-
-	local function applyCodexTabFilter()
-		for _, entry in CODEX_ORDER do
-			local card = codexCards[entry.name]
-			if card then
-				card.Visible = matchesCodexTab(entry, codexActiveTab)
-			end
-		end
-	end
-
-	for i, tabName in CODEX_TAB_ORDER do
-		local tabButton = Instance.new("TextButton")
-		tabButton.Name = "Tab_" .. tabName
-		tabButton.Size = UDim2.new(1 / #CODEX_TAB_ORDER, 0, 1, 0)
-		tabButton.Position = UDim2.new((i - 1) / #CODEX_TAB_ORDER, 0, 0, 0)
-		tabButton.BackgroundColor3 = Color3.fromRGB(30, 22, 50)
-		tabButton.BackgroundTransparency = 1
-		tabButton.BorderSizePixel = 0
-		tabButton.AutoButtonColor = false
-		tabButton.Font = Enum.Font.GothamBold
-		tabButton.TextSize = isMobile and 10 or 12
-		tabButton.TextColor3 = CODEX_TAB_COLORS[tabName]
-		tabButton.Text = tabName
-		tabButton.Parent = codexTabBar
-
-		local bottomBorder = Instance.new("Frame")
-		bottomBorder.Name = "BottomBorder"
-		bottomBorder.AnchorPoint = Vector2.new(0, 1)
-		bottomBorder.Position = UDim2.new(0, 0, 1, 0)
-		bottomBorder.Size = UDim2.new(1, 0, 0, 2)
-		bottomBorder.BackgroundColor3 = CODEX_TAB_COLORS[tabName]
-		bottomBorder.BorderSizePixel = 0
-		bottomBorder.Visible = tabName == codexActiveTab
-		bottomBorder.Parent = tabButton
-
-		tabButton.BackgroundTransparency = (tabName == codexActiveTab) and 0 or 1
-
-		onActivated(tabButton, function()
-			codexActiveTab = tabName
-			updateCodexTabVisuals()
-			applyCodexTabFilter()
-		end)
-
-		if tabName == "MYTHIC" then
-			startRainbowCycle(tabButton, "TextColor3")
-		end
-
-		codexTabButtons[tabName] = tabButton
-	end
-
-	local codexGrid = Instance.new("ScrollingFrame")
-	codexGrid.Name = "Content"
-	codexGrid.Position = UDim2.new(0, 10, 0, 104)
-	codexGrid.Size = UDim2.new(1, -20, 1, -164)
-	codexGrid.BackgroundTransparency = 1
-	codexGrid.BorderSizePixel = 0
-	codexGrid.ScrollBarThickness = 6
-	codexGrid.CanvasSize = UDim2.new(0, 0, 0, 0)
-	codexGrid.Parent = codexPanel
-
-	local codexGridLayout = Instance.new("UIGridLayout")
-	codexGridLayout.CellSize = UDim2.new(0, CODEX_CARD_WIDTH, 0, CODEX_CARD_HEIGHT)
-	codexGridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
-	codexGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	codexGridLayout.Parent = codexGrid
-
-	codexGridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		codexGrid.CanvasSize = UDim2.new(0, 0, 0, codexGridLayout.AbsoluteContentSize.Y + 8)
-	end)
-
-	local codexMilestoneBar = Instance.new("Frame")
-	codexMilestoneBar.Name = "MilestoneBar"
-	codexMilestoneBar.AnchorPoint = Vector2.new(0, 1)
-	codexMilestoneBar.Position = UDim2.new(0, 10, 1, -8)
-	codexMilestoneBar.Size = UDim2.new(1, -20, 0, 50)
-	codexMilestoneBar.BackgroundColor3 = Color3.fromRGB(15, 12, 26)
-	codexMilestoneBar.BorderSizePixel = 0
-	codexMilestoneBar.Parent = codexPanel
-	addCorner(codexMilestoneBar, 8)
-
-	local codexMilestoneLayout = Instance.new("UIListLayout")
-	codexMilestoneLayout.FillDirection = Enum.FillDirection.Horizontal
-	codexMilestoneLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	codexMilestoneLayout.Padding = UDim.new(0, 4)
-	codexMilestoneLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	codexMilestoneLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	codexMilestoneLayout.Parent = codexMilestoneBar
-
-	local codexMilestoneChips: { { icon: TextLabel, text: TextLabel } } = {}
-
-	for i, milestone in CODEX_MILESTONES do
-		local chip = Instance.new("Frame")
-		chip.Name = "Milestone_" .. i
-		chip.Size = UDim2.new(0, 136, 1, -8)
-		chip.BackgroundTransparency = 1
-		chip.LayoutOrder = i
-		chip.Parent = codexMilestoneBar
-
-		local icon = Instance.new("TextLabel")
-		icon.Name = "Icon"
-		icon.Size = UDim2.new(0, 20, 1, 0)
-		icon.BackgroundTransparency = 1
-		icon.Font = Enum.Font.GothamBold
-		icon.TextSize = 16
-		icon.Text = "🔒"
-		icon.TextColor3 = Color3.fromRGB(120, 110, 140)
-		icon.Parent = chip
-
-		local milestoneText = Instance.new("TextLabel")
-		milestoneText.Name = "Text"
-		milestoneText.Size = UDim2.new(1, -24, 1, 0)
-		milestoneText.Position = UDim2.new(0, 24, 0, 0)
-		milestoneText.BackgroundTransparency = 1
-		milestoneText.Font = Enum.Font.Gotham
-		milestoneText.TextSize = 10
-		milestoneText.TextColor3 = Color3.fromRGB(180, 170, 200)
-		milestoneText.TextXAlignment = Enum.TextXAlignment.Left
-		milestoneText.TextWrapped = true
-		milestoneText.Text = `{milestone.percentage}% — {milestone.label}`
-		milestoneText.Parent = chip
-
-		codexMilestoneChips[i] = { icon = icon, text = milestoneText }
-	end
-
-	local function updateCodexMilestones()
-		local state = shared.CodexClient
-		local discoveredCount = (state and state.discoveredCount) or 0
-		local totalCount = (state and state.totalCount) or TOTAL_MONSTER_COUNT
-
-		for i, milestone in CODEX_MILESTONES do
-			local chip = codexMilestoneChips[i]
-			local required = math.ceil(totalCount * milestone.percentage / 100)
-			local complete = discoveredCount >= required
-
-			chip.icon.Text = complete and "✓" or "🔒"
-			chip.icon.TextColor3 = complete and Color3.fromRGB(255, 210, 60) or Color3.fromRGB(120, 110, 140)
-			chip.text.Text = `{milestone.percentage}% ({required}/{totalCount}) — {milestone.label}`
-		end
-	end
-
-	local function updateCodexCountLabel()
-		local state = shared.CodexClient
-		local discoveredCount = (state and state.discoveredCount) or 0
-		local totalCount = (state and state.totalCount) or TOTAL_MONSTER_COUNT
-		codexCountLabel.Text = `[{discoveredCount}/{totalCount}] DISCOVERED`
-		codexCountStroke.Enabled = discoveredCount >= totalCount
-	end
-
-	rebuildCodexGrid = function()
-		local state = shared.CodexClient
-		local discoveredSet = (state and state.discovered) or {}
-
-		for _, child in codexGrid:GetChildren() do
-			if child:IsA("Frame") then
-				child:Destroy()
-			end
-		end
-		table.clear(codexCards)
-
-		for i, entry in CODEX_ORDER do
-			local card = createCodexCard(entry, discoveredSet[entry.name] == true)
-			card.LayoutOrder = i
-			card.Parent = codexGrid
-			codexCards[entry.name] = card
-		end
-
-		applyCodexTabFilter()
-		updateCodexCountLabel()
-		updateCodexMilestones()
-	end
-
-	-- Rebuilds only the one card that just flipped to discovered (if the panel
-	-- has ever been opened -- codexCards stays empty otherwise, which is fine
-	-- since the next open runs a full rebuildCodexGrid from current state).
-	codexDiscoveryRemote.OnClientEvent:Connect(function(monsterName: any)
-		if typeof(monsterName) ~= "string" then
-			return
-		end
-
-		local entry = codexEntryByName[monsterName]
-		local oldCard = codexCards[monsterName]
-		if entry and oldCard then
-			local layoutOrder = oldCard.LayoutOrder
-			oldCard:Destroy()
-
-			local newCard = createCodexCard(entry, true)
-			newCard.LayoutOrder = layoutOrder
-			newCard.Visible = matchesCodexTab(entry, codexActiveTab)
-			newCard.Parent = codexGrid
-			codexCards[monsterName] = newCard
-		end
-
-		updateCodexCountLabel()
-		updateCodexMilestones()
-	end)
-	return codexPanel
-end
-
-local codexPanel = createCodexPanel(screenGui, isMobile)
-
---============================================================
--- Rewards Panel
---============================================================
-
--- Own function scope for the same reason createShopPanel/createCodexPanel are:
--- keeps this panel's locals off the main chunk's 200-local-register budget.
-local function createRewardsPanel(screenGui: ScreenGui, isMobile: boolean): (Frame, () -> ())
-	local CLAIMABLE_GOLD = Color3.fromRGB(255, 200, 50)
-	local LOCKED_STROKE = Color3.fromRGB(50, 50, 55)
-	local DEFAULT_STROKE = Color3.fromRGB(60, 40, 100)
-	local LOCKED_BG = Color3.fromRGB(15, 12, 25)
-	local UNLOCKED_BG = Color3.fromRGB(20, 15, 35)
-	local CLAIMED_BG = Color3.fromRGB(15, 25, 15)
-	local CLAIMED_GREEN = Color3.fromRGB(100, 200, 100)
-
-	local function formatCardTime(seconds: number): string
-		return string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
-	end
-
-	local function formatSessionTime(seconds: number): string
-		local hours = math.floor(seconds / 3600)
-		local minutes = math.floor((seconds % 3600) / 60)
-		return string.format("%02d:%02d:%02d", hours, minutes, seconds % 60)
-	end
-
-	local function getRewardText(entry: any): (string, string)
-		if entry.reward == "egg" then
-			return "🥚", entry.rarity
-		elseif entry.reward == "coins" then
-			return "💰", "Coins"
-		elseif entry.reward == "bagVoucher" then
-			return "👜", "Bag Upgrade"
-		end
-		return "🎁", "Reward"
-	end
-
-	local rewardsPanel = Instance.new("Frame")
-	rewardsPanel.Name = "RewardsPanel"
-	if isMobile then
-		rewardsPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-		rewardsPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
-		rewardsPanel.Size = UDim2.new(0.95, 0, 0.85, 0)
-	else
-		rewardsPanel.Position = UDim2.new(0.5, -300, 0.5, -220)
-		rewardsPanel.Size = UDim2.new(0, 600, 0, 440)
-	end
-	rewardsPanel.BackgroundColor3 = Color3.fromRGB(12, 9, 22)
-	rewardsPanel.BorderSizePixel = 0
-	rewardsPanel.Visible = false
-	rewardsPanel.Parent = screenGui
-	addCorner(rewardsPanel, 14)
-	local rewardsPanelStroke = addStroke(rewardsPanel, Color3.fromRGB(150, 50, 50))
-	rewardsPanelStroke.Thickness = 1
-	panels.RewardsPanel = rewardsPanel
-
-	local rewardsTitle = Instance.new("TextLabel")
-	rewardsTitle.Name = "Title"
-	rewardsTitle.Size = UDim2.new(1, -48, 0, 26)
-	rewardsTitle.Position = UDim2.new(0, 16, 0, 14)
-	rewardsTitle.BackgroundTransparency = 1
-	rewardsTitle.Font = Enum.Font.GothamBold
-	rewardsTitle.TextSize = 20
-	rewardsTitle.TextColor3 = WHITE
-	rewardsTitle.TextXAlignment = Enum.TextXAlignment.Left
-	rewardsTitle.Text = "SESSION REWARDS"
-	rewardsTitle.Parent = rewardsPanel
-
-	local rewardsSubtitle = Instance.new("TextLabel")
-	rewardsSubtitle.Name = "Subtitle"
-	rewardsSubtitle.Size = UDim2.new(1, -48, 0, 16)
-	rewardsSubtitle.Position = UDim2.new(0, 16, 0, 40)
-	rewardsSubtitle.BackgroundTransparency = 1
-	rewardsSubtitle.Font = Enum.Font.Gotham
-	rewardsSubtitle.TextSize = 11
-	rewardsSubtitle.TextColor3 = GRAY
-	rewardsSubtitle.TextXAlignment = Enum.TextXAlignment.Left
-	rewardsSubtitle.Text = "Earn rewards by playing — resets each session"
-	rewardsSubtitle.Parent = rewardsPanel
-
-	createCloseButton(rewardsPanel, "RewardsPanel")
-
-	local rewardsGrid = Instance.new("Frame")
-	rewardsGrid.Name = "RewardsGrid"
-	rewardsGrid.Position = UDim2.new(0, 16, 0, 66)
-	rewardsGrid.Size = UDim2.new(1, -32, 0, 230)
-	rewardsGrid.BackgroundTransparency = 1
-	rewardsGrid.Parent = rewardsPanel
-
-	local rewardsGridLayout = Instance.new("UIGridLayout")
-	rewardsGridLayout.CellSize = UDim2.new(0, 130, 0, 110)
-	rewardsGridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
-	rewardsGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	rewardsGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	rewardsGridLayout.Parent = rewardsGrid
-
-	local sessionTimerLabel = Instance.new("TextLabel")
-	sessionTimerLabel.Name = "SessionTimer"
-	sessionTimerLabel.Position = UDim2.new(0, 16, 0, 304)
-	sessionTimerLabel.Size = UDim2.new(1, -32, 0, 24)
-	sessionTimerLabel.BackgroundTransparency = 1
-	sessionTimerLabel.Font = Enum.Font.Gotham
-	sessionTimerLabel.TextSize = 13
-	sessionTimerLabel.TextColor3 = GRAY
-	sessionTimerLabel.TextXAlignment = Enum.TextXAlignment.Center
-	sessionTimerLabel.Text = "Session time: 00:00:00"
-	sessionTimerLabel.Parent = rewardsPanel
-
-	type RewardCard = {
-		frame: Frame,
-		stroke: UIStroke,
-		timeLabel: TextLabel,
-		statusIcon: TextLabel,
-		claimButton: TextButton,
-		glowTween: Tween?,
-	}
-
-	local rewardCards: { [number]: RewardCard } = {}
-	local indexBySeconds: { [number]: number } = {}
-	local claimedMilestones: { [number]: boolean } = {}
-
-	local function setCardPulsing(card: RewardCard, pulsing: boolean)
-		if card.glowTween then
-			card.glowTween:Cancel()
-			card.glowTween = nil
-		end
-		if pulsing then
-			local dim = CLAIMABLE_GOLD:Lerp(Color3.new(0, 0, 0), 0.2)
-			local bright = CLAIMABLE_GOLD:Lerp(Color3.new(1, 1, 1), 0.2)
-			card.stroke.Color = dim
-			local tween = TweenService:Create(
-				card.stroke,
-				TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-				{ Color = bright }
-			)
-			tween:Play()
-			card.glowTween = tween
-		end
-	end
-
-	local function updateCardVisual(index: number)
-		local card = rewardCards[index]
-		local entry = Constants.SESSION_REWARDS[index]
-		if not card or not entry then
-			return
-		end
-
-		local claimed = claimedMilestones[entry.seconds]
-		local elapsed = tick() - sessionStartTick
-		local reached = elapsed >= entry.seconds
-
-		if claimed then
-			setCardPulsing(card, false)
-			card.frame.BackgroundColor3 = CLAIMED_BG
-			card.stroke.Color = DEFAULT_STROKE
-			card.timeLabel.TextColor3 = CLAIMED_GREEN
-			card.statusIcon.Text = "✓"
-			card.statusIcon.TextColor3 = CLAIMED_GREEN
-			card.claimButton.Visible = false
-		elseif reached then
-			card.frame.BackgroundColor3 = UNLOCKED_BG
-			card.timeLabel.TextColor3 = WHITE
-			card.statusIcon.Text = ""
-			card.claimButton.Visible = true
-			setCardPulsing(card, true)
-		else
-			setCardPulsing(card, false)
-			card.frame.BackgroundColor3 = LOCKED_BG
-			card.stroke.Color = LOCKED_STROKE
-			card.timeLabel.TextColor3 = GRAY
-			card.statusIcon.Text = "🔒"
-			card.statusIcon.TextColor3 = GRAY
-			card.claimButton.Visible = false
-		end
-	end
-
-	local function updateAllCardVisuals()
-		for index in rewardCards do
-			updateCardVisual(index)
-		end
-	end
-
-	local function flashCardClaimed(index: number)
-		local card = rewardCards[index]
-		if not card then
-			return
-		end
-		updateCardVisual(index)
-		card.frame.BackgroundColor3 = Color3.new(1, 1, 1)
-		TweenService:Create(card.frame, TweenInfo.new(0.4), { BackgroundColor3 = CLAIMED_BG }):Play()
-	end
-
-	for index, entry in Constants.SESSION_REWARDS do
-		indexBySeconds[entry.seconds] = index
-
-		local card = Instance.new("Frame")
-		card.Name = "Card_" .. index
-		card.Size = UDim2.new(0, 130, 0, 110)
-		card.BackgroundColor3 = UNLOCKED_BG
-		card.BorderSizePixel = 0
-		card.LayoutOrder = index
-		card.Parent = rewardsGrid
-		addCorner(card, 12)
-		local stroke = addStroke(card, DEFAULT_STROKE)
-
-		local timeLabel = Instance.new("TextLabel")
-		timeLabel.Name = "TimeLabel"
-		timeLabel.Size = UDim2.new(1, 0, 0, 50)
-		timeLabel.Position = UDim2.new(0, 0, 0, 8)
-		timeLabel.BackgroundTransparency = 1
-		timeLabel.Font = Enum.Font.GothamBold
-		timeLabel.TextSize = 22
-		timeLabel.TextColor3 = WHITE
-		timeLabel.TextXAlignment = Enum.TextXAlignment.Center
-		timeLabel.Text = formatCardTime(entry.seconds)
-		timeLabel.Parent = card
-
-		local icon, desc = getRewardText(entry)
-		local descLabel = Instance.new("TextLabel")
-		descLabel.Name = "RewardDesc"
-		descLabel.Size = UDim2.new(1, -8, 0, 16)
-		descLabel.Position = UDim2.new(0, 4, 0, 58)
-		descLabel.BackgroundTransparency = 1
-		descLabel.Font = Enum.Font.Gotham
-		descLabel.TextSize = 11
-		descLabel.TextColor3 = GRAY
-		descLabel.TextXAlignment = Enum.TextXAlignment.Center
-		descLabel.Text = `{icon} {desc}`
-		descLabel.Parent = card
-
-		local statusIcon = Instance.new("TextLabel")
-		statusIcon.Name = "StatusIcon"
-		statusIcon.AnchorPoint = Vector2.new(1, 0)
-		statusIcon.Position = UDim2.new(1, -4, 0, 4)
-		statusIcon.Size = UDim2.new(0, 18, 0, 18)
-		statusIcon.BackgroundTransparency = 1
-		statusIcon.Font = Enum.Font.GothamBold
-		statusIcon.TextSize = 14
-		statusIcon.TextColor3 = GRAY
-		statusIcon.Text = ""
-		statusIcon.Parent = card
-
-		local claimButton = Instance.new("TextButton")
-		claimButton.Name = "ClaimButton"
-		claimButton.Size = UDim2.new(1, -12, 0, 22)
-		claimButton.Position = UDim2.new(0, 6, 1, -26)
-		claimButton.Text = "CLAIM"
-		claimButton.TextSize = 12
-		claimButton.Visible = false
-		claimButton.Parent = card
-		styleButton(claimButton)
-
-		local cardIndex = index
-		onActivated(claimButton, function()
-			fireAction("REQUEST_SESSION_REWARD", { milestoneIndex = cardIndex })
-		end)
-
-		rewardCards[index] = {
-			frame = card,
-			stroke = stroke,
-			timeLabel = timeLabel,
-			statusIcon = statusIcon,
-			claimButton = claimButton,
-			glowTween = nil,
-		}
-	end
-
-	updateAllCardVisuals()
-
-	sessionRewardRemote.OnClientEvent:Connect(function(reward: any)
-		if typeof(reward) ~= "table" or typeof(reward.seconds) ~= "number" then
-			return
-		end
-		local index = indexBySeconds[reward.seconds]
-		if not index then
-			return
-		end
-		claimedMilestones[reward.seconds] = true
-		flashCardClaimed(index)
-	end)
-
-	-- Ticks the "Session time: HH:MM:SS" label once a second off a Heartbeat
-	-- accumulator (Heartbeat fires far more often than once/sec).
-	local secondAccumulator = 0
-	RunService.Heartbeat:Connect(function(dt: number)
-		secondAccumulator += dt
-		if secondAccumulator >= 1 then
-			secondAccumulator = 0
-			sessionTimerLabel.Text = "Session time: " .. formatSessionTime(math.floor(tick() - sessionStartTick))
-		end
-	end)
-
-	-- Separate from the per-second display tick, matching SessionRewards.lua's
-	-- own 5-second server-side check interval -- this is what actually flips
-	-- cards from locked to claimable.
-	task.spawn(function()
-		while true do
-			task.wait(5)
-			updateAllCardVisuals()
-		end
-	end)
-
-	return rewardsPanel, updateAllCardVisuals
-end
-
-local rewardsPanel, updateAllRewardsCards = createRewardsPanel(screenGui, isMobile)
-refreshRewardsPanel = updateAllRewardsCards
-
---============================================================
 -- Merge notification (transient, not a toggle panel)
 --============================================================
 
@@ -3218,6 +1443,7 @@ task.spawn(function()
 				coinAmountLabel.Text = coinState.formatted
 				pulseCoin()
 			end
+
 			local currentEarnRate = coinState.earnRate or 0
 			if currentEarnRate > lastEarnRate then
 				flashCoinGold()
@@ -3384,16 +1610,20 @@ task.spawn(function()
 		rollCostLabel.Text = `Cost: {NumberFormatter.Format(getRollCost())} coins`
 
 		-- Hall upgrade button + selected-slot highlight
-		local nextTierCost = Constants.HALL_UPGRADE_COSTS[currentHallTier + 1]
+		local nextTierCost = Constants.ENVIRONMENT_UPGRADE_COSTS[currentHallTier + 1]
 		local coinsAvailable = (shared.CoinDisplay and shared.CoinDisplay.displayCoins) or 0
 
 		if not nextTierCost then
 			upgradeHallButton.Text = "MAX TIER"
 			upgradeHallButton:SetAttribute("Disabled", true)
 		else
-			upgradeHallButton.Text = `UPGRADE HALL - {NumberFormatter.Format(nextTierCost)}`
+			upgradeHallButton.Text = `UPGRADE ENVIRONMENT - {NumberFormatter.Format(nextTierCost)}`
 			upgradeHallButton:SetAttribute("Disabled", coinsAvailable < nextTierCost)
 		end
+
+		-- Live-refresh biome lock state (BiomeClient publishes shared.BiomeClient
+		-- independently of hallSlots updates, e.g. right after an unlock).
+		rebuildBiomeBreakdown(hallSlots)
 
 		for _, slotFrame in hallGrid:GetChildren() do
 			if slotFrame:IsA("Frame") then
@@ -3412,6 +1642,29 @@ task.spawn(function()
 			end
 		end
 
+		-- Shop "OWNED" labels
+		local monetizationState = shared.MonetizationClient
+		local ownedGamepasses = monetizationState and monetizationState.ownedGamepasses
+		if ownedGamepasses then
+			for _, entry in shopList:GetChildren() do
+				if entry:IsA("Frame") then
+					local gamepassKey = entry:GetAttribute("GamepassKey")
+					if gamepassKey then
+						local buyButton = entry:FindFirstChild("BUY")
+						if buyButton and buyButton:IsA("TextButton") then
+							if ownedGamepasses[gamepassKey] then
+								buyButton.Text = "OWNED"
+								buyButton:SetAttribute("Disabled", true)
+							else
+								buyButton.Text = "BUY"
+								buyButton:SetAttribute("Disabled", false)
+							end
+						end
+					end
+				end
+			end
+		end
+
 		-- Event Station: token count + next event countdown
 		eventTokenLabel.Text = `Event Tokens: {eventTokens}`
 
@@ -3423,85 +1676,3 @@ task.spawn(function()
 		end
 	end
 end)
-
---============================================================
--- Mobile layout
---============================================================
-
--- Panel Position/Size for a centered mobile panel -- same simplified
--- AnchorPoint(0.5,0.5) + Position(0.5,0,0.5,0) centering pattern for all
--- five panels, only the Size scale differs per panel below.
-local function centerPanelMobile(panel: Frame, size: UDim2)
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.Position = UDim2.new(0.5, 0, 0.5, 0)
-	panel.Size = size
-end
-
-local function applyMobileLayout()
-	-- Coin counter
-	coinFrame.Size = UDim2.new(0.6, 0, 0, 56)
-	coinAmountLabel.TextSize = 24
-	earnRateLabel.TextSize = 11
-
-	-- Bag indicator
-	bagFrame.Size = UDim2.new(0, 120, 0, 52)
-	bagCountLabel.TextSize = 16
-	bagBarTrack.Size = UDim2.new(bagBarTrack.Size.X.Scale, bagBarTrack.Size.X.Offset, 0, 4)
-
-	-- Town level
-	townFrame.Size = UDim2.new(0, 120, 0, 44)
-	townLevelLabel.TextSize = 14
-	xpBarTrack.Size = UDim2.new(xpBarTrack.Size.X.Scale, xpBarTrack.Size.X.Offset, 0, 4)
-
-	-- Leaderboard
-	leaderboardPanel.Size = UDim2.new(0, 150, 0, 180)
-	leaderboardHeader.TextSize = 11
-	local MOBILE_LEADERBOARD_ROW_HEIGHT = 28
-	local MOBILE_LEADERBOARD_ROW_SPACING = 30
-	for i, row in leaderboardRows do
-		row.frame.Size = UDim2.new(1, -16, 0, MOBILE_LEADERBOARD_ROW_HEIGHT)
-		row.frame.Position = UDim2.new(0, 8, 0, 32 + (i - 1) * MOBILE_LEADERBOARD_ROW_SPACING)
-		row.rank.TextSize = 10
-		row.name.TextSize = 10
-		row.earnings.TextSize = 10
-		row.earnings.Size = UDim2.new(0, 48, 1, 0)
-		row.earnings.Position = UDim2.new(1, -48, 0, 0)
-	end
-
-	-- Boost HUD
-	boostHud.Size = UDim2.new(0.7, 0, 0, 56)
-	boostEmotionLabel.TextSize = 18
-	boostTimerLabel.TextSize = 13
-
-	-- Boost warning banner
-	warningBanner.Size = UDim2.new(0.9, 0, 0, 40)
-	warningLabel.TextSize = 13
-
-	-- Warehouse panel
-	centerPanelMobile(warehousePanel, UDim2.new(0.95, 0, 0.75, 0))
-
-	-- Roll panel
-	centerPanelMobile(rollPanel, UDim2.new(0.9, 0, 0.7, 0))
-	eggVisual.Size = UDim2.new(0, 80, 0, 80)
-	probabilityLabel.TextSize = 10
-
-	-- Hall panel
-	centerPanelMobile(hallPanel, UDim2.new(0.9, 0, 0.65, 0))
-	hallGridLayout.CellSize = UDim2.new(0, 60, 0, 60)
-
-	-- Shop, Codex, and Rewards panels size/position themselves (and their grid
-	-- CellSize) internally now, since createShopPanel/createCodexPanel/
-	-- createRewardsPanel take isMobile as a parameter -- extracting them into
-	-- their own function scopes (to stay under Luau's 200-local-per-function
-	-- limit) moved shopGridLayout/codexGridLayout/rewardsGridLayout out of
-	-- this scope entirely.
-
-	-- Event station panel
-	centerPanelMobile(eventStationPanel, UDim2.new(0.95, 0, 0.75, 0))
-end
-
-if isMobile then
-	applyMobileLayout()
-end
-
-print("[UIManager] script fully initialized")

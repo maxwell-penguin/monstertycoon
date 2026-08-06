@@ -8,7 +8,6 @@ local Constants = require(ReplicatedStorage.Constants)
 local Types = require(ReplicatedStorage.Types)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local BoostState = require(ReplicatedStorage.BoostState)
-local HallManager = require(script.Parent.HallManager)
 local SlotPositioner = require(script.Parent.SlotPositioner)
 local BagManager = require(script.Parent.BagManager)
 
@@ -24,7 +23,6 @@ export type VialData = {
 	spawnTime: number,
 }
 
-local VIAL_DROP_INTERVAL = 30
 local MAX_XZ_OFFSET = 3
 -- Must match VialClient.client.lua's VIAL_FLOAT_Y (pedestal redesign: the vial
 -- now floats up to chest height) so the invisible .Touched trigger this spawns
@@ -35,7 +33,6 @@ local VIAL_DESPAWN_TIME = 300
 local VialProducer = {}
 
 local activeLoops: { [number]: boolean } = {}
-local slotCooldowns: { [number]: { [number]: number } } = {}
 local playerVials: { [number]: { [string]: VialData } } = {}
 
 -- Vials only ever existed as a client-rendered visual (VialClient.client.lua) with
@@ -49,18 +46,23 @@ local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local vialSpawnedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_SPAWNED) :: RemoteEvent
 local vialRemovedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_REMOVED) :: RemoteEvent
 
-function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot): string
+function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot, worldPosition: Vector3?): string
 	local monster = slot.monster
 	if not monster then
 		return ""
 	end
 
 	local vialId = HttpService:GenerateGUID(false)
-	local slotPosition = SlotPositioner.GetSlotWorldPosition(player, slot.slotIndex)
 
-	local offsetX = (math.random() * 2 - 1) * MAX_XZ_OFFSET
-	local offsetZ = (math.random() * 2 - 1) * MAX_XZ_OFFSET
-	local position = slotPosition + Vector3.new(offsetX, Y_OFFSET, offsetZ)
+	local position: Vector3
+	if worldPosition then
+		position = worldPosition
+	else
+		local slotPosition = SlotPositioner.GetSlotWorldPosition(player, slot.slotIndex)
+		local offsetX = (math.random() * 2 - 1) * MAX_XZ_OFFSET
+		local offsetZ = (math.random() * 2 - 1) * MAX_XZ_OFFSET
+		position = slotPosition + Vector3.new(offsetX, Y_OFFSET, offsetZ)
+	end
 
 	local vialData: VialData = {
 		vialId = vialId,
@@ -145,25 +147,15 @@ function VialProducer.StartProduction(player: Player)
 
 	activeLoops[userId] = true
 	playerVials[userId] = playerVials[userId] or {}
-	slotCooldowns[userId] = {}
 
+	-- Production itself is now owned by MonsterAI.CheckVialProduction (it knows
+	-- each monster's actual roaming position); this loop only sweeps stale vials.
 	task.spawn(function()
 		while activeLoops[userId] do
 			RunService.Heartbeat:Wait()
 
 			if not activeLoops[userId] then
 				break
-			end
-
-			local now = os.clock()
-			local cooldowns = slotCooldowns[userId]
-
-			for _, slot in HallManager.GetActiveMonsters(player) do
-				local lastDrop = cooldowns[slot.slotIndex]
-				if not lastDrop or (now - lastDrop) >= VIAL_DROP_INTERVAL then
-					cooldowns[slot.slotIndex] = now
-					VialProducer.SpawnVial(player, slot)
-				end
 			end
 
 			local vials = playerVials[userId]
@@ -186,7 +178,6 @@ end
 function VialProducer.StopProduction(player: Player)
 	local userId = player.UserId
 	activeLoops[userId] = nil
-	slotCooldowns[userId] = nil
 	playerVials[userId] = nil
 
 	local triggers = playerVialTriggers[userId]
