@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local HallManager = require(script.Parent.HallManager)
+local MonsterAI = require(script.Parent.MonsterAI)
 local RateLimiter = require(script.Parent.RateLimiter)
 
 local INSTANCE_ID_LENGTH = 8
@@ -39,7 +40,9 @@ slotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: any,
 		return
 	end
 
-	HallManager.SlotMonster(player, slotIndex, instanceId)
+	if HallManager.SlotMonster(player, slotIndex, instanceId) then
+		MonsterAI.UpdateRoster(player)
+	end
 end)
 
 unslotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: any)
@@ -55,7 +58,9 @@ unslotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: an
 		return
 	end
 
-	HallManager.UnslotMonster(player, slotIndex)
+	if HallManager.UnslotMonster(player, slotIndex) then
+		MonsterAI.UpdateRoster(player)
+	end
 end)
 
 upgradeEnvironmentRemote.OnServerEvent:Connect(function(player: Player)
