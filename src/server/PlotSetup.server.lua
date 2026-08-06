@@ -1,7 +1,6 @@
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PhysicsService = game:GetService("PhysicsService")
-local Lighting = game:GetService("Lighting")
 
 local Constants = require(ReplicatedStorage.Constants)
 
@@ -20,60 +19,57 @@ local function setCollisionGroup(part: BasePart)
 	part.CollisionGroup = COLLISION_GROUP
 end
 
--- Fixed so the star/nebula layout is identical every server start. A scoped
--- Random object rather than math.randomseed(42) -- reseeding the global RNG
--- would make every OTHER math.random() call on the server (egg rarity, vial
--- offsets, etc.) deterministic too for the rest of the server's lifetime.
-local VOID_SKY_SEED = 42
-
 local function setupVoidAtmosphere()
-	-- Lighting
-	local lighting = Lighting
-	lighting.Ambient = Color3.fromRGB(100, 80, 150)
-	lighting.OutdoorAmbient = Color3.fromRGB(80, 65, 120)
-	lighting.Brightness = 2.0
-	lighting.ClockTime = 0
-	lighting.FogEnd = 800
-	lighting.FogStart = 500
-	lighting.FogColor = Color3.fromRGB(5, 3, 15)
-	lighting.GlobalShadows = true
+	local lighting = game:GetService("Lighting")
 
-	-- Remove default sky
+	-- Keep normal lighting so everything is visible
+	lighting.Brightness = 2
+	lighting.Ambient = Color3.fromRGB(180, 180, 200)
+	lighting.OutdoorAmbient = Color3.fromRGB(160, 160, 185)
+	lighting.ClockTime = 0
+	lighting.GlobalShadows = true
+	lighting.FogEnd = 1200
+	lighting.FogStart = 800
+	lighting.FogColor = Color3.fromRGB(10, 8, 20)
+
+	-- Remove any existing atmosphere/sky/effects
 	for _, child in ipairs(lighting:GetChildren()) do
-		if child:IsA("Sky") then
+		if
+			child:IsA("Sky")
+			or child:IsA("Atmosphere")
+			or child:IsA("ColorCorrectionEffect")
+			or child:IsA("BloomEffect")
+		then
 			child:Destroy()
 		end
 	end
 
-	-- Color correction
-	local cc = Instance.new("ColorCorrectionEffect")
-	cc.Brightness = -0.08
-	cc.Contrast = 0.15
-	cc.Saturation = -0.05
-	cc.TintColor = Color3.fromRGB(190, 170, 255)
-	cc.Parent = lighting
+	-- Subtle bloom only for neon parts
+	local bloom = Instance.new("BloomEffect")
+	bloom.Intensity = 0.4
+	bloom.Size = 20
+	bloom.Threshold = 0.99
+	bloom.Parent = lighting
 
-
-	-- Star field
+	-- Void starfield sky
 	local voidSky = Instance.new("Model")
 	voidSky.Name = "VoidSky"
-	voidSky.Parent = Workspace
+	voidSky.Parent = workspace
 
+	local rng = Random.new(42)
 	local starColors = {
 		Color3.fromRGB(255, 255, 255),
 		Color3.fromRGB(210, 190, 255),
 		Color3.fromRGB(180, 200, 255),
-		Color3.fromRGB(255, 210, 180),
-		Color3.fromRGB(200, 230, 255),
+		Color3.fromRGB(255, 220, 200),
 	}
 
-	local rng = Random.new(VOID_SKY_SEED)
-
+	-- Stars
 	for i = 1, 300 do
 		local star = Instance.new("Part")
 		star.Name = "Star_" .. i
 		star.Shape = Enum.PartType.Ball
-		local size = rng:NextInteger(20, 80) / 100
+		local size = rng:NextNumber(0.2, 0.7)
 		star.Size = Vector3.new(size, size, size)
 		star.Material = Enum.Material.Neon
 		star.Color = starColors[rng:NextInteger(1, #starColors)]
@@ -82,60 +78,44 @@ local function setupVoidAtmosphere()
 		star.CastShadow = false
 		star.Locked = true
 
-		-- Random position on sphere shell
-		local theta = rng:NextNumber() * math.pi * 2
-		local phi = math.acos(rng:NextNumber() * 2 - 1)
-		local radius = rng:NextInteger(350, 550)
+		local theta = rng:NextNumber(0, math.pi * 2)
+		local phi = math.acos(rng:NextNumber(-1, 1))
+		local radius = rng:NextNumber(400, 600)
 
 		local x = radius * math.sin(phi) * math.cos(theta)
-		local y = math.abs(radius * math.cos(phi)) + 80 -- force above Y=80
+		local y = math.abs(radius * math.cos(phi)) + 100
 		local z = radius * math.sin(phi) * math.sin(theta)
 
 		star.Position = Vector3.new(x, y, z)
 		star.Parent = voidSky
 	end
 
-	-- Nebula clouds
+	-- Nebula clouds high up
 	local nebulaColors = {
 		Color3.fromRGB(60, 20, 100),
 		Color3.fromRGB(80, 15, 80),
 		Color3.fromRGB(20, 30, 100),
 		Color3.fromRGB(40, 10, 70),
 		Color3.fromRGB(15, 40, 90),
-		Color3.fromRGB(50, 20, 110),
+		Color3.fromRGB(50, 10, 60),
 	}
 
 	for i = 1, 6 do
 		local nebula = Instance.new("Part")
 		nebula.Name = "Nebula_" .. i
 		nebula.Shape = Enum.PartType.Ball
-		local size = rng:NextInteger(80, 180)
+		local size = rng:NextNumber(100, 200)
 		nebula.Size = Vector3.new(size, size, size)
 		nebula.Material = Enum.Material.Neon
-		nebula.Color = nebulaColors[i] or Color3.fromRGB(60, 20, 100)
-		nebula.Transparency = rng:NextInteger(93, 97) / 100
+		nebula.Color = nebulaColors[i]
+		nebula.Transparency = rng:NextNumber(0.93, 0.97)
 		nebula.Anchored = true
 		nebula.CanCollide = false
 		nebula.CastShadow = false
 		nebula.Locked = true
-		nebula.Position = Vector3.new(rng:NextInteger(-200, 200), rng:NextInteger(120, 280), rng:NextInteger(-200, 200))
+		nebula.Position = Vector3.new(rng:NextNumber(-300, 300), rng:NextNumber(150, 350), rng:NextNumber(-300, 300))
 		nebula.Parent = voidSky
 	end
-
-	-- World ambient light source
-	local ambientPart = Instance.new("Part")
-	ambientPart.Size = Vector3.new(1, 1, 1)
-	ambientPart.Position = Vector3.new(0, 300, 0)
-	ambientPart.Anchored = true
-	ambientPart.CanCollide = false
-	ambientPart.Transparency = 1
-	ambientPart.Parent = voidSky
-
-	local ambientLight = Instance.new("PointLight")
-	ambientLight.Brightness = 1.5
-	ambientLight.Range = 600
-	ambientLight.Color = Color3.fromRGB(50, 25, 90)
-	ambientLight.Parent = ambientPart
 end
 
 setupVoidAtmosphere()
