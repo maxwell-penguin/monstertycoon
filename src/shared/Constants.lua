@@ -171,6 +171,7 @@ Constants.GAMEPASS_IDS = {
 	Income5x = 0,
 	Income7x = 0,
 	Income10x = 0,
+	Magnet = 0,
 }
 
 Constants.PRODUCT_IDS = {
@@ -183,6 +184,7 @@ Constants.PRODUCT_IDS = {
 	MythicEgg = 0,
 	StarterPack = 0,
 	VoidPack = 0,
+	AutoPickup = 0,
 }
 
 -- Shared (not an EventStation-local) because the client-built Event Station panel

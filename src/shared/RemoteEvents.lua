@@ -50,6 +50,8 @@ RemoteEvents.EVENTS = {
 	SET_WALK_SPEED = "SetWalkSpeed",
 	LUCK_BOOST_ACTIVE = "LuckBoostActive",
 	PROMPT_PURCHASE = "PromptPurchase",
+	SET_MAGNET = "SetMagnet",
+	SET_AUTO_PICKUP = "SetAutoPickup",
 
 	-- FTUE
 	FTUE_STEP = "FtueStep",

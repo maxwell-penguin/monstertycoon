@@ -46,6 +46,8 @@ local function defaultData(): PlayerData
 		ftueComplete = false,
 		eventTokens = 0,
 		unlockedBiomes = { "Forest" },
+		hasMagnet = false,
+		autoPickupExpiry = 0,
 	}
 end
 
@@ -111,6 +113,13 @@ local function onPlayerAdded(player: Player)
 	-- PLAYER_DATA_LOADED itself once it finishes so the client still learns the
 	-- final ownedGamepasses set, just a moment later.
 	task.spawn(MonetizationManager.CheckGamepasses, player)
+
+	if os.time() < data.autoPickupExpiry then
+		local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+		local setAutoPickupRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SET_AUTO_PICKUP) :: RemoteEvent
+		setAutoPickupRemote:FireClient(player, data.autoPickupExpiry)
+	end
+
 	task.spawn(FTUEManager.StartFTUE, player)
 
 	VialProducer.StartProduction(player)

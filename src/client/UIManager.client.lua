@@ -1222,6 +1222,7 @@ local GAMEPASS_SHOP_ITEMS = {
 	{ key = "Income5x", name = "5x Income", description = "5x coin earnings." },
 	{ key = "Income7x", name = "7x Income", description = "7x coin earnings." },
 	{ key = "Income10x", name = "10x Income", description = "10x coin earnings." },
+	{ key = "Magnet", name = "Magnet", description = "Auto-collect vials within 20 studs." },
 }
 
 for _, item in GAMEPASS_SHOP_ITEMS do
@@ -1242,6 +1243,7 @@ local PRODUCT_SHOP_ITEMS = {
 	{ key = "MythicEgg", name = "Mythic Egg", description = "Guaranteed Mythic monster." },
 	{ key = "StarterPack", name = "Starter Pack", description = "Infinite Bag + Luck Boost + Rare Egg." },
 	{ key = "VoidPack", name = "Void Pack", description = "Epic Egg + Luck Boost + Speed Boots." },
+	{ key = "AutoPickup", name = "Auto Pickup", description = "Auto-collect all vials for 10 minutes." },
 }
 
 for _, item in PRODUCT_SHOP_ITEMS do
