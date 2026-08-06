@@ -39,6 +39,7 @@ export type PlayerData = {
 	hasBoostInsider: boolean,
 	ftueComplete: boolean,
 	eventTokens: number,
+	discoveredMonsters: { string },
 }
 
 export type Plot = {

@@ -19,6 +19,7 @@ local MonetizationManager = require(script.Parent.MonetizationManager)
 local FTUEManager = require(script.Parent.FTUEManager)
 local AntiCheat = require(script.Parent.AntiCheat)
 local SessionRewards = require(script.Parent.SessionRewards)
+local CodexManager = require(script.Parent.CodexManager)
 
 type PlayerData = Types.PlayerData
 
@@ -46,6 +47,7 @@ local function defaultData(): PlayerData
 		hasBoostInsider = false,
 		ftueComplete = false,
 		eventTokens = 0,
+		discoveredMonsters = {},
 	}
 end
 
@@ -102,6 +104,7 @@ local function onPlayerAdded(player: Player)
 	BagManager.InitBag(player)
 	TownManager.InitTown(player)
 	SessionRewards.InitSessionRewards(player)
+	CodexManager.InitCodex(player)
 
 	-- Non-blocking: UserOwnsGamePassAsync is a real network call made once per
 	-- gamepass (10 of them), sequentially. Blocking onPlayerAdded on all 10 would
@@ -127,6 +130,7 @@ end
 local function onPlayerRemoving(player: Player)
 	BoostState.ClearPersonalBoost(player.UserId)
 	SessionRewards.StopSessionRewards(player)
+	CodexManager.ClearCodex(player)
 	PlotManager.ReleasePlot(player)
 	HallManager.ClearHall(player)
 	VialProducer.StopProduction(player)

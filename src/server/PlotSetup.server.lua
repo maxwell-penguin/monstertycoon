@@ -29,12 +29,12 @@ local VOID_SKY_SEED = 42
 local function setupVoidAtmosphere()
 	-- Lighting
 	local lighting = Lighting
-	lighting.Ambient = Color3.fromRGB(15, 10, 30)
-	lighting.OutdoorAmbient = Color3.fromRGB(8, 5, 18)
-	lighting.Brightness = 0.15
+	lighting.Ambient = Color3.fromRGB(100, 80, 150)
+	lighting.OutdoorAmbient = Color3.fromRGB(80, 65, 120)
+	lighting.Brightness = 2.0
 	lighting.ClockTime = 0
-	lighting.FogEnd = 500
-	lighting.FogStart = 250
+	lighting.FogEnd = 800
+	lighting.FogStart = 500
 	lighting.FogColor = Color3.fromRGB(5, 3, 15)
 	lighting.GlobalShadows = true
 
@@ -53,14 +53,6 @@ local function setupVoidAtmosphere()
 	cc.TintColor = Color3.fromRGB(190, 170, 255)
 	cc.Parent = lighting
 
-	-- Bloom for neon glow -- without this, Neon materials (pedestals, veins,
-	-- sell pad, monster eyes) look flat; Threshold 0.95 keeps only truly
-	-- bright neon parts blooming, not the dark background.
-	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.8
-	bloom.Size = 24
-	bloom.Threshold = 0.95
-	bloom.Parent = lighting
 
 	-- Star field
 	local voidSky = Instance.new("Model")
@@ -110,6 +102,7 @@ local function setupVoidAtmosphere()
 		Color3.fromRGB(20, 30, 100),
 		Color3.fromRGB(40, 10, 70),
 		Color3.fromRGB(15, 40, 90),
+		Color3.fromRGB(50, 20, 110),
 	}
 
 	for i = 1, 6 do
@@ -119,7 +112,7 @@ local function setupVoidAtmosphere()
 		local size = rng:NextInteger(80, 180)
 		nebula.Size = Vector3.new(size, size, size)
 		nebula.Material = Enum.Material.Neon
-		nebula.Color = nebulaColors[i]
+		nebula.Color = nebulaColors[i] or Color3.fromRGB(60, 20, 100)
 		nebula.Transparency = rng:NextInteger(93, 97) / 100
 		nebula.Anchored = true
 		nebula.CanCollide = false

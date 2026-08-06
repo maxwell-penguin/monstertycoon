@@ -50,6 +50,9 @@ RemoteEvents.EVENTS = {
 	-- Leaderboard
 	LEADERBOARD_UPDATE = "LeaderboardUpdate",
 
+	-- Codex
+	CODEX_DISCOVERY = "CodexDiscovery",
+
 	-- Monetization
 	SET_WALK_SPEED = "SetWalkSpeed",
 	LUCK_BOOST_ACTIVE = "LuckBoostActive",

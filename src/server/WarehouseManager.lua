@@ -7,6 +7,7 @@ local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
 local Economy = require(script.Parent.Economy)
 local MonsterData = require(script.Parent.MonsterData)
+local CodexManager = require(script.Parent.CodexManager)
 
 export type Warehouse = {
 	monsters: { [string]: Types.Monster },
@@ -99,6 +100,7 @@ function WarehouseManager.AddMonster(player: Player, monsterName: string, stars:
 	warehouse.monsters[instanceId] = monster
 
 	updateWarehouseRemote:FireClient(player, warehouse)
+	CodexManager.RecordDiscovery(player, monsterName)
 
 	return true, instanceId
 end

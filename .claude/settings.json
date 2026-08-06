@@ -5,7 +5,8 @@
       "Bash(grep -n \"local function onActivated\\\\|function UIManagerAPI.ShowPanel\\\\|local function createToggleButton\\\\|local function createHallSlotFrame\\\\|local eggVisual = Instance.new\\\\|task.spawn\\(function\\(\\)$\\\\|local function pulseCoin\" src/client/UIManager.client.lua)",
       "Bash(echo \"exit: $?\")",
       "Bash(grep -c \"^end$\" src/server/FTUEManager.lua)",
-      "Bash(grep -c \"^end$\" src/server/PlotSetup.server.lua)"
+      "Bash(grep -c \"^end$\" src/server/PlotSetup.server.lua)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
