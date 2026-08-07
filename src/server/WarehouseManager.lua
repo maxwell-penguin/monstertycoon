@@ -72,15 +72,18 @@ end
 function WarehouseManager.AddMonster(player: Player, monsterName: string, stars: number?): (boolean, string)
 	local warehouse = playerWarehouses[player.UserId]
 	if not warehouse then
+		warn(`[Warehouse] AddMonster failed: no warehouse for {player.Name}`)
 		return false, "not_found"
 	end
 
 	local monsterDef = MonsterData[monsterName]
 	if not monsterDef then
+		warn("[Warehouse] AddMonster failed: unknown monster " .. tostring(monsterName))
 		return false, "invalid"
 	end
 
 	if countMonsters(warehouse) >= warehouse.capacity then
+		warn(`[Warehouse] AddMonster failed: {player.Name} full at capacity {warehouse.capacity}`)
 		return false, "full"
 	end
 
@@ -221,8 +224,30 @@ function WarehouseManager.LoadWarehouseFromPlayerData(player: Player)
 		return
 	end
 
+	-- Saved data is the one path monsters enter without going through AddMonster, so
+	-- it's also the only path stale pre-pivot names (monsters since removed from
+	-- MonsterData) can arrive by. They'd otherwise sit unmergeable forever, since
+	-- MergeRules is keyed off the same names.
+	local count = countMonsters(warehouse)
+	local skippedForCapacity = 0
+
 	for instanceId, monster in data.warehouse do
-		warehouse.monsters[instanceId] = monster
+		local monsterName = typeof(monster) == "table" and monster.name or nil
+
+		if not (typeof(monsterName) == "string" and MonsterData[monsterName]) then
+			warn("[Warehouse] Skipped stale monster: " .. tostring(monsterName))
+		elseif count >= warehouse.capacity then
+			skippedForCapacity += 1
+		else
+			warehouse.monsters[instanceId] = monster
+			count += 1
+		end
+	end
+
+	if skippedForCapacity > 0 then
+		warn(
+			`[Warehouse] {player.Name}: {skippedForCapacity} saved monsters left unloaded, over capacity {warehouse.capacity}`
+		)
 	end
 
 	updateWarehouseRemote:FireClient(player, warehouse)

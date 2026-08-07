@@ -629,15 +629,46 @@ rollTitle.Parent = rollPanel
 
 createCloseButton(rollPanel, "RollPanel")
 
-local eggVisual = Instance.new("Frame")
+-- ImageLabel rather than Frame so the same instance can render either the
+-- placeholder colored blob (Image = "") or an uploaded egg asset once IDs exist.
+local eggVisual = Instance.new("ImageLabel")
 eggVisual.Name = "EggVisual"
 eggVisual.AnchorPoint = Vector2.new(0.5, 0)
 eggVisual.Position = UDim2.new(0.5, 0, 0, 56)
 eggVisual.Size = UDim2.new(0, 120, 0, 120)
 eggVisual.BackgroundColor3 = Constants.ELEMENT_COLORS.Light
 eggVisual.BorderSizePixel = 0
+eggVisual.Image = ""
+eggVisual.ScaleType = Enum.ScaleType.Fit
 eggVisual.Parent = rollPanel
 addCorner(eggVisual, 60)
+
+-- Placeholder asset IDs, filled in after uploading to Roblox. Common has a single
+-- shared egg; Uncommon..Mythic get one per element.
+local EGG_IMAGE_IDS = {
+	Common = 0,
+	Uncommon = { Fire = 0, Magma = 0, Water = 0, Ice = 0, Wind = 0, Thunder = 0, Nature = 0, Poison = 0, Void = 0, Galaxy = 0, Light = 0, Radiance = 0 },
+	Rare = { Fire = 0, Magma = 0, Water = 0, Ice = 0, Wind = 0, Thunder = 0, Nature = 0, Poison = 0, Void = 0, Galaxy = 0, Light = 0, Radiance = 0 },
+	Epic = { Fire = 0, Magma = 0, Water = 0, Ice = 0, Wind = 0, Thunder = 0, Nature = 0, Poison = 0, Void = 0, Galaxy = 0, Light = 0, Radiance = 0 },
+	Legendary = { Fire = 0, Magma = 0, Water = 0, Ice = 0, Wind = 0, Thunder = 0, Nature = 0, Poison = 0, Void = 0, Galaxy = 0, Light = 0, Radiance = 0 },
+	Mythic = { Fire = 0, Magma = 0, Water = 0, Ice = 0, Wind = 0, Thunder = 0, Nature = 0, Poison = 0, Void = 0, Galaxy = 0, Light = 0, Radiance = 0 },
+}
+
+-- imageId is optional: pass one to override, otherwise it's looked up from
+-- EGG_IMAGE_IDS. An id of 0 (nothing uploaded yet) leaves the colored placeholder.
+function UIManagerAPI.setEggImage(rarity: string?, element: string?, imageId: number?)
+	local entry = EGG_IMAGE_IDS[rarity or ""]
+	local id = imageId or (typeof(entry) == "table" and entry[element or ""] or entry) or 0
+
+	if typeof(id) ~= "number" or id == 0 then
+		eggVisual.Image = ""
+		eggVisual.BackgroundTransparency = 0
+		return
+	end
+
+	eggVisual.Image = "rbxassetid://" .. id
+	eggVisual.BackgroundTransparency = 1
+end
 
 task.spawn(function()
 	local colorCycle = {

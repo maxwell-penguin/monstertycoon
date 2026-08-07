@@ -22,6 +22,15 @@ local function getResultColor(newInstanceId: string): Color3
 	return Color3.new(1, 1, 1)
 end
 
+-- The egg visual and its EGG_IMAGE_IDS table live in UIManager (it owns the Roll
+-- Panel); this just drives it from the roll result.
+local function setEggImage(rarity: string?, element: string?, imageId: number?)
+	local uiManager = shared.UIManager
+	if uiManager and uiManager.setEggImage then
+		uiManager.setEggImage(rarity, element, imageId)
+	end
+end
+
 local function getRevealGui(): ScreenGui
 	local existing = playerGui:FindFirstChild("RollRevealGui")
 	if existing then
