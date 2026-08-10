@@ -137,6 +137,20 @@ Constants.XP_REWARDS = {
 
 Constants.MAX_TOWN_LEVEL = 50
 
+-- Shown in the title screen's UPDATES panel. No changelog system exists yet,
+-- so this is a plain hardcoded list -- append a new entry at the top for
+-- each future update.
+Constants.UPDATE_NOTES = {
+	{
+		date = "Aug 10, 2026",
+		lines = {
+			"New: Habitat Merchant NPC selling habitats",
+			"Plots widened and centered so they no longer hang off the map",
+			"Fixed daytime lighting and floor flickering",
+		},
+	},
+}
+
 Constants.SESSION_REWARDS = {
 	{ seconds = 60, reward = "coins", amount = 1000 },
 	{ seconds = 120, reward = "egg", rarity = "Common" },

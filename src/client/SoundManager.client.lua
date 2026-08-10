@@ -49,6 +49,15 @@ local SOUNDS = {
 local SoundManager = {}
 
 local soundsFolder: Folder? = nil
+local sfxEnabled = true
+
+function SoundManager.SetSFXEnabled(enabled: boolean)
+	sfxEnabled = enabled
+end
+
+function SoundManager.IsSFXEnabled(): boolean
+	return sfxEnabled
+end
 
 local function createSoundInstance(name: string, config: any, parent: Instance): Sound
 	local sound = Instance.new("Sound")
@@ -109,7 +118,7 @@ end
 -- callers should compute pitchMod = 1 + (monsterLevel - 1) * 0.1 so higher-level
 -- monsters drop slightly higher-pitched vials.
 function SoundManager.PlaySound(category: string, key: string?, pitchMod: number?)
-	if not soundsFolder then
+	if not sfxEnabled or not soundsFolder then
 		return
 	end
 
@@ -138,6 +147,10 @@ function SoundManager.PlaySound(category: string, key: string?, pitchMod: number
 end
 
 function SoundManager.PlaySoundAtPosition(category: string, key: string?, position: Vector3, pitchMod: number?)
+	if not sfxEnabled then
+		return
+	end
+
 	local config = resolveSoundConfig(category, key)
 	if not config then
 		return
