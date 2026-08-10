@@ -1,7 +1,6 @@
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 
 local Constants = require(ReplicatedStorage.Constants)
@@ -11,6 +10,8 @@ local BoostState = require(ReplicatedStorage.BoostState)
 local HallManager = require(script.Parent.HallManager)
 local SlotPositioner = require(script.Parent.SlotPositioner)
 local BagManager = require(script.Parent.BagManager)
+local HabitatManager = require(script.Parent.HabitatManager)
+local HabitatVisuals = require(script.Parent.HabitatVisuals)
 
 export type VialData = {
 	vialId: string,
@@ -19,9 +20,20 @@ export type VialData = {
 	emotion: string,
 	monsterLevel: number,
 	monsterStars: number,
-	slotIndex: number,
+	slotIndex: number?,
+	habitatId: string?,
 	position: Vector3,
 	spawnTime: number,
+}
+
+-- A single thing that can produce vials -- either a Hall pedestal slot or a
+-- placed Habitat -- normalized so the production loop and SpawnVial don't
+-- need to know which source they came from.
+export type ProductionSource = {
+	monster: Types.Monster,
+	position: Vector3,
+	slotIndex: number?,
+	habitatId: string?,
 }
 
 local VIAL_DROP_INTERVAL = 30
@@ -35,7 +47,7 @@ local VIAL_DESPAWN_TIME = 300
 local VialProducer = {}
 
 local activeLoops: { [number]: boolean } = {}
-local slotCooldowns: { [number]: { [number]: number } } = {}
+local slotCooldowns: { [number]: { [string]: number } } = {}
 local playerVials: { [number]: { [string]: VialData } } = {}
 
 -- Vials only ever existed as a client-rendered visual (VialClient.client.lua) with
@@ -49,18 +61,14 @@ local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local vialSpawnedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_SPAWNED) :: RemoteEvent
 local vialRemovedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_REMOVED) :: RemoteEvent
 
-function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot): string
-	local monster = slot.monster
-	if not monster then
-		return ""
-	end
+function VialProducer.SpawnVial(player: Player, source: ProductionSource): string
+	local monster = source.monster
 
 	local vialId = HttpService:GenerateGUID(false)
-	local slotPosition = SlotPositioner.GetSlotWorldPosition(player, slot.slotIndex)
 
 	local offsetX = (math.random() * 2 - 1) * MAX_XZ_OFFSET
 	local offsetZ = (math.random() * 2 - 1) * MAX_XZ_OFFSET
-	local position = slotPosition + Vector3.new(offsetX, Y_OFFSET, offsetZ)
+	local position = source.position + Vector3.new(offsetX, Y_OFFSET, offsetZ)
 
 	local vialData: VialData = {
 		vialId = vialId,
@@ -69,7 +77,8 @@ function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot): string
 		emotion = monster.emotion,
 		monsterLevel = monster.level,
 		monsterStars = monster.stars,
-		slotIndex = slot.slotIndex,
+		slotIndex = source.slotIndex,
+		habitatId = source.habitatId,
 		position = position,
 		spawnTime = os.time(),
 	}
@@ -149,7 +158,11 @@ function VialProducer.StartProduction(player: Player)
 
 	task.spawn(function()
 		while activeLoops[userId] do
-			RunService.Heartbeat:Wait()
+			-- Cooldowns here are 30s (production) and 300s (despawn) -- Heartbeat
+			-- (60/sec) reran this full GetActiveMonsters+iteration+table-alloc
+			-- pass 60x more often than needed, for every plot owner simultaneously,
+			-- which was the main source of server stutter. 1s polling is plenty.
+			task.wait(1)
 
 			if not activeLoops[userId] then
 				break
@@ -159,10 +172,34 @@ function VialProducer.StartProduction(player: Player)
 			local cooldowns = slotCooldowns[userId]
 
 			for _, slot in HallManager.GetActiveMonsters(player) do
-				local lastDrop = cooldowns[slot.slotIndex]
+				if slot.monster then
+					local cooldownKey = "hall_" .. slot.slotIndex
+					local lastDrop = cooldowns[cooldownKey]
+					if not lastDrop or (now - lastDrop) >= VIAL_DROP_INTERVAL then
+						cooldowns[cooldownKey] = now
+						VialProducer.SpawnVial(player, {
+							monster = slot.monster,
+							position = SlotPositioner.GetSlotWorldPosition(player, slot.slotIndex),
+							slotIndex = slot.slotIndex,
+						})
+					end
+				end
+			end
+
+			for _, active in HabitatManager.GetActiveMonsters(player) do
+				local cooldownKey = "habitat_" .. active.habitatId
+				local lastDrop = cooldowns[cooldownKey]
 				if not lastDrop or (now - lastDrop) >= VIAL_DROP_INTERVAL then
-					cooldowns[slot.slotIndex] = now
-					VialProducer.SpawnVial(player, slot)
+					local habitat = HabitatManager.GetHabitat(player, active.habitatId)
+					local position = habitat and HabitatVisuals.GetGroundWorldPosition(player, habitat)
+					if position then
+						cooldowns[cooldownKey] = now
+						VialProducer.SpawnVial(player, {
+							monster = active.monster,
+							position = position,
+							habitatId = active.habitatId,
+						})
+					end
 				end
 			end
 

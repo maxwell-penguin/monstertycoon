@@ -39,7 +39,13 @@ local MAX_WAREHOUSE = Constants.WAREHOUSE_CAPACITY[5] + 230
 local MAX_HALL = Constants.HALL_SLOT_COUNTS[5] + 60
 local COIN_CEILING = 1e18
 
-local banStore = DataStoreService:GetDataStore("Bans")
+-- GetDataStore itself (not just GetAsync/SetAsync) throws in an unpublished
+-- place -- every actual read/write below is already pcall-wrapped and
+-- tolerates a nil store, so only this acquisition needs guarding.
+local banStoreOk, banStoreResult = pcall(function()
+	return DataStoreService:GetDataStore("Bans")
+end)
+local banStore = banStoreOk and banStoreResult or nil
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local sanityFailRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SANITY_FAIL) :: RemoteEvent

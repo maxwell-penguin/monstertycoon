@@ -55,6 +55,7 @@ local panels: { [string]: Frame } = {}
 
 local UIManagerAPI = {}
 UIManagerAPI.selectedSlot = nil :: number?
+UIManagerAPI.selectedHabitatId = nil :: string?
 
 function UIManagerAPI.ShowPanel(name: string)
 	local panel = panels[name]
@@ -557,6 +558,7 @@ createToggleButton("ROLL", 1, "RollPanel")
 createToggleButton("HALL", 2, "HallPanel")
 createToggleButton("SHOP", 3, "ShopPanel")
 createToggleButton("EVENT", 4, "EventStationPanel")
+createToggleButton("MERCHANT", 5, "MerchantPanel")
 
 --============================================================
 -- Warehouse Panel
@@ -694,6 +696,12 @@ local function createMonsterEntry(instanceId: string, monster: any, mergeGroupId
 	styleButton(slotButton)
 
 	onActivated(slotButton, function()
+		if UIManagerAPI.selectedHabitatId then
+			fireAction("SLOT_HABITAT_MONSTER", { habitatId = UIManagerAPI.selectedHabitatId, instanceId = instanceId })
+			UIManagerAPI.selectedHabitatId = nil
+			return
+		end
+
 		local selectedSlot = UIManagerAPI.selectedSlot
 		if not selectedSlot then
 			return
@@ -719,6 +727,41 @@ local function createMonsterEntry(instanceId: string, monster: any, mergeGroupId
 	return entry
 end
 
+-- When a habitat is selected (clicked from the plot rather than a Hall slot),
+-- only that biome's matching emotion (or "Any") can actually be slotted --
+-- filtering the list here saves the player from picking a monster the server
+-- will just reject.
+local function getRequiredEmotionForSelection(): string?
+	local habitatId = UIManagerAPI.selectedHabitatId
+	if not habitatId then
+		return nil
+	end
+
+	local habitatState = shared.HabitatState
+	if not habitatState then
+		return nil
+	end
+
+	local biomeType = nil
+	for _, habitat in habitatState.habitats do
+		if habitat.habitatId == habitatId then
+			biomeType = habitat.biomeType
+			break
+		end
+	end
+	if not biomeType then
+		return nil
+	end
+
+	for _, def in Constants.HABITAT_TYPES do
+		if def.biomeType == biomeType then
+			return def.emotion
+		end
+	end
+
+	return nil
+end
+
 local function rebuildWarehouseList()
 	for _, child in warehouseList:GetChildren() do
 		if child:IsA("Frame") then
@@ -731,15 +774,18 @@ local function rebuildWarehouseList()
 		return
 	end
 
+	local requiredEmotion = getRequiredEmotionForSelection()
 	local groups = computeMergeGroups(warehouseState.monsters)
 	local order = 0
 
 	for instanceId, monster in warehouseState.monsters do
-		local key = getMonsterGroupKey(monster)
-		local entry = createMonsterEntry(instanceId, monster, groups[key])
-		entry.LayoutOrder = order
-		entry.Parent = warehouseList
-		order += 1
+		if not requiredEmotion or monster.emotion == requiredEmotion or monster.emotion == "Any" then
+			local key = getMonsterGroupKey(monster)
+			local entry = createMonsterEntry(instanceId, monster, groups[key])
+			entry.LayoutOrder = order
+			entry.Parent = warehouseList
+			order += 1
+		end
 	end
 end
 
@@ -1951,6 +1997,192 @@ for i, item in Constants.EVENT_MONSTERS do
 end
 
 --============================================================
+-- Merchant Panel
+--============================================================
+
+local merchantPanel = Instance.new("Frame")
+merchantPanel.Name = "MerchantPanel"
+merchantPanel.Position = UDim2.new(0.5, -220, 0.5, -260)
+merchantPanel.Size = UDim2.new(0, 440, 0, 520)
+merchantPanel.BackgroundColor3 = PANEL_BG
+merchantPanel.BorderSizePixel = 0
+merchantPanel.Visible = false
+merchantPanel.Parent = screenGui
+addCorner(merchantPanel, 12)
+panels.MerchantPanel = merchantPanel
+
+local merchantTitle = Instance.new("TextLabel")
+merchantTitle.Name = "Title"
+merchantTitle.Size = UDim2.new(1, -40, 0, 36)
+merchantTitle.Position = UDim2.new(0, 16, 0, 12)
+merchantTitle.BackgroundTransparency = 1
+merchantTitle.Font = Enum.Font.GothamBold
+merchantTitle.TextSize = 20
+merchantTitle.TextColor3 = WHITE
+merchantTitle.TextXAlignment = Enum.TextXAlignment.Left
+merchantTitle.Text = "HABITAT MERCHANT"
+merchantTitle.Parent = merchantPanel
+
+createCloseButton(merchantPanel, "MerchantPanel")
+
+local merchantSubtitle = Instance.new("TextLabel")
+merchantSubtitle.Name = "Subtitle"
+merchantSubtitle.Size = UDim2.new(1, -32, 0, 20)
+merchantSubtitle.Position = UDim2.new(0, 16, 0, 48)
+merchantSubtitle.BackgroundTransparency = 1
+merchantSubtitle.Font = Enum.Font.Gotham
+merchantSubtitle.TextSize = 13
+merchantSubtitle.TextColor3 = GRAY
+merchantSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+merchantSubtitle.Text = "Buy a habitat, then walk to your plot and place it."
+merchantSubtitle.Parent = merchantPanel
+
+local merchantList = Instance.new("ScrollingFrame")
+merchantList.Name = "BiomeList"
+merchantList.Position = UDim2.new(0, 16, 0, 76)
+merchantList.Size = UDim2.new(1, -32, 1, -92)
+merchantList.BackgroundTransparency = 1
+merchantList.BorderSizePixel = 0
+merchantList.ScrollBarThickness = 6
+merchantList.CanvasSize = UDim2.new(0, 0, 0, 0)
+merchantList.Parent = merchantPanel
+
+local merchantListLayout = Instance.new("UIListLayout")
+merchantListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+merchantListLayout.Padding = UDim.new(0, 8)
+merchantListLayout.Parent = merchantList
+
+merchantListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	merchantList.CanvasSize = UDim2.new(0, 0, 0, merchantListLayout.AbsoluteContentSize.Y + 8)
+end)
+
+local function createHabitatEntry(biomeDef: any, owned: number, cost: number): Frame
+	local entry = Instance.new("Frame")
+	entry.Name = "Entry_" .. biomeDef.biomeType
+	entry.Size = UDim2.new(1, 0, 0, 72)
+	entry.BackgroundColor3 = Color3.fromRGB(26, 26, 38)
+	entry.BorderSizePixel = 0
+	addCorner(entry, 6)
+
+	local emotionColor = Constants.EMOTION_COLORS[biomeDef.emotion] or WHITE
+
+	local dot = Instance.new("Frame")
+	dot.Name = "EmotionDot"
+	dot.Position = UDim2.new(0, 10, 0, 10)
+	dot.Size = UDim2.new(0, 10, 0, 10)
+	dot.BackgroundColor3 = emotionColor
+	dot.BorderSizePixel = 0
+	dot.Parent = entry
+	addCorner(dot, 5)
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "NameLabel"
+	nameLabel.Size = UDim2.new(0.55, -30, 0, 20)
+	nameLabel.Position = UDim2.new(0, 28, 0, 6)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextSize = 15
+	nameLabel.TextColor3 = WHITE
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.Text = biomeDef.displayName
+	nameLabel.Parent = entry
+
+	local emotionLabel = Instance.new("TextLabel")
+	emotionLabel.Name = "EmotionLabel"
+	emotionLabel.Size = UDim2.new(0.55, -30, 0, 16)
+	emotionLabel.Position = UDim2.new(0, 28, 0, 26)
+	emotionLabel.BackgroundTransparency = 1
+	emotionLabel.Font = Enum.Font.Gotham
+	emotionLabel.TextSize = 12
+	emotionLabel.TextColor3 = emotionColor
+	emotionLabel.TextXAlignment = Enum.TextXAlignment.Left
+	emotionLabel.Text = biomeDef.emotion .. " monsters"
+	emotionLabel.Parent = entry
+
+	local ownedLabel = Instance.new("TextLabel")
+	ownedLabel.Name = "OwnedLabel"
+	ownedLabel.Size = UDim2.new(0.55, -30, 0, 16)
+	ownedLabel.Position = UDim2.new(0, 28, 0, 44)
+	ownedLabel.BackgroundTransparency = 1
+	ownedLabel.Font = Enum.Font.Gotham
+	ownedLabel.TextSize = 12
+	ownedLabel.TextColor3 = GRAY
+	ownedLabel.TextXAlignment = Enum.TextXAlignment.Left
+	ownedLabel.Text = `Unplaced: {owned}`
+	ownedLabel.Parent = entry
+
+	local buyButton = Instance.new("TextButton")
+	buyButton.Name = "BUY"
+	buyButton.Size = UDim2.new(0, 90, 0, 28)
+	buyButton.Position = UDim2.new(1, -196, 0, 10)
+	buyButton.TextSize = 12
+	buyButton.Text = `BUY - {NumberFormatter.Format(cost)}`
+	buyButton.Parent = entry
+	styleButton(buyButton)
+
+	onActivated(buyButton, function()
+		fireAction("PURCHASE_HABITAT", { biomeType = biomeDef.biomeType })
+	end)
+
+	local placeButton = Instance.new("TextButton")
+	placeButton.Name = "PLACE"
+	placeButton.Size = UDim2.new(0, 90, 0, 28)
+	placeButton.Position = UDim2.new(1, -98, 0, 10)
+	placeButton.TextSize = 12
+	placeButton.Text = "PLACE"
+	placeButton.Visible = owned > 0
+	placeButton.Parent = entry
+	styleButton(placeButton)
+
+	onActivated(placeButton, function()
+		local habitatClient = shared.HabitatClient :: any
+		if habitatClient then
+			habitatClient.EnterPlacementMode(biomeDef.biomeType)
+			UIManagerAPI.HidePanel("MerchantPanel")
+		end
+	end)
+
+	return entry
+end
+
+local function habitatsSignature(): string
+	local habitatState = shared.HabitatState
+	if not habitatState then
+		return ""
+	end
+
+	local parts = {}
+	for _, def in Constants.HABITAT_TYPES do
+		table.insert(parts, `{def.biomeType}:{habitatState.inventory[def.biomeType] or 0}`)
+	end
+	table.insert(parts, tostring(habitatState.nextCost or 0))
+
+	return table.concat(parts, "|")
+end
+
+local function rebuildMerchantList()
+	for _, child in merchantList:GetChildren() do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+
+	local habitatState = shared.HabitatState
+	if not habitatState then
+		return
+	end
+
+	local order = 0
+	for _, biomeDef in Constants.HABITAT_TYPES do
+		local owned = habitatState.inventory[biomeDef.biomeType] or 0
+		local entry = createHabitatEntry(biomeDef, owned, habitatState.nextCost or 0)
+		entry.LayoutOrder = order
+		entry.Parent = merchantList
+		order += 1
+	end
+end
+
+--============================================================
 -- Merge notification (transient, not a toggle panel)
 --============================================================
 
@@ -2015,6 +2247,8 @@ end)
 
 local lastCoinFormatted: string? = nil
 local lastWarehouseCountPolled = -1
+local lastSelectedHabitatId: string? = nil
+local lastHabitatsSignature = ""
 
 task.spawn(function()
 	while true do
@@ -2167,8 +2401,9 @@ task.spawn(function()
 		-- Warehouse
 		local warehouseState = shared.WarehouseClient
 		if warehouseState then
-			if warehouseState.count ~= lastWarehouseCountPolled then
+			if warehouseState.count ~= lastWarehouseCountPolled or UIManagerAPI.selectedHabitatId ~= lastSelectedHabitatId then
 				lastWarehouseCountPolled = warehouseState.count
+				lastSelectedHabitatId = UIManagerAPI.selectedHabitatId
 				rebuildWarehouseList()
 			end
 
@@ -2188,6 +2423,13 @@ task.spawn(function()
 					end
 				end
 			end
+		end
+
+		-- Merchant
+		local currentHabitatsSignature = habitatsSignature()
+		if currentHabitatsSignature ~= lastHabitatsSignature then
+			lastHabitatsSignature = currentHabitatsSignature
+			rebuildMerchantList()
 		end
 
 		-- Roll cost

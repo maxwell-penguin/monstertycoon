@@ -3,7 +3,13 @@ local DataStoreService = game:GetService("DataStoreService")
 local MAX_LOG_ENTRIES = 500
 local SAVE_ENTRY_COUNT = 50
 
-local violationLogStore = DataStoreService:GetDataStore("ViolationLog")
+-- GetDataStore itself (not just GetAsync/SetAsync) throws in an unpublished
+-- place -- every actual read/write below is already pcall-wrapped and
+-- tolerates a nil store, so only this acquisition needs guarding.
+local violationLogStoreOk, violationLogStoreResult = pcall(function()
+	return DataStoreService:GetDataStore("ViolationLog")
+end)
+local violationLogStore = violationLogStoreOk and violationLogStoreResult or nil
 
 local AntiCheatLog = {}
 

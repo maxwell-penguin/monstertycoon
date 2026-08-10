@@ -7,8 +7,12 @@ local Constants = require(ReplicatedStorage.Constants)
 
 local PLOT_COUNT = 10
 local PLOTS_PER_ROW = 5
-local X_SPACING = 80
-local Z_SPACING = 100
+-- Plot footprint is 60x80 (PLOT_WIDTH x PLOT_DEPTH below); these spacings
+-- leave a 50-stud walkable gap between neighboring plots in both directions
+-- so the grid doesn't feel cramped. MerchantSetup.server.lua keeps its own
+-- copy of X_SPACING/PLOTS_PER_ROW in sync to stay centered on this grid.
+local X_SPACING = 110
+local Z_SPACING = 130
 
 local COLLISION_GROUP = "PlotGround"
 
@@ -29,10 +33,13 @@ local VOID_SKY_SEED = 42
 local function setupVoidAtmosphere()
 	-- Lighting
 	local lighting = Lighting
-	lighting.Ambient = Color3.fromRGB(15, 10, 30)
-	lighting.OutdoorAmbient = Color3.fromRGB(8, 5, 18)
-	lighting.Brightness = 0.15
-	lighting.ClockTime = 0
+	lighting.Ambient = Color3.fromRGB(70, 60, 110)
+	lighting.OutdoorAmbient = Color3.fromRGB(45, 38, 80)
+	lighting.Brightness = 1.5
+	-- Real value gets set by setupDayNightCycle()'s first update() call below;
+	-- 12 (noon) here just avoids a one-frame flash of Roblox's default
+	-- midnight sun before that runs.
+	lighting.ClockTime = 12
 	lighting.FogEnd = 500
 	lighting.FogStart = 250
 	lighting.FogColor = Color3.fromRGB(5, 3, 15)
@@ -47,7 +54,7 @@ local function setupVoidAtmosphere()
 
 	-- Color correction
 	local cc = Instance.new("ColorCorrectionEffect")
-	cc.Brightness = -0.08
+	cc.Brightness = 0
 	cc.Contrast = 0.15
 	cc.Saturation = -0.05
 	cc.TintColor = Color3.fromRGB(190, 170, 255)
@@ -110,6 +117,7 @@ local function setupVoidAtmosphere()
 		Color3.fromRGB(20, 30, 100),
 		Color3.fromRGB(40, 10, 70),
 		Color3.fromRGB(15, 40, 90),
+		Color3.fromRGB(70, 25, 60),
 	}
 
 	for i = 1, 6 do
@@ -146,6 +154,155 @@ local function setupVoidAtmosphere()
 end
 
 setupVoidAtmosphere()
+
+-- ============================================================
+-- Day / Night Cycle
+-- ============================================================
+-- Sun and Moon sit on opposite ends of a diameter, so each is above the
+-- horizon for exactly half the cycle -- day and night each last ~10 minutes
+-- out of this ~20 minute total. Position/lighting is recomputed off elapsed
+-- wall-clock time (not accumulated per-tick dt) so drift never compounds.
+local DAY_NIGHT_CYCLE_SECONDS = 20 * 60
+local DAY_NIGHT_UPDATE_INTERVAL = 1
+
+-- pi/2 puts the sun at zenith (brightest point) the instant the server
+-- starts, satisfying "start at daytime".
+local DAY_NIGHT_START_ANGLE = math.pi / 2
+
+-- Grid is PLOTS_PER_ROW plots wide x however many rows deep; center the
+-- orbit over the middle of that footprint so the sun/moon arc over the
+-- base instead of off to one side.
+local ORBIT_CENTER = Vector3.new(
+	0, -- grid columns are centered on X=0 (see createPlot)
+	120,
+	(math.ceil(PLOT_COUNT / PLOTS_PER_ROW) - 1) * Z_SPACING / 2
+)
+local ORBIT_RADIUS = 420
+
+-- Night values match the void atmosphere's original (pre-tweak) dark
+-- palette; day values match the brighter palette setupVoidAtmosphere uses
+-- above, so the cycle swings between the two looks that already exist.
+local NIGHT_AMBIENT = Color3.fromRGB(15, 10, 30)
+local NIGHT_OUTDOOR_AMBIENT = Color3.fromRGB(8, 5, 18)
+local NIGHT_BRIGHTNESS = 0.15
+local NIGHT_CC_BRIGHTNESS = -0.08
+local NIGHT_FOG_COLOR = Color3.fromRGB(5, 3, 15)
+local NIGHT_STAR_TRANSPARENCY = 0
+
+local DAY_AMBIENT = Color3.fromRGB(70, 60, 110)
+local DAY_OUTDOOR_AMBIENT = Color3.fromRGB(45, 38, 80)
+local DAY_BRIGHTNESS = 1.5
+local DAY_CC_BRIGHTNESS = 0
+local DAY_FOG_COLOR = Color3.fromRGB(20, 14, 45)
+-- Dimmed, not hidden -- this is a void dimension, not a real sky, so stars
+-- stay faintly visible even at "midday".
+local DAY_STAR_TRANSPARENCY = 0.75
+
+local function lerpColor(a: Color3, b: Color3, t: number): Color3
+	return Color3.new(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t)
+end
+
+local function createCelestialBody(name: string, diameter: number, color: Color3, lightColor: Color3, lightBrightness: number, lightRange: number): Part
+	local body = Instance.new("Part")
+	body.Name = name
+	body.Shape = Enum.PartType.Ball
+	body.Size = Vector3.new(diameter, diameter, diameter)
+	body.Material = Enum.Material.Neon
+	body.Color = color
+	body.Anchored = true
+	body.CanCollide = false
+	body.CastShadow = false
+	body.Locked = true
+
+	-- Oversized, mostly-transparent shell behind the body so the Bloom
+	-- effect (see setupVoidAtmosphere) gives it a soft halo like the
+	-- nebula clouds get.
+	local halo = Instance.new("Part")
+	halo.Name = "Halo"
+	halo.Shape = Enum.PartType.Ball
+	halo.Size = Vector3.new(diameter * 1.8, diameter * 1.8, diameter * 1.8)
+	halo.Material = Enum.Material.Neon
+	halo.Color = color
+	halo.Transparency = 0.85
+	halo.Anchored = true
+	halo.CanCollide = false
+	halo.CastShadow = false
+	halo.Locked = true
+	halo.Parent = body
+
+	local light = Instance.new("PointLight")
+	light.Color = lightColor
+	light.Brightness = lightBrightness
+	light.Range = lightRange
+	light.Parent = body
+
+	return body
+end
+
+local function setupDayNightCycle()
+	local voidSky = Workspace:WaitForChild("VoidSky")
+
+	local sun = createCelestialBody("Sun", 46, Color3.fromRGB(255, 205, 110), Color3.fromRGB(255, 190, 120), 3, 250)
+	sun.Parent = voidSky
+
+	local moon = createCelestialBody("Moon", 30, Color3.fromRGB(215, 225, 255), Color3.fromRGB(160, 180, 255), 1.5, 180)
+	moon.Parent = voidSky
+
+	local stars = {}
+	for _, child in voidSky:GetChildren() do
+		if child.Name:match("^Star_") then
+			table.insert(stars, child)
+		end
+	end
+
+	local startTime = os.clock()
+
+	local function update()
+		local elapsed = os.clock() - startTime
+		local angle = DAY_NIGHT_START_ANGLE + (elapsed / DAY_NIGHT_CYCLE_SECONDS) * (math.pi * 2)
+
+		local sunHeight = math.sin(angle)
+		local dayFactor = (sunHeight + 1) / 2 -- 0 = full night, 1 = full day
+
+		sun.Position = ORBIT_CENTER + Vector3.new(math.cos(angle) * ORBIT_RADIUS, sunHeight * ORBIT_RADIUS, 0)
+		moon.Position = ORBIT_CENTER + Vector3.new(-math.cos(angle) * ORBIT_RADIUS, -sunHeight * ORBIT_RADIUS, 0)
+
+		-- Roblox's built-in sun (and the shadows GlobalShadows casts) is driven
+		-- by Lighting.ClockTime, not by our custom Sun/Moon parts or the
+		-- Ambient/Brightness tweaks below -- without moving this too, the real
+		-- key light stays stuck at whatever ClockTime was last set to (e.g.
+		-- midnight) and the scene reads as dark no matter what Ambient says.
+		-- angle == DAY_NIGHT_START_ANGLE (sun at zenith) must map to ClockTime
+		-- 12 (noon); a full 2*pi loop must map to a full 24-hour loop.
+		Lighting.ClockTime = ((angle - DAY_NIGHT_START_ANGLE) / (math.pi * 2) * 24 + 12) % 24
+
+		Lighting.Ambient = lerpColor(NIGHT_AMBIENT, DAY_AMBIENT, dayFactor)
+		Lighting.OutdoorAmbient = lerpColor(NIGHT_OUTDOOR_AMBIENT, DAY_OUTDOOR_AMBIENT, dayFactor)
+		Lighting.Brightness = NIGHT_BRIGHTNESS + (DAY_BRIGHTNESS - NIGHT_BRIGHTNESS) * dayFactor
+		Lighting.FogColor = lerpColor(NIGHT_FOG_COLOR, DAY_FOG_COLOR, dayFactor)
+
+		local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+		if cc then
+			cc.Brightness = NIGHT_CC_BRIGHTNESS + (DAY_CC_BRIGHTNESS - NIGHT_CC_BRIGHTNESS) * dayFactor
+		end
+
+		local starTransparency = NIGHT_STAR_TRANSPARENCY + (DAY_STAR_TRANSPARENCY - NIGHT_STAR_TRANSPARENCY) * dayFactor
+		for _, star in stars do
+			star.Transparency = starTransparency
+		end
+	end
+
+	update()
+
+	task.spawn(function()
+		while true do
+			task.wait(DAY_NIGHT_UPDATE_INTERVAL)
+			update()
+		end
+	end)
+end
+
+setupDayNightCycle()
 
 -- A Roblox Cylinder's axis runs along local X by default -- unrotated it lies
 -- on its side. Standing it upright (flat round face pointing along world Y)
@@ -344,11 +501,11 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 
 	local ring = createCylinder(
 		"Ring",
-		padSize(3.6, 0.2),
+		padSize(3.6, 0.02),
 		DIM_PURPLE,
 		Enum.Material.Neon,
 		isVisible and 0.5 or 1,
-		padCFrame(groundY + 0.1),
+		padCFrame(groundY + 0.24),
 		false
 	)
 	ring.Parent = slotModel
@@ -368,22 +525,22 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 
 	local rune = createCylinder(
 		"Rune",
-		padSize(7, 0.1),
+		padSize(7, 0.02),
 		RUNE_COLOR,
 		Enum.Material.Neon,
 		isVisible and 0.8 or 1,
-		padCFrame(groundY + 0.05),
+		padCFrame(groundY + 0.08),
 		false
 	)
 	rune.Parent = slotModel
 
 	local runeInner = createCylinder(
 		"RuneInner",
-		padSize(4, 0.1),
+		padSize(4, 0.02),
 		RUNE_COLOR,
 		Enum.Material.Neon,
 		isVisible and 0.85 or 1,
-		padCFrame(groundY + 0.06),
+		padCFrame(groundY + 0.14),
 		false
 	)
 	runeInner.Parent = slotModel
@@ -420,7 +577,7 @@ local HQ_CENTER_Z = 35
 local WAREHOUSE_WALL_Z = 28
 
 local function createFloorVeins(plotModel: Model, gridPosition: Vector3)
-	local veinYOffset = 0.08
+	local veinYOffset = 0.19
 	local veinColor = Color3.fromRGB(40, 25, 70)
 	local halfWidth = PLOT_WIDTH / 2
 	local halfDepth = PLOT_DEPTH / 2
@@ -435,7 +592,7 @@ local function createFloorVeins(plotModel: Model, gridPosition: Vector3)
 		horizontal.Material = Enum.Material.Neon
 		horizontal.Color = veinColor
 		horizontal.Transparency = 0.7
-		horizontal.Size = Vector3.new(PLOT_WIDTH, 0.06, 0.08)
+		horizontal.Size = Vector3.new(PLOT_WIDTH, 0.02, 0.08)
 		horizontal.Position = gridPosition + Vector3.new(0, veinYOffset, z)
 		horizontal.Parent = plotModel
 	end
@@ -450,7 +607,7 @@ local function createFloorVeins(plotModel: Model, gridPosition: Vector3)
 		vertical.Material = Enum.Material.Neon
 		vertical.Color = veinColor
 		vertical.Transparency = 0.7
-		vertical.Size = Vector3.new(0.08, 0.06, PLOT_DEPTH)
+		vertical.Size = Vector3.new(0.08, 0.02, PLOT_DEPTH)
 		vertical.Position = gridPosition + Vector3.new(x, veinYOffset, 0)
 		vertical.Parent = plotModel
 	end
@@ -559,6 +716,53 @@ local function createHeadquarters(plotModel: Model, gridPosition: Vector3)
 	label.Parent = billboard
 end
 
+-- Floating "CLAIM PLOT" prompt shown above the Headquarters while a plot is
+-- unowned; PlotManager.lua toggles its visibility/ClickDetector on
+-- claim/release, and PlotClaimTrigger.server.lua wires the actual click.
+local function createClaimBeacon(plotModel: Model, gridPosition: Vector3)
+	local beaconColor = Color3.fromRGB(80, 220, 120)
+	local beaconCFrame = CFrame.new(gridPosition + Vector3.new(0, 22, HQ_CENTER_Z))
+
+	local beacon = Instance.new("Part")
+	beacon.Name = "ClaimBeacon"
+	beacon.Shape = Enum.PartType.Ball
+	beacon.Size = Vector3.new(2, 2, 2)
+	beacon.Material = Enum.Material.Neon
+	beacon.Color = beaconColor
+	beacon.Anchored = true
+	beacon.CanCollide = false
+	beacon.CFrame = beaconCFrame
+	beacon.Parent = plotModel
+
+	local light = Instance.new("PointLight")
+	light.Brightness = 3
+	light.Range = 30
+	light.Color = beaconColor
+	light.Parent = beacon
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "ClaimLabel"
+	billboard.Size = UDim2.new(0, 130, 0, 30)
+	billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = beacon
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Text"
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Text = "CLAIM PLOT"
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamBold
+	label.Parent = billboard
+
+	local clickDetector = Instance.new("ClickDetector")
+	clickDetector.Name = "ClaimClickDetector"
+	clickDetector.MaxActivationDistance = 25
+	clickDetector.Parent = beacon
+end
+
 local function createDropboxPlatform(plotModel: Model, gridPosition: Vector3)
 	local groundY = gridPosition.Y
 
@@ -662,47 +866,12 @@ local function createWarehouseStructure(plotModel: Model, gridPosition: Vector3)
 	trigger.Parent = plotModel
 end
 
-local AMBIENT_PARTICLE_COUNT = 8
-
-local function createAmbientParticles(plotModel: Model, gridPosition: Vector3)
-	local halfWidth = PLOT_WIDTH / 2
-	local halfDepth = PLOT_DEPTH / 2
-
-	for i = 1, AMBIENT_PARTICLE_COUNT do
-		local anchor = Instance.new("Part")
-		anchor.Name = "AmbientParticle_" .. i
-		anchor.Anchored = true
-		anchor.CanCollide = false
-		anchor.Transparency = 1
-		anchor.Size = Vector3.new(1, 1, 1)
-		anchor.Position = gridPosition
-			+ Vector3.new(math.random(-halfWidth, halfWidth), math.random(2, 8), math.random(-halfDepth, halfDepth))
-		anchor.Parent = plotModel
-
-		local emitter = Instance.new("ParticleEmitter")
-		emitter.Rate = 2
-		emitter.Lifetime = NumberRange.new(3, 6)
-		emitter.Speed = NumberRange.new(0.5, 1.5)
-		emitter.Size = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.1),
-			NumberSequenceKeypoint.new(0.5, 0.2),
-			NumberSequenceKeypoint.new(1, 0),
-		})
-		emitter.Color = ColorSequence.new(Color3.fromRGB(80, 50, 140), Color3.fromRGB(40, 20, 80))
-		emitter.LightEmission = 0.8
-		emitter.LightInfluence = 0
-		emitter.RotSpeed = NumberRange.new(-20, 20)
-		emitter.SpreadAngle = Vector2.new(180, 180)
-		emitter.Parent = anchor
-	end
-end
-
 local function buildPlotBase(plotModel: Model, origin: Vector3)
 	createFloorVeins(plotModel, origin)
 	createHeadquarters(plotModel, origin)
+	createClaimBeacon(plotModel, origin)
 	createDropboxPlatform(plotModel, origin)
 	createWarehouseStructure(plotModel, origin)
-	createAmbientParticles(plotModel, origin)
 end
 
 local function createPlot(index: number, plotsFolder: Folder)
@@ -712,7 +881,10 @@ local function createPlot(index: number, plotsFolder: Folder)
 
 	local col = (index - 1) % PLOTS_PER_ROW
 	local row = math.floor((index - 1) / PLOTS_PER_ROW)
-	local gridPosition = Vector3.new(col * X_SPACING, 0, row * Z_SPACING)
+	-- Columns are centered on world X=0 (not grown purely in +X) so the grid
+	-- stays within the 512-stud Baseplate defined in default.project.json
+	-- instead of hanging off its right edge.
+	local gridPosition = Vector3.new((col - (PLOTS_PER_ROW - 1) / 2) * X_SPACING, 0, row * Z_SPACING)
 
 	local origin = Instance.new("Part")
 	origin.Name = "Origin"
@@ -738,8 +910,8 @@ local function createPlot(index: number, plotsFolder: Folder)
 	groundGlow.Name = "GroundGlow"
 	groundGlow.Anchored = true
 	groundGlow.CanCollide = false
-	groundGlow.Size = Vector3.new(ground.Size.X, 0.05, ground.Size.Z)
-	groundGlow.Position = gridPosition + Vector3.new(0, 0.025, 0)
+	groundGlow.Size = Vector3.new(ground.Size.X, 0.02, ground.Size.Z)
+	groundGlow.Position = gridPosition + Vector3.new(0, 0.03, 0)
 	groundGlow.Material = Enum.Material.Neon
 	groundGlow.Color = Color3.fromRGB(30, 20, 50)
 	groundGlow.Transparency = 0.9
@@ -777,7 +949,10 @@ local function createPlot(index: number, plotsFolder: Folder)
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "SellLabel"
-	billboard.Size = UDim2.new(4, 0, 2, 0)
+	-- Was UDim2.new(4, 0, 2, 0) -- Scale units on a BillboardGui render as a
+	-- fraction of the viewport, so that was ~400%x200% of the screen. Offset
+	-- studs like the other plot billboards instead.
+	billboard.Size = UDim2.new(0, 130, 0, 44)
 	billboard.StudsOffset = Vector3.new(0, 4, 0)
 	billboard.AlwaysOnTop = true
 	billboard.Parent = dropbox
@@ -814,14 +989,10 @@ if not plotsFolder then
 	plotsFolder.Parent = Workspace
 end
 
--- temporary: only Plot_1 active during visual development
-if not plotsFolder:FindFirstChild("Plot_1") then
-	createPlot(1, plotsFolder)
+for i = 1, PLOT_COUNT do
+	if not plotsFolder:FindFirstChild("Plot_" .. i) then
+		createPlot(i, plotsFolder)
+	end
 end
--- for i = 2, PLOT_COUNT do
--- 	if not plotsFolder:FindFirstChild("Plot_" .. i) then
--- 		createPlot(i, plotsFolder)
--- 	end
--- end
 
-print(`[PlotSetup] Created 1 plot (temporary)`)
+print(`[PlotSetup] Created {PLOT_COUNT} plots`)

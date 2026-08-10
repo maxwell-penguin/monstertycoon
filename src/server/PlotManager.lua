@@ -7,8 +7,6 @@ local Types = require(ReplicatedStorage.Types)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
 
-local PLOT_COUNT = 10
-
 local PlotManager = {}
 
 local playerPlots: { [number]: Model } = {}
@@ -46,43 +44,76 @@ local function hidePlotExpansions(plotModel: Model)
 	end
 end
 
-function PlotManager.AssignPlot(player: Player): Types.Plot?
+-- The ClaimBeacon (built by PlotSetup.server.lua) is the "CLAIM PLOT" prompt
+-- shown on an unclaimed plot; MaxActivationDistance = 0 disables the
+-- ClickDetector (portable across Roblox versions, unlike relying on a
+-- ClickDetector.Enabled property) without needing to destroy/recreate it.
+local BEACON_ACTIVE_DISTANCE = 25
+
+local function setBeaconVisible(plotModel: Model, visible: boolean)
+	local beacon = plotModel:FindFirstChild("ClaimBeacon")
+	if not beacon or not beacon:IsA("BasePart") then
+		return
+	end
+
+	beacon.Transparency = visible and 0 or 1
+
+	local light = beacon:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Enabled = visible
+	end
+
+	local billboard = beacon:FindFirstChild("ClaimLabel")
+	if billboard and billboard:IsA("BillboardGui") then
+		billboard.Enabled = visible
+	end
+
+	local clickDetector = beacon:FindFirstChild("ClaimClickDetector")
+	if clickDetector and clickDetector:IsA("ClickDetector") then
+		clickDetector.MaxActivationDistance = visible and BEACON_ACTIVE_DISTANCE or 0
+	end
+end
+
+-- Plots start empty; a player claims a specific one by clicking its
+-- ClaimBeacon (see PlotClaimTrigger.server.lua) rather than being
+-- auto-assigned the first free plot on join.
+function PlotManager.ClaimPlot(player: Player, plotIndex: number): Types.Plot?
 	local plotsFolder = Workspace:FindFirstChild("Plots")
 	if not plotsFolder then
 		warn("[PlotManager] Plots folder not found in Workspace")
 		return nil
 	end
 
-	for i = 1, PLOT_COUNT do
-		local plotModel = plotsFolder:FindFirstChild("Plot_" .. i)
-		if plotModel then
-			local isOccupied = plotModel:FindFirstChild("IsOccupied") :: BoolValue
-			if isOccupied and not isOccupied.Value then
-				isOccupied.Value = true
-
-				local ownerId = plotModel:FindFirstChild("OwnerId") :: StringValue
-				ownerId.Value = tostring(player.UserId)
-
-				playerPlots[player.UserId] = plotModel
-
-				local data = PlayerManager.GetData(player.UserId)
-				local hallTier = (data and data.hallTier) or 1
-				local warehouseTier = (data and data.warehouseTier) or 1
-
-				setPlotExpansionTier(plotModel, hallTier)
-
-				return {
-					playerId = player.UserId,
-					hallTier = hallTier,
-					warehouseTier = warehouseTier,
-					plotLevel = hallTier,
-				}
-			end
-		end
+	local plotModel = plotsFolder:FindFirstChild("Plot_" .. plotIndex)
+	if not plotModel then
+		return nil
 	end
 
-	warn(`[PlotManager] No available plots for {player.Name}`)
-	return nil
+	local isOccupied = plotModel:FindFirstChild("IsOccupied") :: BoolValue
+	if not isOccupied or isOccupied.Value then
+		return nil
+	end
+
+	isOccupied.Value = true
+
+	local ownerId = plotModel:FindFirstChild("OwnerId") :: StringValue
+	ownerId.Value = tostring(player.UserId)
+
+	playerPlots[player.UserId] = plotModel
+	setBeaconVisible(plotModel, false)
+
+	local data = PlayerManager.GetData(player.UserId)
+	local hallTier = (data and data.hallTier) or 1
+	local warehouseTier = (data and data.warehouseTier) or 1
+
+	setPlotExpansionTier(plotModel, hallTier)
+
+	return {
+		playerId = player.UserId,
+		hallTier = hallTier,
+		warehouseTier = warehouseTier,
+		plotLevel = hallTier,
+	}
 end
 
 function PlotManager.ReleasePlot(player: Player)
@@ -102,6 +133,7 @@ function PlotManager.ReleasePlot(player: Player)
 	end
 
 	hidePlotExpansions(plotModel)
+	setBeaconVisible(plotModel, true)
 
 	playerPlots[player.UserId] = nil
 end

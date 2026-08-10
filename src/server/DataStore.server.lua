@@ -10,19 +10,25 @@ local EarnRateUpdater = require(script.Parent.EarnRateUpdater)
 local PlotManager = require(script.Parent.PlotManager)
 local HallManager = require(script.Parent.HallManager)
 local VialProducer = require(script.Parent.VialProducer)
+local HabitatManager = require(script.Parent.HabitatManager)
 local DropboxManager = require(script.Parent.DropboxManager)
 local WarehouseManager = require(script.Parent.WarehouseManager)
 local CrateManager = require(script.Parent.CrateManager)
 local BagManager = require(script.Parent.BagManager)
 local TownManager = require(script.Parent.TownManager)
 local MonetizationManager = require(script.Parent.MonetizationManager)
-local FTUEManager = require(script.Parent.FTUEManager)
 local AntiCheat = require(script.Parent.AntiCheat)
 local SessionRewards = require(script.Parent.SessionRewards)
 
 type PlayerData = Types.PlayerData
 
-local playerDataStore = DataStoreService:GetDataStore("PlayerData")
+-- GetDataStore itself (not just GetAsync/SetAsync) throws in an unpublished
+-- place -- loadData/saveData below are already pcall-wrapped and tolerate a
+-- nil store, so only this acquisition needs guarding.
+local playerDataStoreOk, playerDataStoreResult = pcall(function()
+	return DataStoreService:GetDataStore("PlayerData")
+end)
+local playerDataStore = playerDataStoreOk and playerDataStoreResult or nil
 
 local SAVE_INTERVAL = 60
 
@@ -46,6 +52,8 @@ local function defaultData(): PlayerData
 		hasBoostInsider = false,
 		ftueComplete = false,
 		eventTokens = 0,
+		habitats = {},
+		habitatInventory = {},
 	}
 end
 
@@ -95,8 +103,6 @@ local function onPlayerAdded(player: Player)
 
 	PlayerManager.Load(player.UserId, data)
 	PlayerManager.GiveTestCoins(player) -- TEMP: remove before launch
-	PlotManager.AssignPlot(player)
-	HallManager.InitHall(player)
 	WarehouseManager.InitWarehouse(player)
 	WarehouseManager.LoadWarehouseFromPlayerData(player)
 	BagManager.InitBag(player)
@@ -109,11 +115,11 @@ local function onPlayerAdded(player: Player)
 	-- PLAYER_DATA_LOADED itself once it finishes so the client still learns the
 	-- final ownedGamepasses set, just a moment later.
 	task.spawn(MonetizationManager.CheckGamepasses, player)
-	task.spawn(FTUEManager.StartFTUE, player)
 
-	VialProducer.StartProduction(player)
-	DropboxManager.InitDropbox(player)
-	CrateManager.StartCrateLoop(player)
+	-- Plot-bound systems (Hall, Habitats, vial production, Dropbox, Crates) --
+	-- and FTUE, whose starter-monster tutorial depends on the Hall existing --
+	-- are NOT started here. Plots start empty and only load once the player
+	-- claims one via a ClaimBeacon; see PlotClaimManager.lua.
 
 	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 	local remote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
@@ -135,6 +141,8 @@ local function onPlayerRemoving(player: Player)
 	CrateManager.StopCrateLoop(player)
 	WarehouseManager.SaveWarehouseToPlayerData(player)
 	WarehouseManager.ClearWarehouse(player)
+	HabitatManager.SaveHabitatsToPlayerData(player)
+	HabitatManager.ClearHabitats(player)
 	BagManager.SaveBagToPlayerData(player)
 	BagManager.ClearBagState(player)
 	TownManager.SaveTownData(player)

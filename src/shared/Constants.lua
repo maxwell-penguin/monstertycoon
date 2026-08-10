@@ -188,6 +188,33 @@ Constants.EVENT_MONSTERS = {
 	{ name = "Hollow", emotion = "Sadness", rarity = "Epic", tokenCost = 3 },
 }
 
+-- One habitat per MergeRules.lua lineage emotion (Static/Abyss are
+-- event-exclusive-only and have no ownable lineage, so no habitat for them).
+Constants.HABITAT_TYPES = {
+	{ biomeType = "Volcano", displayName = "Volcano", emotion = "Rage" },
+	{ biomeType = "Waterfall", displayName = "Waterfall", emotion = "Sadness" },
+	{ biomeType = "Sunfield", displayName = "Sunfield", emotion = "Joy" },
+	{ biomeType = "Crypt", displayName = "Crypt", emotion = "Dread" },
+	{ biomeType = "VoidRift", displayName = "Void Rift", emotion = "Void" },
+	{ biomeType = "MemoryGarden", displayName = "Memory Garden", emotion = "Nostalgia" },
+}
+
+-- Cost of the Nth habitat a player buys (across all biomes combined), same
+-- escalating-threshold shape as ROLL_COST_THRESHOLDS/BAG_TIERS.
+Constants.HABITAT_COST_THRESHOLDS = {
+	{ maxOwned = 1, cost = 1000 },
+	{ maxOwned = 3, cost = 5000 },
+	{ maxOwned = 5, cost = 25000 },
+	{ maxOwned = 7, cost = 100000 },
+	{ maxOwned = math.huge, cost = 400000 },
+}
+
+Constants.HABITAT_MAX_PER_PLOT = 8
+
+-- Fixed footprint (studs) used both for the world model's ground pad size and
+-- for server-side placement overlap/bounds checks.
+Constants.HABITAT_FOOTPRINT = { width = 12, depth = 12 }
+
 Constants.ANTICHEAT = {
 	MAX_COINS_PER_SELL = 1e15,
 	MAX_VIALS_PER_DEPOSIT = 100,
