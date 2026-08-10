@@ -70,6 +70,18 @@ function FTUEManager.CompleteFTUE(player: Player)
 	TownManager.AddXP(player, COMPLETION_XP)
 end
 
+-- Everything in StartFTUE below needs a claimed plot (it slots starter monsters
+-- into the Hall), so it can't run until the player claims one -- but nothing
+-- previously told a new player to go claim one at all. This runs on join and
+-- fires the single step that bridges that gap; the client draws the arrow.
+function FTUEManager.PromptClaimPlot(player: Player)
+	if FTUEManager.IsFTUEComplete(player) then
+		return
+	end
+
+	ftueStepRemote:FireClient(player, { stepName = "claim_plot" })
+end
+
 function FTUEManager.StartFTUE(player: Player)
 	if FTUEManager.IsFTUEComplete(player) then
 		return

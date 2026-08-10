@@ -110,32 +110,13 @@ local function setupVoidAtmosphere()
 		star.Parent = voidSky
 	end
 
-	-- Nebula clouds
-	local nebulaColors = {
-		Color3.fromRGB(60, 20, 100),
-		Color3.fromRGB(80, 15, 80),
-		Color3.fromRGB(20, 30, 100),
-		Color3.fromRGB(40, 10, 70),
-		Color3.fromRGB(15, 40, 90),
-		Color3.fromRGB(70, 25, 60),
-	}
-
-	for i = 1, 6 do
-		local nebula = Instance.new("Part")
-		nebula.Name = "Nebula_" .. i
-		nebula.Shape = Enum.PartType.Ball
-		local size = rng:NextInteger(80, 180)
-		nebula.Size = Vector3.new(size, size, size)
-		nebula.Material = Enum.Material.Neon
-		nebula.Color = nebulaColors[i]
-		nebula.Transparency = rng:NextInteger(93, 97) / 100
-		nebula.Anchored = true
-		nebula.CanCollide = false
-		nebula.CastShadow = false
-		nebula.Locked = true
-		nebula.Position = Vector3.new(rng:NextInteger(-200, 200), rng:NextInteger(120, 280), rng:NextInteger(-200, 200))
-		nebula.Parent = voidSky
-	end
+	-- Nebula clouds deliberately removed. They were six 80-180 stud spheres at
+	-- 93-97% transparency sitting directly over the playfield (X/Z within +-200,
+	-- Y 120-280). Semi-transparent parts don't write depth, so their draw order
+	-- against each other and against everything below them re-sorted as the
+	-- camera moved -- that was the flickering you'd see just from walking
+	-- around, and at 95% transparency they contributed almost nothing visually.
+	-- The bloom + fog + ambient lighting already carry the void atmosphere.
 
 	-- World ambient light source
 	local ambientPart = Instance.new("Part")
@@ -194,9 +175,12 @@ local DAY_OUTDOOR_AMBIENT = Color3.fromRGB(45, 38, 80)
 local DAY_BRIGHTNESS = 1.5
 local DAY_CC_BRIGHTNESS = 0
 local DAY_FOG_COLOR = Color3.fromRGB(20, 14, 45)
--- Dimmed, not hidden -- this is a void dimension, not a real sky, so stars
--- stay faintly visible even at "midday".
-local DAY_STAR_TRANSPARENCY = 0.75
+-- Fully hidden at midday rather than dimmed to 0.75. At any partial value all
+-- 300 stars are semi-transparent at once, and semi-transparent parts re-sort
+-- against each other every time the camera moves, which reads as flickering.
+-- At 1 Roblox culls them outright, so daytime costs nothing and night still
+-- gets fully opaque stars.
+local DAY_STAR_TRANSPARENCY = 1
 
 local function lerpColor(a: Color3, b: Color3, t: number): Color3
 	return Color3.new(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t)
@@ -363,28 +347,35 @@ end
 
 local PLOT_WIDTH = 60 -- matches Ground.Size.X below
 local PLOT_DEPTH = 80 -- matches Ground.Size.Z below
-local BORDER_WALL_HEIGHT = 8
-local BORDER_WALL_THICKNESS = 0.3
-local BORDER_WALL_COLOR = Color3.fromRGB(60, 40, 100)
+-- Solid curbs, not the old 8-stud 85%-transparent neon panels. Four
+-- see-through walls per plot across 10 plots meant 40 large translucent
+-- surfaces overlapping each other and everything behind them, which is what
+-- made the plots look ghostly and shimmer as the camera moved. A short opaque
+-- curb marks the boundary just as clearly and writes to the depth buffer.
+local BORDER_WALL_HEIGHT = 1.6
+local BORDER_WALL_THICKNESS = 0.8
+local BORDER_POST_HEIGHT = 5
+local BORDER_WALL_COLOR = Color3.fromRGB(46, 32, 78)
 local BORDER_POST_COLOR = Color3.fromRGB(100, 70, 160)
+-- Must match GROUND_GLOW_COLOR.off in PlotManager.lua, which tweens between
+-- this and the powered colour when a plot is claimed or released.
+local GROUND_GLOW_UNPOWERED_COLOR = Color3.fromRGB(24, 18, 42)
 
 local function createBorderWall(name: string, size: Vector3, position: Vector3): Part
 	local wall = Instance.new("Part")
 	wall.Name = name
 	wall.Anchored = true
 	wall.CanCollide = false
-	wall.Material = Enum.Material.Neon
+	wall.Material = Enum.Material.SmoothPlastic
 	wall.Color = BORDER_WALL_COLOR
-	wall.Transparency = 0.85
 	wall.Size = size
 	wall.Position = position
 	return wall
 end
 
--- Faint boundary walls (see-through) plus 4 brighter corner posts, sized off
--- the Ground Part's own footprint so they always match its edges.
+-- Opaque boundary curbs plus 4 brighter corner posts, sized off the Ground
+-- Part's own footprint so they always match its edges.
 local function createPlotBorder(plotModel: Model, gridPosition: Vector3)
-	local wallY = gridPosition.Y + BORDER_WALL_HEIGHT / 2
 	local halfWidth = PLOT_WIDTH / 2
 	local halfDepth = PLOT_DEPTH / 2
 
@@ -414,12 +405,16 @@ local function createPlotBorder(plotModel: Model, gridPosition: Vector3)
 		wall.Parent = plotModel
 	end
 
-	local postSize = padSize(0.4, BORDER_WALL_HEIGHT)
+	-- Posts keep their own height now that the curbs are short, so the plot
+	-- corners still read from a distance. Opaque -- see the note on
+	-- createBorderWall about why nothing here is semi-transparent any more.
+	local postY = gridPosition.Y + BORDER_POST_HEIGHT / 2
+	local postSize = padSize(0.7, BORDER_POST_HEIGHT)
 	local corners = {
-		Vector3.new(halfWidth, wallY, halfDepth),
-		Vector3.new(halfWidth, wallY, -halfDepth),
-		Vector3.new(-halfWidth, wallY, halfDepth),
-		Vector3.new(-halfWidth, wallY, -halfDepth),
+		Vector3.new(halfWidth, postY, halfDepth),
+		Vector3.new(halfWidth, postY, -halfDepth),
+		Vector3.new(-halfWidth, postY, halfDepth),
+		Vector3.new(-halfWidth, postY, -halfDepth),
 	}
 	for i, corner in corners do
 		local post = createCylinder(
@@ -427,7 +422,7 @@ local function createPlotBorder(plotModel: Model, gridPosition: Vector3)
 			postSize,
 			BORDER_POST_COLOR,
 			Enum.Material.Neon,
-			0.6,
+			0,
 			CFrame.new(gridPosition + corner) * UPRIGHT_CYLINDER,
 			false
 		)
@@ -493,7 +488,7 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 		padSize(2.8, 0.15),
 		DIM_PURPLE,
 		Enum.Material.Neon,
-		isVisible and 0.3 or 1,
+		isVisible and 0 or 1,
 		padCFrame(groundY + 6.05),
 		false
 	)
@@ -504,7 +499,7 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 		padSize(3.6, 0.02),
 		DIM_PURPLE,
 		Enum.Material.Neon,
-		isVisible and 0.5 or 1,
+		isVisible and 0 or 1,
 		padCFrame(groundY + 0.24),
 		false
 	)
@@ -515,7 +510,7 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 		padSize(3.2, 0.15),
 		GLOW_BLUE,
 		Enum.Material.Neon,
-		isVisible and 0.7 or 1,
+		isVisible and 0 or 1,
 		padCFrame(groundY + 3),
 		false
 	)
@@ -528,7 +523,7 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 		padSize(7, 0.02),
 		RUNE_COLOR,
 		Enum.Material.Neon,
-		isVisible and 0.8 or 1,
+		isVisible and 0 or 1,
 		padCFrame(groundY + 0.08),
 		false
 	)
@@ -539,7 +534,7 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 		padSize(4, 0.02),
 		RUNE_COLOR,
 		Enum.Material.Neon,
-		isVisible and 0.85 or 1,
+		isVisible and 0 or 1,
 		padCFrame(groundY + 0.14),
 		false
 	)
@@ -553,7 +548,7 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 	crystal.CanCollide = false
 	crystal.Material = Enum.Material.Neon
 	crystal.Color = Color3.fromRGB(100, 70, 180)
-	crystal.Transparency = isVisible and 0.4 or 1
+	crystal.Transparency = isVisible and 0 or 1
 	crystal.Size = Vector3.new(0.6, 1.2, 0.6)
 	crystal.CFrame = CFrame.new(slotX, groundY + 6 + 2, slotZ) * CFrame.Angles(0, math.rad(45), 0)
 	crystal.Parent = slotModel
@@ -591,7 +586,7 @@ local function createFloorVeins(plotModel: Model, gridPosition: Vector3)
 		horizontal.CanCollide = false
 		horizontal.Material = Enum.Material.Neon
 		horizontal.Color = veinColor
-		horizontal.Transparency = 0.7
+		horizontal.Transparency = 0
 		horizontal.Size = Vector3.new(PLOT_WIDTH, 0.02, 0.08)
 		horizontal.Position = gridPosition + Vector3.new(0, veinYOffset, z)
 		horizontal.Parent = plotModel
@@ -606,7 +601,7 @@ local function createFloorVeins(plotModel: Model, gridPosition: Vector3)
 		vertical.CanCollide = false
 		vertical.Material = Enum.Material.Neon
 		vertical.Color = veinColor
-		vertical.Transparency = 0.7
+		vertical.Transparency = 0
 		vertical.Size = Vector3.new(0.08, 0.02, PLOT_DEPTH)
 		vertical.Position = gridPosition + Vector3.new(x, veinYOffset, 0)
 		vertical.Parent = plotModel
@@ -650,7 +645,7 @@ local function createHeadquarters(plotModel: Model, gridPosition: Vector3)
 			padSize(6.2, 0.4),
 			veinGlowColor,
 			Enum.Material.Neon,
-			0.3,
+			0,
 			CFrame.new(tower.Position + Vector3.new(0, 7.2, 0)) * UPRIGHT_CYLINDER,
 			false
 		)
@@ -686,7 +681,7 @@ local function createHeadquarters(plotModel: Model, gridPosition: Vector3)
 		window.CanCollide = false
 		window.Material = Enum.Material.Neon
 		window.Color = Color3.fromRGB(60, 100, 180)
-		window.Transparency = 0.5
+		window.Transparency = 0
 		window.Size = Vector3.new(3, 3, 0.1)
 		window.Position = gridPosition + Vector3.new((i - 2) * 8, 4, windowZ)
 		window.Parent = hqModel
@@ -698,30 +693,28 @@ local function createHeadquarters(plotModel: Model, gridPosition: Vector3)
 	light.Color = Color3.fromRGB(60, 40, 120)
 	light.Parent = base
 
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "HQLabel"
-	billboard.Size = UDim2.new(0, 220, 0, 30)
-	billboard.StudsOffset = Vector3.new(0, 6, 0)
-	billboard.Parent = base
-
-	local label = Instance.new("TextLabel")
-	label.Name = "Text"
-	label.Size = UDim2.new(1, 0, 1, 0)
-	label.BackgroundTransparency = 1
-	label.Text = "VOID RESEARCH STATION"
-	label.TextSize = 14
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextTransparency = 0.3
-	label.Font = Enum.Font.GothamBold
-	label.Parent = billboard
+	-- Deliberately no floating "VOID RESEARCH STATION" billboard here. Every
+	-- plot built one, so 10 plots put 10 identical labels in the sky on top of
+	-- their CLAIM PLOT / SELL / WAREHOUSE labels. The plot number now lives on
+	-- the ClaimBeacon label instead, and SELL/WAREHOUSE only appear once a plot
+	-- is actually claimed (see setPlotPowered in PlotManager.lua).
 end
 
 -- Floating "CLAIM PLOT" prompt shown above the Headquarters while a plot is
 -- unowned; PlotManager.lua toggles its visibility/ClickDetector on
 -- claim/release, and PlotClaimTrigger.server.lua wires the actual click.
-local function createClaimBeacon(plotModel: Model, gridPosition: Vector3)
+-- Beacon Y was 22 with a MaxActivationDistance of 25 -- but it also sits
+-- HQ_CENTER_Z (35) studs back from the plot origin, putting it ~41 studs from
+-- where a player standing mid-plot actually is, so the claim click silently
+-- did nothing anywhere except right at the HQ. Lower it and widen the radius
+-- (see BEACON_ACTIVE_DISTANCE in PlotManager.lua, which must match) so the
+-- whole plot is a valid place to claim from.
+local BEACON_HEIGHT = 14
+local BEACON_ACTIVATION_DISTANCE = 70
+
+local function createClaimBeacon(plotModel: Model, gridPosition: Vector3, plotIndex: number)
 	local beaconColor = Color3.fromRGB(80, 220, 120)
-	local beaconCFrame = CFrame.new(gridPosition + Vector3.new(0, 22, HQ_CENTER_Z))
+	local beaconCFrame = CFrame.new(gridPosition + Vector3.new(0, BEACON_HEIGHT, HQ_CENTER_Z))
 
 	local beacon = Instance.new("Part")
 	beacon.Name = "ClaimBeacon"
@@ -751,7 +744,7 @@ local function createClaimBeacon(plotModel: Model, gridPosition: Vector3)
 	label.Name = "Text"
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.Text = "CLAIM PLOT"
+	label.Text = "CLAIM PLOT " .. plotIndex
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamBold
@@ -759,7 +752,7 @@ local function createClaimBeacon(plotModel: Model, gridPosition: Vector3)
 
 	local clickDetector = Instance.new("ClickDetector")
 	clickDetector.Name = "ClaimClickDetector"
-	clickDetector.MaxActivationDistance = 25
+	clickDetector.MaxActivationDistance = BEACON_ACTIVATION_DISTANCE
 	clickDetector.Parent = beacon
 end
 
@@ -786,7 +779,7 @@ local function createDropboxPlatform(plotModel: Model, gridPosition: Vector3)
 			pillarSize,
 			pillarColor,
 			Enum.Material.Neon,
-			0.4,
+			0,
 			CFrame.new(gridPosition + Vector3.new(corner[1] * 7, groundY + 1.5, DROPBOX_Z_OFFSET + corner[2] * 7))
 				* UPRIGHT_CYLINDER,
 			false
@@ -795,51 +788,52 @@ local function createDropboxPlatform(plotModel: Model, gridPosition: Vector3)
 	end
 end
 
--- Solid Door_L/Door_R (each 10 studs) flank a real 10-stud walkable gap; the
--- full-width WarehouseWall behind them is CanCollide false so it reads as a
--- backdrop rather than silently sealing the doorway the player is meant to
--- walk through.
+-- Two solid wall segments flanking a real DOORWAY_WIDTH walkable gap. This
+-- used to be a full-width CanCollide=false backdrop plus two narrower
+-- collidable "doors", which left the outer stretches of the wall walk-through
+-- -- it looked like a wall but wasn't one. The segments below are the wall:
+-- opaque, collidable, and sized so only the doorway is actually open.
+local DOORWAY_WIDTH = 10
+
 local function createWarehouseStructure(plotModel: Model, gridPosition: Vector3)
 	local wallColor = Color3.fromRGB(20, 16, 35)
-
-	local wall = Instance.new("Part")
-	wall.Name = "WarehouseWall"
-	wall.Anchored = true
-	wall.CanCollide = false
-	wall.Material = Enum.Material.SmoothPlastic
-	wall.Color = wallColor
-	wall.Size = Vector3.new(PLOT_WIDTH - 10, 6, 1)
-	wall.Position = gridPosition + Vector3.new(0, 3, WAREHOUSE_WALL_Z)
-	wall.Parent = plotModel
+	local wallSpan = PLOT_WIDTH - 10 -- total width the wall covers, doorway included
+	local segmentWidth = (wallSpan - DOORWAY_WIDTH) / 2
+	local segmentCenterX = DOORWAY_WIDTH / 2 + segmentWidth / 2
 
 	for _, side in { { name = "L", sign = -1 }, { name = "R", sign = 1 } } do
-		local door = Instance.new("Part")
-		door.Name = "WarehouseDoor_" .. side.name
-		door.Anchored = true
-		door.CanCollide = true
-		door.Material = Enum.Material.SmoothPlastic
-		door.Color = wallColor
-		door.Size = Vector3.new(10, 6, 1)
-		door.Position = gridPosition + Vector3.new(side.sign * 10, 3, WAREHOUSE_WALL_Z)
-		setCollisionGroup(door)
-		door.Parent = plotModel
+		local segment = Instance.new("Part")
+		segment.Name = "WarehouseWall_" .. side.name
+		segment.Anchored = true
+		segment.CanCollide = true
+		segment.Material = Enum.Material.SmoothPlastic
+		segment.Color = wallColor
+		segment.Size = Vector3.new(segmentWidth, 6, 1)
+		segment.Position = gridPosition + Vector3.new(side.sign * segmentCenterX, 3, WAREHOUSE_WALL_Z)
+		setCollisionGroup(segment)
+		segment.Parent = plotModel
 	end
 
+	-- Lintel across the top of the doorway rather than a translucent pane
+	-- filling it. The pane read as a half-visible barrier over an opening the
+	-- player is meant to walk straight through, and semi-transparent parts are
+	-- exactly what makes the plots shimmer when the camera moves.
 	local doorGlow = Instance.new("Part")
 	doorGlow.Name = "WarehouseDoorGlow"
 	doorGlow.Anchored = true
 	doorGlow.CanCollide = false
 	doorGlow.Material = Enum.Material.Neon
 	doorGlow.Color = Color3.fromRGB(80, 50, 140)
-	doorGlow.Transparency = 0.5
-	doorGlow.Size = Vector3.new(10.4, 6.4, 0.2)
-	doorGlow.Position = gridPosition + Vector3.new(0, 3, WAREHOUSE_WALL_Z)
+	doorGlow.Size = Vector3.new(DOORWAY_WIDTH + 0.4, 0.6, 1.2)
+	doorGlow.Position = gridPosition + Vector3.new(0, 6.3, WAREHOUSE_WALL_Z)
 	doorGlow.Parent = plotModel
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "WarehouseLabel"
 	billboard.Size = UDim2.new(0, 160, 0, 30)
-	billboard.StudsOffset = Vector3.new(0, 4, 0)
+	billboard.StudsOffset = Vector3.new(0, 1.5, 0)
+	-- Off until the plot is claimed; PlotManager.setPlotPowered turns it on.
+	billboard.Enabled = false
 	billboard.Parent = doorGlow
 
 	local label = Instance.new("TextLabel")
@@ -866,10 +860,10 @@ local function createWarehouseStructure(plotModel: Model, gridPosition: Vector3)
 	trigger.Parent = plotModel
 end
 
-local function buildPlotBase(plotModel: Model, origin: Vector3)
+local function buildPlotBase(plotModel: Model, origin: Vector3, plotIndex: number)
 	createFloorVeins(plotModel, origin)
 	createHeadquarters(plotModel, origin)
-	createClaimBeacon(plotModel, origin)
+	createClaimBeacon(plotModel, origin, plotIndex)
 	createDropboxPlatform(plotModel, origin)
 	createWarehouseStructure(plotModel, origin)
 end
@@ -906,19 +900,24 @@ local function createPlot(index: number, plotsFolder: Folder)
 	setCollisionGroup(ground)
 	ground.Parent = plotModel
 
+	-- Opaque floor skin rather than a 90%-transparent sheet laid over Ground.
+	-- One of these covers every plot edge to edge, so at 10 plots they were ten
+	-- full-size translucent surfaces stacked into the view -- the single
+	-- biggest reason the plots looked washed out and see-through. Powered state
+	-- is now expressed through Color instead of Transparency; see
+	-- setPlotPowered in PlotManager.lua.
 	local groundGlow = Instance.new("Part")
 	groundGlow.Name = "GroundGlow"
 	groundGlow.Anchored = true
 	groundGlow.CanCollide = false
 	groundGlow.Size = Vector3.new(ground.Size.X, 0.02, ground.Size.Z)
 	groundGlow.Position = gridPosition + Vector3.new(0, 0.03, 0)
-	groundGlow.Material = Enum.Material.Neon
-	groundGlow.Color = Color3.fromRGB(30, 20, 50)
-	groundGlow.Transparency = 0.9
+	groundGlow.Material = Enum.Material.SmoothPlastic
+	groundGlow.Color = GROUND_GLOW_UNPOWERED_COLOR
 	groundGlow.Parent = plotModel
 
 	createPlotBorder(plotModel, gridPosition)
-	buildPlotBase(plotModel, gridPosition)
+	buildPlotBase(plotModel, gridPosition, index)
 
 	-- Flat cylinder flush with the ground (top of Ground is at gridPosition.Y) that
 	-- players walk onto to trigger a deposit -- DropboxRemotes.server.lua listens
@@ -941,7 +940,7 @@ local function createPlot(index: number, plotsFolder: Folder)
 		Vector3.new(0.3, 10.5, 10.5),
 		Color3.fromRGB(0, 255, 100),
 		Enum.Material.Neon,
-		0.6,
+		0,
 		dropboxCFrame,
 		false
 	)
@@ -955,6 +954,8 @@ local function createPlot(index: number, plotsFolder: Folder)
 	billboard.Size = UDim2.new(0, 130, 0, 44)
 	billboard.StudsOffset = Vector3.new(0, 4, 0)
 	billboard.AlwaysOnTop = true
+	-- Off until the plot is claimed; PlotManager.setPlotPowered turns it on.
+	billboard.Enabled = false
 	billboard.Parent = dropbox
 
 	local textLabel = Instance.new("TextLabel")

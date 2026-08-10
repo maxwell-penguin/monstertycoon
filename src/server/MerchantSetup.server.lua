@@ -10,7 +10,12 @@ end)
 -- Must stay clear of the plot grid PlotSetup.server.lua builds (5 columns x
 -- 110 studs, 2 rows x 130 studs, columns centered on world X=0) -- placed
 -- well before row 0 (negative Z) so it never overlaps a plot.
-local HUB_CENTER_X = 0 -- grid columns are centered on X=0 (see PlotSetup.server.lua's createPlot)
+--
+-- Offset to -70 on X so the stall sits *beside* HubSetup.server.lua's spawn
+-- walkway (14 studs wide, centered on X=0) rather than on top of it -- the
+-- counter is CanCollide and would otherwise wall off the path from spawn to
+-- the plots.
+local HUB_CENTER_X = -70
 local HUB_Z = -90
 
 local STALL_COLOR = Color3.fromRGB(90, 60, 140)

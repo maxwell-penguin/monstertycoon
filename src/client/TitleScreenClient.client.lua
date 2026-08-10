@@ -7,6 +7,12 @@ local Constants = require(ReplicatedStorage.Constants)
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+-- Published so FTUEClient.client.lua can hold its "claim a plot" prompt until
+-- the player has actually pressed PLAY, instead of both competing for the
+-- screen the instant they join.
+local TitleScreenState = { isDismissed = false }
+shared.TitleScreen = TitleScreenState
+
 local GOLD = Color3.fromRGB(255, 210, 60)
 local WHITE = Color3.new(1, 1, 1)
 local GRAY = Color3.fromRGB(180, 180, 180)
@@ -131,6 +137,8 @@ addCorner(playButton, 16)
 styleButtonHover(playButton, PLAY_BG, PLAY_HOVER)
 
 local function dismissTitleScreen()
+	TitleScreenState.isDismissed = true
+
 	local fade = TweenService:Create(root, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { GroupTransparency = 1 })
 	fade:Play()
 	fade.Completed:Connect(function()

@@ -1,6 +1,7 @@
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
 
 local Constants = require(ReplicatedStorage.Constants)
 local Types = require(ReplicatedStorage.Types)
@@ -48,7 +49,9 @@ end
 -- shown on an unclaimed plot; MaxActivationDistance = 0 disables the
 -- ClickDetector (portable across Roblox versions, unlike relying on a
 -- ClickDetector.Enabled property) without needing to destroy/recreate it.
-local BEACON_ACTIVE_DISTANCE = 25
+-- Must match BEACON_ACTIVATION_DISTANCE in PlotSetup.server.lua -- this is the
+-- value the detector is restored to when a plot is released.
+local BEACON_ACTIVE_DISTANCE = 70
 
 local function setBeaconVisible(plotModel: Model, visible: boolean)
 	local beacon = plotModel:FindFirstChild("ClaimBeacon")
@@ -72,6 +75,58 @@ local function setBeaconVisible(plotModel: Model, visible: boolean)
 	if clickDetector and clickDetector:IsA("ClickDetector") then
 		clickDetector.MaxActivationDistance = visible and BEACON_ACTIVE_DISTANCE or 0
 	end
+end
+
+-- An unclaimed plot sits dim with its SELL/WAREHOUSE billboards switched off,
+-- so the grid reads as a row of dormant, unlabeled lots rather than 10 fully
+-- lit copies of the same base shouting the same labels at once. Claiming
+-- "powers up" that plot: its floor glow and border light come up and its own
+-- station labels switch on.
+local POWER_TWEEN = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+-- Colour, not Transparency. Every one of these parts is opaque now (see the
+-- notes in PlotSetup.server.lua) because semi-transparent parts don't write
+-- depth and visibly re-sort as the camera moves; fading them back in would
+-- reintroduce exactly the shimmer that removing them fixed. GROUND_GLOW.off
+-- must match GROUND_GLOW_UNPOWERED_COLOR in PlotSetup.server.lua.
+local GROUND_GLOW_COLOR = {
+	on = Color3.fromRGB(58, 40, 104),
+	off = Color3.fromRGB(24, 18, 42),
+}
+local BORDER_POST_COLOR = {
+	on = Color3.fromRGB(150, 110, 235),
+	off = Color3.fromRGB(100, 70, 160),
+}
+local BORDER_WALL_COLOR = {
+	on = Color3.fromRGB(78, 56, 128),
+	off = Color3.fromRGB(46, 32, 78),
+}
+
+local function tweenColor(part: BasePart?, color: Color3)
+	if part and part:IsA("BasePart") then
+		TweenService:Create(part, POWER_TWEEN, { Color = color }):Play()
+	end
+end
+
+local function setLabelEnabled(parent: Instance?, labelName: string, enabled: boolean)
+	local billboard = parent and parent:FindFirstChild(labelName)
+	if billboard and billboard:IsA("BillboardGui") then
+		billboard.Enabled = enabled
+	end
+end
+
+local function setPlotPowered(plotModel: Model, powered: boolean)
+	local key = powered and "on" or "off"
+
+	tweenColor(plotModel:FindFirstChild("GroundGlow") :: BasePart?, GROUND_GLOW_COLOR[key])
+
+	for i = 1, 4 do
+		tweenColor(plotModel:FindFirstChild("BorderPost_" .. i) :: BasePart?, BORDER_POST_COLOR[key])
+		tweenColor(plotModel:FindFirstChild("BorderWall_" .. i) :: BasePart?, BORDER_WALL_COLOR[key])
+	end
+
+	setLabelEnabled(plotModel:FindFirstChild("Dropbox"), "SellLabel", powered)
+	setLabelEnabled(plotModel:FindFirstChild("WarehouseDoorGlow"), "WarehouseLabel", powered)
 end
 
 -- Plots start empty; a player claims a specific one by clicking its
@@ -101,6 +156,7 @@ function PlotManager.ClaimPlot(player: Player, plotIndex: number): Types.Plot?
 
 	playerPlots[player.UserId] = plotModel
 	setBeaconVisible(plotModel, false)
+	setPlotPowered(plotModel, true)
 
 	local data = PlayerManager.GetData(player.UserId)
 	local hallTier = (data and data.hallTier) or 1
@@ -134,6 +190,7 @@ function PlotManager.ReleasePlot(player: Player)
 
 	hidePlotExpansions(plotModel)
 	setBeaconVisible(plotModel, true)
+	setPlotPowered(plotModel, false)
 
 	playerPlots[player.UserId] = nil
 end

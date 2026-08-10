@@ -15,7 +15,11 @@ local updateHallRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_H
 -- Must match PlotSetup.server.lua's TopGlow/Ring default color, or an empty
 -- pedestal looks different fresh vs. after a slot/unslot cycle.
 local DIM_PURPLE = Color3.fromRGB(40, 30, 80)
-local CRYSTAL_SHOWN_TRANSPARENCY = 0.4
+-- Opaque, matching the pedestal parts PlotSetup.server.lua now builds. These
+-- tween targets used to fade TopGlow/Ring/Crystal back to partial transparency
+-- on every slot/unslot, which would have quietly undone that and brought the
+-- see-through shimmer back to any pedestal the player actually used.
+local CRYSTAL_SHOWN_TRANSPARENCY = 0
 local TWEEN_INFO = TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 
 -- slotIndex -> the monster occupying it as of the last UPDATE_HALL, so a
@@ -92,9 +96,9 @@ updateHallRemote.OnClientEvent:Connect(function(slots: { Types.MonsterSlot })
 
 		if not previousMonster and slot.monster then
 			local color = Constants.EMOTION_COLORS[slot.monster.emotion] or DIM_PURPLE
-			updateSlotPad(slot.slotIndex, color, 0.1, 0.3, true)
+			updateSlotPad(slot.slotIndex, color, 0, 0, true)
 		elseif previousMonster and not slot.monster then
-			updateSlotPad(slot.slotIndex, DIM_PURPLE, 0.3, 0.5, false)
+			updateSlotPad(slot.slotIndex, DIM_PURPLE, 0, 0, false)
 		end
 
 		lastMonsterBySlot[slot.slotIndex] = slot.monster

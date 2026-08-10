@@ -19,6 +19,7 @@ local TownManager = require(script.Parent.TownManager)
 local MonetizationManager = require(script.Parent.MonetizationManager)
 local AntiCheat = require(script.Parent.AntiCheat)
 local SessionRewards = require(script.Parent.SessionRewards)
+local FTUEManager = require(script.Parent.FTUEManager)
 
 type PlayerData = Types.PlayerData
 
@@ -126,6 +127,10 @@ local function onPlayerAdded(player: Player)
 	remote:FireClient(player, data)
 
 	EarnRateUpdater.StartUpdating(player)
+
+	-- Must come after PLAYER_DATA_LOADED: the client's FTUE step handler needs
+	-- the player's data in hand before it starts pointing them anywhere.
+	FTUEManager.PromptClaimPlot(player)
 
 	print(`[DataStore] Loaded data for {player.Name}`)
 end
