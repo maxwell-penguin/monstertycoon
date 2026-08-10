@@ -185,10 +185,11 @@ hud.BackgroundTransparency = 1
 hud.Parent = screenGui
 panels.HUD = hud
 
--- Coin counter (top-left)
+-- Coin counter (top-right)
 local coinFrame = Instance.new("Frame")
 coinFrame.Name = "CoinCounter"
-coinFrame.Position = UDim2.new(0, 16, 0, 16)
+coinFrame.AnchorPoint = Vector2.new(1, 0)
+coinFrame.Position = UDim2.new(1, -16, 0, 12)
 coinFrame.Size = UDim2.new(0, 220, 0, 60)
 coinFrame.BackgroundColor3 = PANEL_BG
 coinFrame.BackgroundTransparency = 0.3
@@ -414,6 +415,32 @@ createToggleButton("ROLL", 1, "RollPanel")
 createToggleButton("MONSTERS", 2, "HallPanel")
 createToggleButton("SHOP", 3, "ShopPanel")
 createToggleButton("EVENT", 4, "EventStationPanel")
+
+local refreshRewardsPanel: (() -> ())? = nil
+
+local rewardsNavButton = Instance.new("TextButton")
+rewardsNavButton.Name = "RewardsToggleButton"
+rewardsNavButton.AnchorPoint = Vector2.new(1, 0.5)
+rewardsNavButton.Position = UDim2.new(1, -16, 0.5, -20)
+rewardsNavButton.Size = UDim2.new(0, 110, 0, 36)
+rewardsNavButton.Text = "🎁⏱"
+rewardsNavButton.TextSize = 16
+rewardsNavButton.Parent = hud
+styleButton(rewardsNavButton)
+
+onActivated(rewardsNavButton, function()
+	local panel = panels.RewardsPanel
+	if panel then
+		if panel.Visible then
+			UIManagerAPI.HidePanel("RewardsPanel")
+		else
+			UIManagerAPI.ShowPanel("RewardsPanel")
+			if refreshRewardsPanel then
+				refreshRewardsPanel()
+			end
+		end
+	end
+end)
 
 --============================================================
 -- Warehouse Panel
@@ -742,6 +769,21 @@ rollCostLabel.TextColor3 = WHITE
 rollCostLabel.Text = "Cost: 500 coins"
 rollCostLabel.Parent = rollPanel
 
+-- Mirrors Economy.GetRollCost server-side; Economy.lua is a ServerScriptService
+-- module and isn't client-reachable, so this reads the same shared threshold table
+-- the server uses rather than inventing a separate cost rule. lifetimeRolls is
+-- seeded from PLAYER_DATA_LOADED and incremented locally on each observed roll.
+local lifetimeRolls = 0
+
+local function getRollCost(): number
+	for _, threshold in Constants.ROLL_COST_THRESHOLDS do
+		if lifetimeRolls < threshold.maxRolls then
+			return math.max(threshold.cost, 500)
+		end
+	end
+	return 500
+end
+
 local function createRollButton(label: string, count: number, xPos: number)
 	local button = Instance.new("TextButton")
 	button.Name = "Roll" .. count
@@ -753,6 +795,11 @@ local function createRollButton(label: string, count: number, xPos: number)
 	styleButton(button)
 
 	onActivated(button, function()
+		local coinsAvailable = (shared.CoinDisplay and shared.CoinDisplay.displayCoins) or 0
+		if coinsAvailable < getRollCost() * count then
+			UIManagerAPI.showError("Not enough coins!")
+			return
+		end
 		fireAction("ROLL_EGG", { count = count })
 	end)
 end
@@ -773,12 +820,6 @@ probabilityLabel.TextWrapped = true
 probabilityLabel.TextYAlignment = Enum.TextYAlignment.Top
 probabilityLabel.Text = ""
 probabilityLabel.Parent = rollPanel
-
--- Mirrors Economy.GetRollCost server-side; Economy.lua is a ServerScriptService
--- module and isn't client-reachable, so this reads the same shared threshold table
--- the server uses rather than inventing a separate cost rule. lifetimeRolls is
--- seeded from PLAYER_DATA_LOADED and incremented locally on each observed roll.
-local lifetimeRolls = 0
 
 -- eventTokens is also carried on this same full-snapshot payload; EventRemotes
 -- re-fires PLAYER_DATA_LOADED after a purchase so this stays current.
@@ -809,15 +850,6 @@ eggResultRemote.OnClientEvent:Connect(function(result: any)
 		lifetimeRolls += 1
 	end
 end)
-
-local function getRollCost(): number
-	for _, threshold in Constants.ROLL_COST_THRESHOLDS do
-		if lifetimeRolls < threshold.maxRolls then
-			return math.max(threshold.cost, 500)
-		end
-	end
-	return 500
-end
 
 --============================================================
 -- Hall Panel
@@ -981,6 +1013,9 @@ styleButton(upgradeHallButton)
 
 onActivated(upgradeHallButton, function()
 	if upgradeHallButton:GetAttribute("Disabled") then
+		if upgradeHallButton.Text ~= "MAX TIER" then
+			UIManagerAPI.showError("Not enough coins!")
+		end
 		return
 	end
 	fireAction("UPGRADE_ENVIRONMENT", nil)
@@ -1295,6 +1330,11 @@ for tier = 2, #Constants.BAG_TIERS do
 	else
 		priceText = `{NumberFormatter.Format(tierDef.cost)} coins`
 		onBuy = function()
+			local coinsAvailable = (shared.CoinDisplay and shared.CoinDisplay.displayCoins) or 0
+			if coinsAvailable < tierDef.cost then
+				UIManagerAPI.showError("Not enough coins!")
+				return
+			end
 			fireAction("UPGRADE_BAG", { targetTier = tier })
 		end
 	end
@@ -1391,6 +1431,225 @@ for i, item in Constants.EVENT_MONSTERS do
 	)
 	entry.LayoutOrder = i
 	entry.Parent = eventMonsterList
+end
+
+--============================================================
+-- Rewards Panel
+--============================================================
+
+local sessionStartTick = tick()
+
+local function formatSessionTime(seconds: number): string
+	local hours = math.floor(seconds / 3600)
+	local minutes = math.floor((seconds % 3600) / 60)
+	return string.format("%02d:%02d:%02d", hours, minutes, seconds % 60)
+end
+
+local function formatCardTime(seconds: number): string
+	return string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
+end
+
+local function getRewardText(entry: any): string
+	if entry.reward == "egg" then
+		return `🥚 {entry.rarity}`
+	elseif entry.reward == "coins" then
+		return `💰 {NumberFormatter.Format(entry.amount)}`
+	elseif entry.reward == "bagVoucher" then
+		return "👜 Bag Upgrade"
+	end
+	return "🎁 Reward"
+end
+
+local rewardsPanel = Instance.new("Frame")
+rewardsPanel.Name = "RewardsPanel"
+rewardsPanel.Position = UDim2.new(0.5, -300, 0.5, -220)
+rewardsPanel.Size = UDim2.new(0, 600, 0, 440)
+rewardsPanel.BackgroundColor3 = PANEL_BG
+rewardsPanel.BorderSizePixel = 0
+rewardsPanel.Visible = false
+rewardsPanel.Parent = screenGui
+addCorner(rewardsPanel, 12)
+panels.RewardsPanel = rewardsPanel
+
+local rewardsTitle = Instance.new("TextLabel")
+rewardsTitle.Name = "Title"
+rewardsTitle.Size = UDim2.new(1, -48, 0, 36)
+rewardsTitle.Position = UDim2.new(0, 16, 0, 12)
+rewardsTitle.BackgroundTransparency = 1
+rewardsTitle.Font = Enum.Font.GothamBold
+rewardsTitle.TextSize = 20
+rewardsTitle.TextColor3 = WHITE
+rewardsTitle.TextXAlignment = Enum.TextXAlignment.Left
+rewardsTitle.Text = "SESSION REWARDS"
+rewardsTitle.Parent = rewardsPanel
+
+local rewardsSubtitle = Instance.new("TextLabel")
+rewardsSubtitle.Name = "Subtitle"
+rewardsSubtitle.Size = UDim2.new(1, -48, 0, 16)
+rewardsSubtitle.Position = UDim2.new(0, 16, 0, 40)
+rewardsSubtitle.BackgroundTransparency = 1
+rewardsSubtitle.Font = Enum.Font.Gotham
+rewardsSubtitle.TextSize = 11
+rewardsSubtitle.TextColor3 = GRAY
+rewardsSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+rewardsSubtitle.Text = "Earn rewards by playing — resets each session"
+rewardsSubtitle.Parent = rewardsPanel
+
+createCloseButton(rewardsPanel, "RewardsPanel")
+
+local rewardsGrid = Instance.new("Frame")
+rewardsGrid.Name = "RewardsGrid"
+rewardsGrid.Position = UDim2.new(0, 16, 0, 66)
+rewardsGrid.Size = UDim2.new(1, -32, 0, 300)
+rewardsGrid.BackgroundTransparency = 1
+rewardsGrid.Parent = rewardsPanel
+
+local rewardsGridLayout = Instance.new("UIGridLayout")
+rewardsGridLayout.CellSize = UDim2.new(0, 130, 0, 90)
+rewardsGridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+rewardsGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+rewardsGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+rewardsGridLayout.Parent = rewardsGrid
+
+local sessionTimerLabel = Instance.new("TextLabel")
+sessionTimerLabel.Name = "SessionTimer"
+sessionTimerLabel.Position = UDim2.new(0, 16, 0, 380)
+sessionTimerLabel.Size = UDim2.new(1, -32, 0, 24)
+sessionTimerLabel.BackgroundTransparency = 1
+sessionTimerLabel.Font = Enum.Font.Gotham
+sessionTimerLabel.TextSize = 13
+sessionTimerLabel.TextColor3 = GRAY
+sessionTimerLabel.TextXAlignment = Enum.TextXAlignment.Center
+sessionTimerLabel.Text = "Session time: 00:00:00"
+sessionTimerLabel.Parent = rewardsPanel
+
+type RewardCard = {
+	frame: Frame,
+	statusLabel: TextLabel,
+}
+
+local rewardCards: { RewardCard } = {}
+
+for index, entry in Constants.SESSION_REWARDS do
+	local card = Instance.new("Frame")
+	card.Name = "Card_" .. index
+	card.Size = UDim2.new(0, 130, 0, 90)
+	card.BackgroundColor3 = Color3.fromRGB(20, 15, 35)
+	card.BorderSizePixel = 0
+	card.LayoutOrder = index
+	card.Parent = rewardsGrid
+	addCorner(card, 8)
+	addStroke(card)
+
+	local timeLabel = Instance.new("TextLabel")
+	timeLabel.Name = "TimeLabel"
+	timeLabel.Size = UDim2.new(1, 0, 0, 36)
+	timeLabel.Position = UDim2.new(0, 0, 0, 8)
+	timeLabel.BackgroundTransparency = 1
+	timeLabel.Font = Enum.Font.GothamBold
+	timeLabel.TextSize = 20
+	timeLabel.TextColor3 = WHITE
+	timeLabel.TextXAlignment = Enum.TextXAlignment.Center
+	timeLabel.Text = formatCardTime(entry.seconds)
+	timeLabel.Parent = card
+
+	local descLabel = Instance.new("TextLabel")
+	descLabel.Name = "RewardDesc"
+	descLabel.Size = UDim2.new(1, -8, 0, 36)
+	descLabel.Position = UDim2.new(0, 4, 0, 44)
+	descLabel.BackgroundTransparency = 1
+	descLabel.Font = Enum.Font.Gotham
+	descLabel.TextSize = 11
+	descLabel.TextColor3 = GRAY
+	descLabel.TextWrapped = true
+	descLabel.TextXAlignment = Enum.TextXAlignment.Center
+	descLabel.Text = getRewardText(entry)
+	descLabel.Parent = card
+
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.Name = "Status"
+	statusLabel.AnchorPoint = Vector2.new(1, 0)
+	statusLabel.Position = UDim2.new(1, -4, 0, 4)
+	statusLabel.Size = UDim2.new(0, 18, 0, 18)
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Font = Enum.Font.GothamBold
+	statusLabel.TextSize = 14
+	statusLabel.TextColor3 = GRAY
+	statusLabel.Text = "🔒"
+	statusLabel.Parent = card
+
+	rewardCards[index] = { frame = card, statusLabel = statusLabel }
+end
+
+local function refreshRewardCards()
+	local elapsed = tick() - sessionStartTick
+	for index, entry in Constants.SESSION_REWARDS do
+		local card = rewardCards[index]
+		if card then
+			if elapsed >= entry.seconds then
+				card.frame.BackgroundColor3 = Color3.fromRGB(30, 25, 50)
+				card.statusLabel.Text = "✓"
+				card.statusLabel.TextColor3 = Color3.fromRGB(100, 200, 100)
+			else
+				card.frame.BackgroundColor3 = Color3.fromRGB(15, 12, 25)
+				card.statusLabel.Text = "🔒"
+				card.statusLabel.TextColor3 = GRAY
+			end
+		end
+	end
+end
+
+refreshRewardsPanel = refreshRewardCards
+
+task.spawn(function()
+	while true do
+		task.wait(1)
+		sessionTimerLabel.Text = "Session time: " .. formatSessionTime(math.floor(tick() - sessionStartTick))
+		if rewardsPanel.Visible then
+			refreshRewardCards()
+		end
+	end
+end)
+
+--============================================================
+-- Error notification (transient, not a toggle panel)
+--============================================================
+
+local ERROR_RED = Color3.fromRGB(180, 30, 30)
+
+function UIManagerAPI.showError(message: string)
+	local notif = Instance.new("Frame")
+	notif.Name = "ErrorNotification"
+	notif.AnchorPoint = Vector2.new(0.5, 0.5)
+	notif.Position = UDim2.new(0.5, 0, 0.5, 0)
+	notif.Size = UDim2.new(0, 300, 0, 60)
+	notif.BackgroundColor3 = ERROR_RED
+	notif.BackgroundTransparency = 1
+	notif.BorderSizePixel = 0
+	notif.Parent = screenGui
+	addCorner(notif, 8)
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 18
+	label.TextColor3 = WHITE
+	label.TextTransparency = 1
+	label.Text = message
+	label.Parent = notif
+
+	TweenService:Create(notif, TweenInfo.new(0.2), { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(label, TweenInfo.new(0.2), { TextTransparency = 0 }):Play()
+
+	task.delay(1.5, function()
+		local fadeNotif = TweenService:Create(notif, TweenInfo.new(0.4), { BackgroundTransparency = 1 })
+		TweenService:Create(label, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+		fadeNotif:Play()
+		fadeNotif.Completed:Connect(function()
+			notif:Destroy()
+		end)
+	end)
 end
 
 --============================================================

@@ -94,6 +94,14 @@ local function onPlayerAdded(player: Player)
 	end
 
 	local data = loadData(player.UserId)
+
+	-- TEMP: force fresh start for testing (remove before launch)
+	if true then
+		data = defaultData()
+		data.coins = 999999999999999
+		warn("[DataStore] TEMP: Forced data reset for testing")
+	end
+
 	data.sessionStartTime = os.time()
 
 	-- Constants.SESSION_REWARDS milestones aren't wired to fire yet (Phase 16 FTUE).
@@ -129,8 +137,11 @@ local function onPlayerAdded(player: Player)
 	CrateManager.StartCrateLoop(player)
 
 	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
-	local remote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
-	remote:FireClient(player, data)
+	local playerDataLoadedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
+	playerDataLoadedRemote:FireClient(player, data)
+
+	local updateCoinsRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_COINS) :: RemoteEvent
+	updateCoinsRemote:FireClient(player, data.coins)
 
 	EarnRateUpdater.StartUpdating(player)
 

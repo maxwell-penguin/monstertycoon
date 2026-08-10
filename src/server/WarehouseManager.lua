@@ -45,6 +45,7 @@ function WarehouseManager.InitWarehouse(player: Player)
 	local data = PlayerManager.GetData(userId)
 	local warehouseTier = (data and data.warehouseTier) or 1
 	local capacity = Constants.WAREHOUSE_CAPACITY[warehouseTier] or Constants.WAREHOUSE_BASE_CAPACITY
+	print("[Warehouse] InitWarehouse for " .. player.Name .. " tier: " .. tostring(warehouseTier) .. " capacity: " .. tostring(capacity))
 
 	local warehouse: Warehouse = {
 		monsters = {},
@@ -71,6 +72,14 @@ end
 
 function WarehouseManager.AddMonster(player: Player, monsterName: string, stars: number?): (boolean, string)
 	local warehouse = playerWarehouses[player.UserId]
+	print(
+		"[Warehouse] AddMonster called: "
+			.. tostring(monsterName)
+			.. " capacity: "
+			.. tostring(warehouse and warehouse.capacity)
+			.. " count: "
+			.. tostring(warehouse and countMonsters(warehouse))
+	)
 	if not warehouse then
 		warn(`[Warehouse] AddMonster failed: no warehouse for {player.Name}`)
 		return false, "not_found"

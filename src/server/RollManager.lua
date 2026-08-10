@@ -38,6 +38,7 @@ function RollManager.PerformRoll(player: Player): (boolean, string, string, any)
 	end
 
 	local cost = RollManager.GetRollCost(player)
+	print("[Roll] Player " .. player.Name .. " attempting roll, cost: " .. cost .. " coins: " .. data.coins)
 	if data.coins < cost then
 		return false, "insufficient_coins", "", 0
 	end
@@ -48,9 +49,12 @@ function RollManager.PerformRoll(player: Player): (boolean, string, string, any)
 
 	local townLevel = RollManager.GetTownLevel(player)
 	local monsterName, rarity = RollTable.RollMonster(townLevel)
+	print("[Roll] Rolled: " .. tostring(monsterName) .. " rarity: " .. tostring(rarity))
 
 	local added, newInstanceId = WarehouseManager.AddMonster(player, monsterName)
+	print("[Roll] AddMonster result: " .. tostring(added) .. " reason: " .. tostring(newInstanceId))
 	if not added then
+		print("[Roll] WAREHOUSE FULL - refunding")
 		PlayerManager.IncrementCoins(userId, cost)
 		eggResultRemote:FireClient(player, { success = false, reason = "full" })
 		return false, "full", "", 0

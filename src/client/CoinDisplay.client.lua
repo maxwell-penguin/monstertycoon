@@ -6,6 +6,7 @@ local NumberFormatter = require(ReplicatedStorage.NumberFormatter)
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local updateCoinsRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_COINS) :: RemoteEvent
 local updateEarnRateRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_EARN_RATE) :: RemoteEvent
+local playerDataLoadedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent
 
 local TICK_INTERVAL = 0.1
 local DRIFT_THRESHOLD = 0.1
@@ -48,7 +49,7 @@ end
 
 publish()
 
-updateCoinsRemote.OnClientEvent:Connect(function(newCoins: number)
+local function applyCoins(newCoins: number)
 	actualCoins = newCoins
 
 	local drift = math.abs(displayCoins - actualCoins)
@@ -57,7 +58,15 @@ updateCoinsRemote.OnClientEvent:Connect(function(newCoins: number)
 	end
 
 	publish()
+end
+
+playerDataLoadedRemote.OnClientEvent:Connect(function(data: any)
+	if typeof(data) == "table" and typeof(data.coins) == "number" then
+		applyCoins(data.coins)
+	end
 end)
+
+updateCoinsRemote.OnClientEvent:Connect(applyCoins)
 
 updateEarnRateRemote.OnClientEvent:Connect(function(newEarnRate: number)
 	earnRate = newEarnRate
