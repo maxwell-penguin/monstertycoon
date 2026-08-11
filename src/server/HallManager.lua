@@ -90,6 +90,16 @@ function MonsterEnvironment.UnslotMonster(player: Player, slotIndex: number): bo
 		return false
 	end
 
+	local monster = slot.monster
+
+	-- Return to warehouse before clearing the slot: if the warehouse is full,
+	-- AddMonster fails and this bails out with the monster still slotted,
+	-- instead of clearing the slot and losing the monster outright.
+	local added = WarehouseManager.AddMonster(player, monster.name, monster.stars)
+	if not added then
+		return false
+	end
+
 	slot.monster = nil
 	slot.isActive = false
 
