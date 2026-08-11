@@ -64,10 +64,21 @@ local function setClaimGateActive(plotModel: Model, visible: boolean)
 		trigger.CanTouch = visible
 	end
 
+	-- SurfaceGui, not BillboardGui: the plot number is painted on the board's
+	-- face now rather than floating above it. See createClaimGate in
+	-- PlotSetup.server.lua for why.
+	--
+	-- Only the "walk in to claim" hint follows claim state. The number itself
+	-- stays up permanently -- it is how a player finds their own plot again, so
+	-- hiding it on claim would take the signage away from the one person who
+	-- most needs it.
 	local sign = gate:FindFirstChild("GateSign")
-	local billboard = sign and sign:FindFirstChild("ClaimLabel")
-	if billboard and billboard:IsA("BillboardGui") then
-		billboard.Enabled = visible
+	local claimLabel = sign and sign:FindFirstChild("ClaimLabel")
+	if claimLabel and claimLabel:IsA("SurfaceGui") then
+		local hint = claimLabel:FindFirstChild("Hint")
+		if hint and hint:IsA("TextLabel") then
+			hint.Visible = visible
+		end
 	end
 
 	local lamp = gate:FindFirstChild("GateLamp")

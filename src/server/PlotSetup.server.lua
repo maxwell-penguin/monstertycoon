@@ -312,6 +312,18 @@ local GATE_CLEAR_HALF_WIDTH = GATE_WIDTH / 2 + 1
 local RAIL_THICKNESS = 0.45
 local RAIL_HEIGHTS = { 1.5, 3.1 }
 
+-- Numbered signboard hung under the gate crossbeam. Sized so it clears the beam
+-- (which spans GATE_HEIGHT .. GATE_HEIGHT + 1.2) and still sits high enough to
+-- be read over the fence line from outside the plot.
+local SIGN_HEIGHT = 4.2
+local SIGN_CENTER_Y = GATE_HEIGHT - 2.4
+-- Roughly two plot-columns of X_SPACING. Far enough that the plot you are
+-- walking toward is legible well before you reach it, short enough that the far
+-- side of the grid is not drawing its numbers into your view at spawn.
+local SIGN_MAX_DISTANCE = 240
+local SIGN_BOARD_COLOR = Color3.fromRGB(146, 104, 66)
+local SIGN_FRAME_COLOR = Color3.fromRGB(92, 63, 40)
+
 local TIMBER_DARK = Color3.fromRGB(92, 63, 40)
 local TIMBER_LIGHT = Color3.fromRGB(126, 88, 56)
 local PLOT_SOIL_COLOR = Color3.fromRGB(104, 76, 50)
@@ -865,36 +877,76 @@ local function createClaimGate(plotModel: Model, gridPosition: Vector3, plotInde
 		Vector3.new(0, GATE_HEIGHT + 0.6, 0)
 	)
 
+	-- Tall enough to carry a plot number you can read from across the field.
+	-- This was a 2.6-stud plank with the text floating above it rather than
+	-- printed on it; the board is now the label's actual surface.
 	local signBoard = place(
 		"GateSign",
-		Vector3.new(GATE_WIDTH - 1, 2.6, 0.4),
-		Color3.fromRGB(146, 104, 66),
+		Vector3.new(GATE_WIDTH - 1, SIGN_HEIGHT, 0.4),
+		SIGN_BOARD_COLOR,
 		Enum.Material.WoodPlanks,
-		Vector3.new(0, GATE_HEIGHT - 1.2, 0)
+		Vector3.new(0, SIGN_CENTER_Y, 0)
+	)
+
+	-- Painted trim around the board, so it reads as a made sign rather than a
+	-- bare plank with writing on it.
+	place(
+		"GateSignFrame",
+		Vector3.new(GATE_WIDTH + 0.2, SIGN_HEIGHT + 1, 0.28),
+		SIGN_FRAME_COLOR,
+		Enum.Material.Wood,
+		Vector3.new(0, SIGN_CENTER_Y, 0.1)
 	)
 
 	-- Kept named ClaimLabel: PlotManager.lua toggles this on claim/release.
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "ClaimLabel"
-	billboard.Size = UDim2.new(0, 200, 0, 44)
-	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
-	billboard.AlwaysOnTop = true
-	billboard.Parent = signBoard
+	--
+	-- A SurfaceGui, not a BillboardGui. Ten AlwaysOnTop billboards drew through
+	-- the terrain from anywhere on the map, so every plot in the grid stacked up
+	-- on screen the moment a player spawned. Painted on the board's front face
+	-- instead, each sign is occluded by whatever stands in front of it, shrinks
+	-- with distance like real signage, and stops drawing past MaxDistance.
+	local signGui = Instance.new("SurfaceGui")
+	signGui.Name = "ClaimLabel"
+	signGui.Face = Enum.NormalId.Front -- -Z, the side players approach from
+	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	signGui.PixelsPerStud = 64
+	signGui.LightInfluence = 0 -- stays legible after the day/night cycle turns over
+	signGui.MaxDistance = SIGN_MAX_DISTANCE
+	signGui.Parent = signBoard
 
-	local label = Instance.new("TextLabel")
-	label.Name = "Text"
-	label.Size = UDim2.new(1, 0, 1, 0)
-	label.BackgroundTransparency = 1
-	label.Text = `PLOT {plotIndex}\nWALK IN TO CLAIM`
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextScaled = true
-	label.Font = Enum.Font.GothamBold
-	label.Parent = billboard
+	-- The number carries the sign; it is what a player is scanning for when
+	-- picking a plot, so it gets the top two thirds at full height.
+	local numberLabel = Instance.new("TextLabel")
+	numberLabel.Name = "Number"
+	numberLabel.Size = UDim2.fromScale(1, 0.62)
+	numberLabel.Position = UDim2.fromScale(0, 0.04)
+	numberLabel.BackgroundTransparency = 1
+	numberLabel.Text = `PLOT {plotIndex}`
+	numberLabel.TextColor3 = Color3.fromRGB(255, 248, 232)
+	numberLabel.TextScaled = true
+	numberLabel.Font = Enum.Font.GothamBlack
+	numberLabel.Parent = signGui
 
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.new(0, 0, 0)
-	stroke.Thickness = 2
-	stroke.Parent = label
+	local numberStroke = Instance.new("UIStroke")
+	numberStroke.Color = Color3.fromRGB(58, 34, 18)
+	numberStroke.Thickness = 3
+	numberStroke.Parent = numberLabel
+
+	local hintLabel = Instance.new("TextLabel")
+	hintLabel.Name = "Hint"
+	hintLabel.Size = UDim2.fromScale(1, 0.3)
+	hintLabel.Position = UDim2.fromScale(0, 0.66)
+	hintLabel.BackgroundTransparency = 1
+	hintLabel.Text = "WALK IN TO CLAIM"
+	hintLabel.TextColor3 = Color3.fromRGB(255, 214, 92)
+	hintLabel.TextScaled = true
+	hintLabel.Font = Enum.Font.GothamBold
+	hintLabel.Parent = signGui
+
+	local hintStroke = Instance.new("UIStroke")
+	hintStroke.Color = Color3.fromRGB(58, 34, 18)
+	hintStroke.Thickness = 2
+	hintStroke.Parent = hintLabel
 
 	-- Warm lamp over the gateway so it reads at night and from a distance.
 	local lampColor = Color3.fromRGB(255, 214, 92)
