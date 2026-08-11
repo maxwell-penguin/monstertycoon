@@ -65,8 +65,20 @@ function MonsterEnvironment.SlotMonster(player: Player, slotIndex: number, insta
 		return false
 	end
 
-	slots[slotIndex].monster = monster
-	slots[slotIndex].isActive = true
+	local slot = slots[slotIndex]
+
+	-- Return whatever's already in this slot to the warehouse before overwriting
+	-- it. If the warehouse is full, bail out with nothing changed rather than
+	-- overwriting and losing the existing monster.
+	if slot.monster then
+		local returned = WarehouseManager.AddMonster(player, slot.monster.name, slot.monster.stars)
+		if not returned then
+			return false
+		end
+	end
+
+	slot.monster = monster
+	slot.isActive = true
 
 	WarehouseManager.RemoveMonster(player, instanceId)
 

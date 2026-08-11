@@ -41,6 +41,11 @@ slotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: any,
 	end
 
 	if HallManager.SlotMonster(player, slotIndex, instanceId) then
+		-- UpdateRoster only spawns a slot's model when it wasn't already tracked
+		-- as active; re-slotting over an occupied slot keeps the same slotIndex
+		-- active throughout, so without this the old blob/nametag would never be
+		-- replaced with the new monster's.
+		MonsterAI.DespawnMonster(player, slotIndex)
 		MonsterAI.UpdateRoster(player)
 	end
 end)
