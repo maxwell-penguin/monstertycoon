@@ -178,18 +178,22 @@ local function findNearestUnclaimedBeacon(): BasePart?
 
 	for _, plotModel in plotsFolder:GetChildren() do
 		local ownerId = plotModel:FindFirstChild("OwnerId")
-		local beacon = plotModel:FindFirstChild("ClaimBeacon")
-		if ownerId and ownerId.Value == "" and beacon and beacon:IsA("BasePart") then
+		local gate = plotModel:FindFirstChild("ClaimGate")
+		-- Aim at the gateway's trigger volume: that is the exact patch of ground
+		-- the player has to walk through, so the arrow marks the doorway rather
+		-- than some point above the building.
+		local trigger = gate and gate:FindFirstChild("ClaimTrigger")
+		if ownerId and ownerId.Value == "" and trigger and trigger:IsA("BasePart") then
 			-- Before the character streams in there's nothing to measure from,
 			-- so just take the first free plot rather than skipping the step.
 			if not rootPart then
-				return beacon
+				return trigger
 			end
 
-			local distance = (rootPart.Position - beacon.Position).Magnitude
+			local distance = (rootPart.Position - trigger.Position).Magnitude
 			if distance < nearestDistance then
 				nearestDistance = distance
-				nearest = beacon
+				nearest = trigger
 			end
 		end
 	end
@@ -470,7 +474,7 @@ local function handleClaimPlot()
 			return
 		end
 
-		setHint("Find an empty plot and click CLAIM PLOT to start your factory!")
+		setHint("Walk through an open plot gate to claim it and start your farm!")
 
 		-- Plots are built server-side at startup, but on a slow join the folder
 		-- may not have replicated yet. Retry briefly rather than silently
@@ -485,7 +489,7 @@ local function handleClaimPlot()
 		end
 
 		if beacon and currentStep == "claim_plot" then
-			createArrow(beacon.Position + Vector3.new(0, 4, 0), "CLAIM THIS PLOT")
+			createArrow(beacon.Position + Vector3.new(0, 9, 0), "WALK IN TO CLAIM")
 		end
 	end)
 end

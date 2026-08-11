@@ -45,35 +45,42 @@ local function hidePlotExpansions(plotModel: Model)
 	end
 end
 
--- The ClaimBeacon (built by PlotSetup.server.lua) is the "CLAIM PLOT" prompt
--- shown on an unclaimed plot; MaxActivationDistance = 0 disables the
--- ClickDetector (portable across Roblox versions, unlike relying on a
--- ClickDetector.Enabled property) without needing to destroy/recreate it.
--- Must match BEACON_ACTIVATION_DISTANCE in PlotSetup.server.lua -- this is the
--- value the detector is restored to when a plot is released.
-local BEACON_ACTIVE_DISTANCE = 70
-
-local function setBeaconVisible(plotModel: Model, visible: boolean)
-	local beacon = plotModel:FindFirstChild("ClaimBeacon")
-	if not beacon or not beacon:IsA("BasePart") then
+-- The ClaimGate (built by PlotSetup.server.lua) is the gateway a player walks
+-- through to claim a plot. The gateway structure itself always stays -- it is
+-- the plot's entrance either way -- so claiming only switches off the "WALK IN
+-- TO CLAIM" sign, dims its lamp, and stops the trigger listening.
+--
+-- CanTouch = false is what actually closes the claim: .Touched simply stops
+-- firing, so PlotClaimTrigger.server.lua's handler never runs on an owned plot
+-- and there is no need to disconnect or rebuild anything.
+local function setClaimGateActive(plotModel: Model, visible: boolean)
+	local gate = plotModel:FindFirstChild("ClaimGate")
+	if not gate then
 		return
 	end
 
-	beacon.Transparency = visible and 0 or 1
-
-	local light = beacon:FindFirstChildOfClass("PointLight")
-	if light then
-		light.Enabled = visible
+	local trigger = gate:FindFirstChild("ClaimTrigger")
+	if trigger and trigger:IsA("BasePart") then
+		trigger.CanTouch = visible
 	end
 
-	local billboard = beacon:FindFirstChild("ClaimLabel")
+	local sign = gate:FindFirstChild("GateSign")
+	local billboard = sign and sign:FindFirstChild("ClaimLabel")
 	if billboard and billboard:IsA("BillboardGui") then
 		billboard.Enabled = visible
 	end
 
-	local clickDetector = beacon:FindFirstChild("ClaimClickDetector")
-	if clickDetector and clickDetector:IsA("ClickDetector") then
-		clickDetector.MaxActivationDistance = visible and BEACON_ACTIVE_DISTANCE or 0
+	local lamp = gate:FindFirstChild("GateLamp")
+	if lamp and lamp:IsA("BasePart") then
+		-- Unclaimed gates glow gold to draw players in; a claimed one fades to
+		-- plain timber so only the free plots advertise themselves.
+		lamp.Color = visible and Color3.fromRGB(255, 214, 92) or Color3.fromRGB(120, 104, 72)
+		lamp.Material = visible and Enum.Material.Neon or Enum.Material.Wood
+
+		local light = lamp:FindFirstChildOfClass("PointLight")
+		if light then
+			light.Enabled = visible
+		end
 	end
 end
 
@@ -89,17 +96,22 @@ local POWER_TWEEN = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirecti
 -- depth and visibly re-sort as the camera moves; fading them back in would
 -- reintroduce exactly the shimmer that removing them fixed. GROUND_GLOW.off
 -- must match GROUND_GLOW_UNPOWERED_COLOR in PlotSetup.server.lua.
+-- Natural farm palette. These were the old void purples, which would have
+-- turned a claimed plot's timber fence violet the moment it was claimed. The
+-- "off" values must match what PlotSetup.server.lua builds the parts as
+-- (GROUND_GLOW_UNPOWERED_COLOR, TIMBER_DARK and TIMBER_LIGHT respectively), or
+-- a plot would visibly jump colour on release.
 local GROUND_GLOW_COLOR = {
-	on = Color3.fromRGB(58, 40, 104),
-	off = Color3.fromRGB(24, 18, 42),
+	on = Color3.fromRGB(126, 170, 90),
+	off = Color3.fromRGB(96, 132, 72),
 }
 local BORDER_POST_COLOR = {
-	on = Color3.fromRGB(150, 110, 235),
-	off = Color3.fromRGB(100, 70, 160),
+	on = Color3.fromRGB(126, 88, 56),
+	off = Color3.fromRGB(92, 63, 40),
 }
 local BORDER_WALL_COLOR = {
-	on = Color3.fromRGB(78, 56, 128),
-	off = Color3.fromRGB(46, 32, 78),
+	on = Color3.fromRGB(166, 122, 78),
+	off = Color3.fromRGB(126, 88, 56),
 }
 
 local function tweenColor(part: BasePart?, color: Color3)
@@ -129,9 +141,9 @@ local function setPlotPowered(plotModel: Model, powered: boolean)
 	setLabelEnabled(plotModel:FindFirstChild("WarehouseDoorGlow"), "WarehouseLabel", powered)
 end
 
--- Plots start empty; a player claims a specific one by clicking its
--- ClaimBeacon (see PlotClaimTrigger.server.lua) rather than being
--- auto-assigned the first free plot on join.
+-- Plots start empty; a player claims a specific one by walking through its
+-- ClaimGate (see PlotClaimTrigger.server.lua) rather than being auto-assigned
+-- the first free plot on join.
 function PlotManager.ClaimPlot(player: Player, plotIndex: number): Types.Plot?
 	local plotsFolder = Workspace:FindFirstChild("Plots")
 	if not plotsFolder then
@@ -155,7 +167,7 @@ function PlotManager.ClaimPlot(player: Player, plotIndex: number): Types.Plot?
 	ownerId.Value = tostring(player.UserId)
 
 	playerPlots[player.UserId] = plotModel
-	setBeaconVisible(plotModel, false)
+	setClaimGateActive(plotModel, false)
 	setPlotPowered(plotModel, true)
 
 	local data = PlayerManager.GetData(player.UserId)
@@ -189,7 +201,7 @@ function PlotManager.ReleasePlot(player: Player)
 	end
 
 	hidePlotExpansions(plotModel)
-	setBeaconVisible(plotModel, true)
+	setClaimGateActive(plotModel, true)
 	setPlotPowered(plotModel, false)
 
 	playerPlots[player.UserId] = nil

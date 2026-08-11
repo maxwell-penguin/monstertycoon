@@ -19,6 +19,13 @@ local PlotClaimManager = {}
 -- plot -- DataStore.server.lua's onPlayerAdded only sets up account-level
 -- state (coins, bag, warehouse, town) immediately; this is the deferred
 -- "your plot is ready" half, triggered by PlotClaimTrigger.server.lua.
+-- Cheap ownership check for PlotClaimTrigger.server.lua, whose .Touched handler
+-- fires continuously while a player stands in a gateway and wants to bail out
+-- before doing any rate-limit bookkeeping.
+function PlotClaimManager.HasPlot(player: Player): boolean
+	return PlotManager.GetPlayerPlot(player) ~= nil
+end
+
 function PlotClaimManager.ClaimPlot(player: Player, plotIndex: number): boolean
 	if PlotManager.GetPlayerPlot(player) then
 		return false

@@ -22,10 +22,21 @@ local PLAZA_WIDTH = 90
 local PLAZA_DEPTH = 44
 local WALKWAY_WIDTH = 14
 local WALKWAY_START_Z = -128
-local WALKWAY_END_Z = -45
+-- Runs right up to the plot row's front edge (Z=-40). It used to stop at -45,
+-- leaving a 5-stud strip of grass 2 studs below the path that the player had
+-- to drop into and climb back out of on the way to their plot.
+local WALKWAY_END_Z = -40
+-- Matches GROUND_SLAB_THICKNESS in PlotSetup.server.lua; see TERRAIN_TOP_Y in
+-- TerrainSetup.server.lua for why these slabs extend below their top face.
+local SLAB_THICKNESS = 3
 
-local DARK = Color3.fromRGB(16, 12, 30)
-local ACCENT = Color3.fromRGB(120, 70, 200)
+-- Natural village palette. This was near-black stone with purple neon accents
+-- to match the old void theme; the world is daylit grassland now, so the hub
+-- is cobblestone, timber and warm lantern light instead.
+local STONE = Color3.fromRGB(148, 144, 136)
+local STONE_DARK = Color3.fromRGB(112, 108, 101)
+local TIMBER = Color3.fromRGB(112, 78, 50)
+local LANTERN = Color3.fromRGB(255, 206, 132)
 local GOLD = Color3.fromRGB(255, 210, 60)
 
 local function setCollisionGroup(part: BasePart)
@@ -55,12 +66,15 @@ local function buildHub(): Model
 	local model = Instance.new("Model")
 	model.Name = "SpawnHub"
 
+	-- Thickened downward (top face still Y=0) so it reaches through the grass
+	-- surface at TERRAIN_TOP_Y instead of floating above it. Same treatment as
+	-- the plot Ground slabs in PlotSetup.server.lua.
 	local plaza = newPart(
 		"Plaza",
-		Vector3.new(PLAZA_WIDTH, 1, PLAZA_DEPTH),
-		DARK,
-		Enum.Material.SmoothPlastic,
-		Vector3.new(0, -0.5, PLAZA_Z),
+		Vector3.new(PLAZA_WIDTH, SLAB_THICKNESS, PLAZA_DEPTH),
+		STONE,
+		Enum.Material.Cobblestone,
+		Vector3.new(0, -SLAB_THICKNESS / 2, PLAZA_Z),
 		true
 	)
 	setCollisionGroup(plaza)
@@ -75,8 +89,8 @@ local function buildHub(): Model
 	local plazaGlow = newPart(
 		"PlazaGlow",
 		Vector3.new(PLAZA_WIDTH - 6, 0.02, PLAZA_DEPTH - 6),
-		Color3.fromRGB(38, 26, 68),
-		Enum.Material.SmoothPlastic,
+		STONE_DARK,
+		Enum.Material.Slate,
 		Vector3.new(0, 0.03, PLAZA_Z),
 		false
 	)
@@ -87,10 +101,10 @@ local function buildHub(): Model
 
 	local walkway = newPart(
 		"Walkway",
-		Vector3.new(WALKWAY_WIDTH, 1, walkwayLength),
-		DARK,
-		Enum.Material.SmoothPlastic,
-		Vector3.new(0, -0.5, walkwayCenterZ),
+		Vector3.new(WALKWAY_WIDTH, SLAB_THICKNESS, walkwayLength),
+		STONE,
+		Enum.Material.Slate,
+		Vector3.new(0, -SLAB_THICKNESS / 2, walkwayCenterZ),
 		true
 	)
 	setCollisionGroup(walkway)
@@ -98,13 +112,13 @@ local function buildHub(): Model
 
 	-- Neon edge strips down both sides of the walkway -- reads as a lane
 	-- pointing at the plot grid, which is the direction a new player needs to
-	-- go to find a ClaimBeacon.
+	-- go to find an unclaimed plot gateway.
 	for _, side in { { name = "L", sign = -1 }, { name = "R", sign = 1 } } do
 		local strip = newPart(
 			"WalkwayStrip_" .. side.name,
 			Vector3.new(0.4, 0.04, walkwayLength),
-			ACCENT,
-			Enum.Material.Neon,
+			STONE_DARK,
+			Enum.Material.Slate,
 			Vector3.new(side.sign * (WALKWAY_WIDTH / 2 - 0.5), 0.04, walkwayCenterZ),
 			false
 		)
@@ -126,13 +140,13 @@ local function buildHub(): Model
 			PLAZA_Z + corner.Z * (PLAZA_DEPTH / 2 - 3)
 		)
 
-		local pillar = newPart("Pillar_" .. i, Vector3.new(2, 12, 2), DARK, Enum.Material.SmoothPlastic, pillarPosition, false)
+		local pillar = newPart("Pillar_" .. i, Vector3.new(2, 12, 2), TIMBER, Enum.Material.Wood, pillarPosition, false)
 		pillar.Parent = model
 
 		local cap = newPart(
 			"PillarCap_" .. i,
 			Vector3.new(2.6, 0.5, 2.6),
-			ACCENT,
+			LANTERN,
 			Enum.Material.Neon,
 			pillarPosition + Vector3.new(0, 6.2, 0),
 			false
@@ -142,7 +156,7 @@ local function buildHub(): Model
 		local light = Instance.new("PointLight")
 		light.Brightness = 2
 		light.Range = 26
-		light.Color = ACCENT
+		light.Color = LANTERN
 		light.Parent = cap
 	end
 
@@ -150,8 +164,8 @@ local function buildHub(): Model
 	local signPost = newPart(
 		"SignPost",
 		Vector3.new(0.6, 10, 0.6),
-		DARK,
-		Enum.Material.SmoothPlastic,
+		TIMBER,
+		Enum.Material.Wood,
 		Vector3.new(0, 5, PLAZA_Z - PLAZA_DEPTH / 2 + 4),
 		false
 	)
@@ -160,8 +174,8 @@ local function buildHub(): Model
 	local signBoard = newPart(
 		"SignBoard",
 		Vector3.new(26, 7, 0.6),
-		DARK,
-		Enum.Material.SmoothPlastic,
+		TIMBER,
+		Enum.Material.WoodPlanks,
 		Vector3.new(0, 12, PLAZA_Z - PLAZA_DEPTH / 2 + 4),
 		false
 	)
@@ -179,7 +193,7 @@ local function buildHub(): Model
 	signLabel.Font = Enum.Font.GothamBold
 	signLabel.TextScaled = true
 	signLabel.TextColor3 = GOLD
-	signLabel.Text = "VOID FACTORY"
+	signLabel.Text = "MONSTER FARM"
 	signLabel.Parent = signGlow
 
 	local signLight = Instance.new("PointLight")
@@ -200,8 +214,8 @@ local function buildHub(): Model
 	spawnLocation.CFrame = CFrame.new(0, 0.2, PLAZA_Z) * CFrame.Angles(0, math.rad(180), 0)
 	spawnLocation.Anchored = true
 	spawnLocation.CanCollide = true
-	spawnLocation.Material = Enum.Material.Neon
-	spawnLocation.Color = ACCENT
+	spawnLocation.Material = Enum.Material.Cobblestone
+	spawnLocation.Color = STONE_DARK
 	spawnLocation.Neutral = true
 	spawnLocation.Duration = 0 -- no spawn forcefield; it hides the character in a dark scene
 	setCollisionGroup(spawnLocation)

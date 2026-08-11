@@ -24,255 +24,150 @@ local function setCollisionGroup(part: BasePart)
 	part.CollisionGroup = COLLISION_GROUP
 end
 
--- Fixed so the star/nebula layout is identical every server start. A scoped
--- Random object rather than math.randomseed(42) -- reseeding the global RNG
--- would make every OTHER math.random() call on the server (egg rarity, vial
--- offsets, etc.) deterministic too for the rest of the server's lifetime.
-local VOID_SKY_SEED = 42
-
-local function setupVoidAtmosphere()
-	-- Lighting
-	local lighting = Lighting
-	lighting.Ambient = Color3.fromRGB(70, 60, 110)
-	lighting.OutdoorAmbient = Color3.fromRGB(45, 38, 80)
-	lighting.Brightness = 1.5
-	-- Real value gets set by setupDayNightCycle()'s first update() call below;
-	-- 12 (noon) here just avoids a one-frame flash of Roblox's default
-	-- midnight sun before that runs.
-	lighting.ClockTime = 12
-	lighting.FogEnd = 500
-	lighting.FogStart = 250
-	lighting.FogColor = Color3.fromRGB(5, 3, 15)
-	lighting.GlobalShadows = true
-
-	-- Remove default sky
-	for _, child in ipairs(lighting:GetChildren()) do
-		if child:IsA("Sky") then
-			child:Destroy()
-		end
-	end
-
-	-- Color correction
-	local cc = Instance.new("ColorCorrectionEffect")
-	cc.Brightness = 0
-	cc.Contrast = 0.15
-	cc.Saturation = -0.05
-	cc.TintColor = Color3.fromRGB(190, 170, 255)
-	cc.Parent = lighting
-
-	-- Bloom for neon glow -- without this, Neon materials (pedestals, veins,
-	-- sell pad, monster eyes) look flat; Threshold 0.95 keeps only truly
-	-- bright neon parts blooming, not the dark background.
-	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.8
-	bloom.Size = 24
-	bloom.Threshold = 0.95
-	bloom.Parent = lighting
-
-	-- Star field
-	local voidSky = Instance.new("Model")
-	voidSky.Name = "VoidSky"
-	voidSky.Parent = Workspace
-
-	local starColors = {
-		Color3.fromRGB(255, 255, 255),
-		Color3.fromRGB(210, 190, 255),
-		Color3.fromRGB(180, 200, 255),
-		Color3.fromRGB(255, 210, 180),
-		Color3.fromRGB(200, 230, 255),
-	}
-
-	local rng = Random.new(VOID_SKY_SEED)
-
-	for i = 1, 300 do
-		local star = Instance.new("Part")
-		star.Name = "Star_" .. i
-		star.Shape = Enum.PartType.Ball
-		local size = rng:NextInteger(20, 80) / 100
-		star.Size = Vector3.new(size, size, size)
-		star.Material = Enum.Material.Neon
-		star.Color = starColors[rng:NextInteger(1, #starColors)]
-		star.Anchored = true
-		star.CanCollide = false
-		star.CastShadow = false
-		star.Locked = true
-
-		-- Random position on sphere shell
-		local theta = rng:NextNumber() * math.pi * 2
-		local phi = math.acos(rng:NextNumber() * 2 - 1)
-		local radius = rng:NextInteger(350, 550)
-
-		local x = radius * math.sin(phi) * math.cos(theta)
-		local y = math.abs(radius * math.cos(phi)) + 80 -- force above Y=80
-		local z = radius * math.sin(phi) * math.sin(theta)
-
-		star.Position = Vector3.new(x, y, z)
-		star.Parent = voidSky
-	end
-
-	-- Nebula clouds deliberately removed. They were six 80-180 stud spheres at
-	-- 93-97% transparency sitting directly over the playfield (X/Z within +-200,
-	-- Y 120-280). Semi-transparent parts don't write depth, so their draw order
-	-- against each other and against everything below them re-sorted as the
-	-- camera moved -- that was the flickering you'd see just from walking
-	-- around, and at 95% transparency they contributed almost nothing visually.
-	-- The bloom + fog + ambient lighting already carry the void atmosphere.
-
-	-- World ambient light source
-	local ambientPart = Instance.new("Part")
-	ambientPart.Size = Vector3.new(1, 1, 1)
-	ambientPart.Position = Vector3.new(0, 300, 0)
-	ambientPart.Anchored = true
-	ambientPart.CanCollide = false
-	ambientPart.Transparency = 1
-	ambientPart.Parent = voidSky
-
-	local ambientLight = Instance.new("PointLight")
-	ambientLight.Brightness = 1.5
-	ambientLight.Range = 600
-	ambientLight.Color = Color3.fromRGB(50, 25, 90)
-	ambientLight.Parent = ambientPart
-end
-
-setupVoidAtmosphere()
-
 -- ============================================================
--- Day / Night Cycle
+-- Outdoor atmosphere
 -- ============================================================
--- Sun and Moon sit on opposite ends of a diameter, so each is above the
--- horizon for exactly half the cycle -- day and night each last ~10 minutes
--- out of this ~20 minute total. Position/lighting is recomputed off elapsed
--- wall-clock time (not accumulated per-tick dt) so drift never compounds.
-local DAY_NIGHT_CYCLE_SECONDS = 20 * 60
-local DAY_NIGHT_UPDATE_INTERVAL = 1
+-- This was a "void dimension" -- black fog, purple ambient, a 300-part
+-- starfield and hand-built Sun/Moon spheres orbiting the map. That fought the
+-- grass terrain underneath it and left everything murky, so the whole thing is
+-- replaced with ordinary daylight: a real Sky, an Atmosphere for distance
+-- haze, and Roblox's own sun driven by ClockTime. The custom celestial parts
+-- are gone entirely -- ClockTime gives a real sun with real shadows for free,
+-- which no amount of Neon spheres was ever going to match.
 
--- pi/2 puts the sun at zenith (brightest point) the instant the server
--- starts, satisfying "start at daytime".
-local DAY_NIGHT_START_ANGLE = math.pi / 2
+local DAY_AMBIENT = Color3.fromRGB(122, 126, 138)
+local DAY_OUTDOOR_AMBIENT = Color3.fromRGB(146, 156, 172)
+local DAY_BRIGHTNESS = 2.6
+local DAY_ATMOSPHERE_DENSITY = 0.32
+local DAY_ATMOSPHERE_COLOR = Color3.fromRGB(199, 209, 224)
+local DAY_ATMOSPHERE_HAZE = 1.1
 
--- Grid is PLOTS_PER_ROW plots wide x however many rows deep; center the
--- orbit over the middle of that footprint so the sun/moon arc over the
--- base instead of off to one side.
-local ORBIT_CENTER = Vector3.new(
-	0, -- grid columns are centered on X=0 (see createPlot)
-	120,
-	(math.ceil(PLOT_COUNT / PLOTS_PER_ROW) - 1) * Z_SPACING / 2
-)
-local ORBIT_RADIUS = 420
-
--- Night values match the void atmosphere's original (pre-tweak) dark
--- palette; day values match the brighter palette setupVoidAtmosphere uses
--- above, so the cycle swings between the two looks that already exist.
-local NIGHT_AMBIENT = Color3.fromRGB(15, 10, 30)
-local NIGHT_OUTDOOR_AMBIENT = Color3.fromRGB(8, 5, 18)
-local NIGHT_BRIGHTNESS = 0.15
-local NIGHT_CC_BRIGHTNESS = -0.08
-local NIGHT_FOG_COLOR = Color3.fromRGB(5, 3, 15)
-local NIGHT_STAR_TRANSPARENCY = 0
-
-local DAY_AMBIENT = Color3.fromRGB(70, 60, 110)
-local DAY_OUTDOOR_AMBIENT = Color3.fromRGB(45, 38, 80)
-local DAY_BRIGHTNESS = 1.5
-local DAY_CC_BRIGHTNESS = 0
-local DAY_FOG_COLOR = Color3.fromRGB(20, 14, 45)
--- Fully hidden at midday rather than dimmed to 0.75. At any partial value all
--- 300 stars are semi-transparent at once, and semi-transparent parts re-sort
--- against each other every time the camera moves, which reads as flickering.
--- At 1 Roblox culls them outright, so daytime costs nothing and night still
--- gets fully opaque stars.
-local DAY_STAR_TRANSPARENCY = 1
+local NIGHT_AMBIENT = Color3.fromRGB(38, 44, 68)
+local NIGHT_OUTDOOR_AMBIENT = Color3.fromRGB(48, 58, 88)
+local NIGHT_BRIGHTNESS = 0.9
+local NIGHT_ATMOSPHERE_DENSITY = 0.42
+local NIGHT_ATMOSPHERE_COLOR = Color3.fromRGB(96, 108, 138)
+local NIGHT_ATMOSPHERE_HAZE = 1.9
 
 local function lerpColor(a: Color3, b: Color3, t: number): Color3
 	return Color3.new(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t)
 end
 
-local function createCelestialBody(name: string, diameter: number, color: Color3, lightColor: Color3, lightBrightness: number, lightRange: number): Part
-	local body = Instance.new("Part")
-	body.Name = name
-	body.Shape = Enum.PartType.Ball
-	body.Size = Vector3.new(diameter, diameter, diameter)
-	body.Material = Enum.Material.Neon
-	body.Color = color
-	body.Anchored = true
-	body.CanCollide = false
-	body.CastShadow = false
-	body.Locked = true
-
-	-- Oversized, mostly-transparent shell behind the body so the Bloom
-	-- effect (see setupVoidAtmosphere) gives it a soft halo like the
-	-- nebula clouds get.
-	local halo = Instance.new("Part")
-	halo.Name = "Halo"
-	halo.Shape = Enum.PartType.Ball
-	halo.Size = Vector3.new(diameter * 1.8, diameter * 1.8, diameter * 1.8)
-	halo.Material = Enum.Material.Neon
-	halo.Color = color
-	halo.Transparency = 0.85
-	halo.Anchored = true
-	halo.CanCollide = false
-	halo.CastShadow = false
-	halo.Locked = true
-	halo.Parent = body
-
-	local light = Instance.new("PointLight")
-	light.Color = lightColor
-	light.Brightness = lightBrightness
-	light.Range = lightRange
-	light.Parent = body
-
-	return body
+local function lerp(a: number, b: number, t: number): number
+	return a + (b - a) * t
 end
 
-local function setupDayNightCycle()
-	local voidSky = Workspace:WaitForChild("VoidSky")
-
-	local sun = createCelestialBody("Sun", 46, Color3.fromRGB(255, 205, 110), Color3.fromRGB(255, 190, 120), 3, 250)
-	sun.Parent = voidSky
-
-	local moon = createCelestialBody("Moon", 30, Color3.fromRGB(215, 225, 255), Color3.fromRGB(160, 180, 255), 1.5, 180)
-	moon.Parent = voidSky
-
-	local stars = {}
-	for _, child in voidSky:GetChildren() do
-		if child.Name:match("^Star_") then
-			table.insert(stars, child)
+local function setupOutdoorAtmosphere()
+	-- Clear anything the previous void setup left behind, including on a live
+	-- Rojo sync where Lighting keeps its old children.
+	for _, child in Lighting:GetChildren() do
+		if
+			child:IsA("Sky")
+			or child:IsA("Atmosphere")
+			or child:IsA("ColorCorrectionEffect")
+			or child:IsA("BloomEffect")
+			or child:IsA("SunRaysEffect")
+		then
+			child:Destroy()
 		end
 	end
 
+	Lighting.Ambient = DAY_AMBIENT
+	Lighting.OutdoorAmbient = DAY_OUTDOOR_AMBIENT
+	Lighting.Brightness = DAY_BRIGHTNESS
+	Lighting.ClockTime = 14
+	Lighting.GeographicLatitude = 20
+	Lighting.ExposureCompensation = 0.15
+	Lighting.GlobalShadows = true
+	-- Lighting.Technology is deliberately NOT set here: it is read-only at
+	-- runtime and assigning it throws, which killed this whole script before it
+	-- reached the plot-building loop at the bottom. It is set to ShadowMap in
+	-- default.project.json instead, which is the only place it can be set.
+
+	-- Distance haze is Atmosphere's job now. The old Fog* properties clamped
+	-- everything to a flat dark wall 500 studs out, which is what made the map
+	-- feel like it ended in a void.
+	Lighting.FogEnd = 100000
+
+	-- EnvironmentDiffuseScale/SpecularScale let surfaces pick up sky colour,
+	-- which is most of what makes an outdoor scene read as outdoors rather than
+	-- as parts sitting in a flat ambient wash.
+	Lighting.EnvironmentDiffuseScale = 0.7
+	Lighting.EnvironmentSpecularScale = 0.5
+
+	local sky = Instance.new("Sky")
+	sky.Name = "OutdoorSky"
+	sky.StarCount = 3000 -- only visible once ClockTime passes dusk
+	sky.Parent = Lighting
+
+	local atmosphere = Instance.new("Atmosphere")
+	atmosphere.Name = "OutdoorAtmosphere"
+	atmosphere.Density = DAY_ATMOSPHERE_DENSITY
+	atmosphere.Offset = 0.2
+	atmosphere.Color = DAY_ATMOSPHERE_COLOR
+	atmosphere.Decay = Color3.fromRGB(106, 112, 125)
+	atmosphere.Glare = 0.25
+	atmosphere.Haze = DAY_ATMOSPHERE_HAZE
+	atmosphere.Parent = Lighting
+
+	-- Threshold well above 1 so only genuinely bright things bloom (sun glints,
+	-- lantern glass) instead of the whole scene glowing like the old neon look.
+	local bloom = Instance.new("BloomEffect")
+	bloom.Name = "OutdoorBloom"
+	bloom.Intensity = 0.4
+	bloom.Size = 20
+	bloom.Threshold = 1.5
+	bloom.Parent = Lighting
+
+	local sunRays = Instance.new("SunRaysEffect")
+	sunRays.Name = "OutdoorSunRays"
+	sunRays.Intensity = 0.06
+	sunRays.Spread = 0.4
+	sunRays.Parent = Lighting
+end
+
+-- Guarded because this script also builds every plot, further down. Lighting is
+-- decoration; plots are the game. A single bad property assignment up here
+-- (Lighting.Technology, which is read-only at runtime, did exactly this) would
+-- otherwise abort the script and leave the world with no plots at all.
+local atmosphereOk, atmosphereErr = pcall(setupOutdoorAtmosphere)
+if not atmosphereOk then
+	warn(`[PlotSetup] Outdoor atmosphere setup failed: {atmosphereErr}`)
+end
+
+-- ============================================================
+-- Day / Night Cycle
+-- ============================================================
+-- Drives Lighting.ClockTime directly, so Roblox's own sun, moon, sky and
+-- shadows all move together. Recomputed from elapsed wall-clock time rather
+-- than accumulated per-tick deltas so drift never compounds.
+local DAY_NIGHT_CYCLE_SECONDS = 20 * 60
+local DAY_NIGHT_UPDATE_INTERVAL = 1
+local START_CLOCK_TIME = 13 -- early afternoon, so servers open in good light
+
+local function setupDayNightCycle()
+	local atmosphere = Lighting:FindFirstChild("OutdoorAtmosphere") :: Atmosphere?
 	local startTime = os.clock()
 
 	local function update()
 		local elapsed = os.clock() - startTime
-		local angle = DAY_NIGHT_START_ANGLE + (elapsed / DAY_NIGHT_CYCLE_SECONDS) * (math.pi * 2)
+		local hours = (START_CLOCK_TIME + (elapsed / DAY_NIGHT_CYCLE_SECONDS) * 24) % 24
 
-		local sunHeight = math.sin(angle)
-		local dayFactor = (sunHeight + 1) / 2 -- 0 = full night, 1 = full day
+		Lighting.ClockTime = hours
 
-		sun.Position = ORBIT_CENTER + Vector3.new(math.cos(angle) * ORBIT_RADIUS, sunHeight * ORBIT_RADIUS, 0)
-		moon.Position = ORBIT_CENTER + Vector3.new(-math.cos(angle) * ORBIT_RADIUS, -sunHeight * ORBIT_RADIUS, 0)
-
-		-- Roblox's built-in sun (and the shadows GlobalShadows casts) is driven
-		-- by Lighting.ClockTime, not by our custom Sun/Moon parts or the
-		-- Ambient/Brightness tweaks below -- without moving this too, the real
-		-- key light stays stuck at whatever ClockTime was last set to (e.g.
-		-- midnight) and the scene reads as dark no matter what Ambient says.
-		-- angle == DAY_NIGHT_START_ANGLE (sun at zenith) must map to ClockTime
-		-- 12 (noon); a full 2*pi loop must map to a full 24-hour loop.
-		Lighting.ClockTime = ((angle - DAY_NIGHT_START_ANGLE) / (math.pi * 2) * 24 + 12) % 24
+		-- Sun is above the horizon between 06:00 and 18:00, peaking at noon.
+		-- Clamping the negative half keeps the whole night at full night values
+		-- instead of overshooting past them.
+		local dayFactor = math.clamp(math.sin((hours - 6) / 12 * math.pi), 0, 1)
 
 		Lighting.Ambient = lerpColor(NIGHT_AMBIENT, DAY_AMBIENT, dayFactor)
 		Lighting.OutdoorAmbient = lerpColor(NIGHT_OUTDOOR_AMBIENT, DAY_OUTDOOR_AMBIENT, dayFactor)
-		Lighting.Brightness = NIGHT_BRIGHTNESS + (DAY_BRIGHTNESS - NIGHT_BRIGHTNESS) * dayFactor
-		Lighting.FogColor = lerpColor(NIGHT_FOG_COLOR, DAY_FOG_COLOR, dayFactor)
+		Lighting.Brightness = lerp(NIGHT_BRIGHTNESS, DAY_BRIGHTNESS, dayFactor)
 
-		local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-		if cc then
-			cc.Brightness = NIGHT_CC_BRIGHTNESS + (DAY_CC_BRIGHTNESS - NIGHT_CC_BRIGHTNESS) * dayFactor
-		end
-
-		local starTransparency = NIGHT_STAR_TRANSPARENCY + (DAY_STAR_TRANSPARENCY - NIGHT_STAR_TRANSPARENCY) * dayFactor
-		for _, star in stars do
-			star.Transparency = starTransparency
+		if atmosphere then
+			atmosphere.Density = lerp(NIGHT_ATMOSPHERE_DENSITY, DAY_ATMOSPHERE_DENSITY, dayFactor)
+			atmosphere.Haze = lerp(NIGHT_ATMOSPHERE_HAZE, DAY_ATMOSPHERE_HAZE, dayFactor)
+			atmosphere.Color = lerpColor(NIGHT_ATMOSPHERE_COLOR, DAY_ATMOSPHERE_COLOR, dayFactor)
 		end
 	end
 
@@ -286,7 +181,10 @@ local function setupDayNightCycle()
 	end)
 end
 
-setupDayNightCycle()
+local cycleOk, cycleErr = pcall(setupDayNightCycle)
+if not cycleOk then
+	warn(`[PlotSetup] Day/night cycle setup failed: {cycleErr}`)
+end
 
 -- A Roblox Cylinder's axis runs along local X by default -- unrotated it lies
 -- on its side. Standing it upright (flat round face pointing along world Y)
@@ -347,86 +245,113 @@ end
 
 local PLOT_WIDTH = 60 -- matches Ground.Size.X below
 local PLOT_DEPTH = 80 -- matches Ground.Size.Z below
--- Solid curbs, not the old 8-stud 85%-transparent neon panels. Four
--- see-through walls per plot across 10 plots meant 40 large translucent
--- surfaces overlapping each other and everything behind them, which is what
--- made the plots look ghostly and shimmer as the camera moved. A short opaque
--- curb marks the boundary just as clearly and writes to the depth buffer.
-local BORDER_WALL_HEIGHT = 1.6
-local BORDER_WALL_THICKNESS = 0.8
-local BORDER_POST_HEIGHT = 5
-local BORDER_WALL_COLOR = Color3.fromRGB(46, 32, 78)
-local BORDER_POST_COLOR = Color3.fromRGB(100, 70, 160)
+-- Deep enough for the slab's underside to sink past the grass surface
+-- (TERRAIN_TOP_Y = -2 in TerrainSetup.server.lua). Its top face stays at the
+-- plot origin, so this is purely skirt below the floor.
+local GROUND_SLAB_THICKNESS = 3
+-- Wooden post-and-rail fence, replacing the neon curbs the void theme used.
+-- Rails are opaque timber; posts are spaced along each run rather than only at
+-- the corners, so a plot boundary reads as an enclosure you could actually
+-- lean on instead of a glowing line painted on the floor.
+local FENCE_POST_HEIGHT = 4.2
+local FENCE_POST_WIDTH = 0.7
+local FENCE_POST_SPACING = 10
+
+-- Claim gateway dimensions. Declared up here rather than beside createClaimGate
+-- further down because createPlotBorder needs GATE_CLEAR_HALF_WIDTH to leave a
+-- gap in the front fence -- a local declared after a function is a different
+-- (global, nil) name inside that function's body, not a forward reference.
+local GATE_WIDTH = 12
+local GATE_HEIGHT = 11
+local GATE_POST_WIDTH = 1.4
+local GATE_CLEAR_HALF_WIDTH = GATE_WIDTH / 2 + 1
+local RAIL_THICKNESS = 0.45
+local RAIL_HEIGHTS = { 1.5, 3.1 }
+
+local TIMBER_DARK = Color3.fromRGB(92, 63, 40)
+local TIMBER_LIGHT = Color3.fromRGB(126, 88, 56)
+local PLOT_SOIL_COLOR = Color3.fromRGB(104, 76, 50)
 -- Must match GROUND_GLOW_COLOR.off in PlotManager.lua, which tweens between
 -- this and the powered colour when a plot is claimed or released.
-local GROUND_GLOW_UNPOWERED_COLOR = Color3.fromRGB(24, 18, 42)
+local GROUND_GLOW_UNPOWERED_COLOR = Color3.fromRGB(96, 132, 72)
 
-local function createBorderWall(name: string, size: Vector3, position: Vector3): Part
-	local wall = Instance.new("Part")
-	wall.Name = name
-	wall.Anchored = true
-	wall.CanCollide = false
-	wall.Material = Enum.Material.SmoothPlastic
-	wall.Color = BORDER_WALL_COLOR
-	wall.Size = size
-	wall.Position = position
-	return wall
+local function newTimber(name: string, size: Vector3, color: Color3, position: Vector3): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Anchored = true
+	part.CanCollide = false
+	part.Material = Enum.Material.Wood
+	part.Color = color
+	part.Size = size
+	part.Position = position
+	return part
 end
 
--- Opaque boundary curbs plus 4 brighter corner posts, sized off the Ground
--- Part's own footprint so they always match its edges.
+-- Kept for PlotManager.setPlotPowered, which looks up BorderWall_1..4 by name
+-- to light a plot up on claim. Those are the four rail runs.
+local function createBorderWall(name: string, size: Vector3, position: Vector3): Part
+	return newTimber(name, size, TIMBER_LIGHT, position)
+end
+
 local function createPlotBorder(plotModel: Model, gridPosition: Vector3)
 	local halfWidth = PLOT_WIDTH / 2
 	local halfDepth = PLOT_DEPTH / 2
 
-	local walls = {
-		createBorderWall(
-			"BorderWall_1",
-			Vector3.new(PLOT_WIDTH, BORDER_WALL_HEIGHT, BORDER_WALL_THICKNESS),
-			gridPosition + Vector3.new(0, BORDER_WALL_HEIGHT / 2, halfDepth)
-		),
-		createBorderWall(
-			"BorderWall_2",
-			Vector3.new(PLOT_WIDTH, BORDER_WALL_HEIGHT, BORDER_WALL_THICKNESS),
-			gridPosition + Vector3.new(0, BORDER_WALL_HEIGHT / 2, -halfDepth)
-		),
-		createBorderWall(
-			"BorderWall_3",
-			Vector3.new(BORDER_WALL_THICKNESS, BORDER_WALL_HEIGHT, PLOT_DEPTH),
-			gridPosition + Vector3.new(halfWidth, BORDER_WALL_HEIGHT / 2, 0)
-		),
-		createBorderWall(
-			"BorderWall_4",
-			Vector3.new(BORDER_WALL_THICKNESS, BORDER_WALL_HEIGHT, PLOT_DEPTH),
-			gridPosition + Vector3.new(-halfWidth, BORDER_WALL_HEIGHT / 2, 0)
-		),
+	-- Two horizontal rails per side. Named BorderWall_1..4 by the lower rail so
+	-- the existing powered-plot lookup keeps working unchanged.
+	local sides = {
+		{ size = Vector3.new(PLOT_WIDTH, RAIL_THICKNESS, RAIL_THICKNESS), offset = Vector3.new(0, 0, halfDepth) },
+		{ size = Vector3.new(PLOT_WIDTH, RAIL_THICKNESS, RAIL_THICKNESS), offset = Vector3.new(0, 0, -halfDepth) },
+		{ size = Vector3.new(RAIL_THICKNESS, RAIL_THICKNESS, PLOT_DEPTH), offset = Vector3.new(halfWidth, 0, 0) },
+		{ size = Vector3.new(RAIL_THICKNESS, RAIL_THICKNESS, PLOT_DEPTH), offset = Vector3.new(-halfWidth, 0, 0) },
 	}
-	for _, wall in walls do
-		wall.Parent = plotModel
+
+	for i, side in sides do
+		for railIndex, railHeight in RAIL_HEIGHTS do
+			-- Only the first rail carries the BorderWall_N name PlotManager
+			-- recolours; the second is decorative and follows it visually.
+			local name = if railIndex == 1 then "BorderWall_" .. i else `BorderRail_{i}_{railIndex}`
+			local rail = createBorderWall(name, side.size, gridPosition + side.offset + Vector3.new(0, railHeight, 0))
+			rail.Parent = plotModel
+		end
 	end
 
-	-- Posts keep their own height now that the curbs are short, so the plot
-	-- corners still read from a distance. Opaque -- see the note on
-	-- createBorderWall about why nothing here is semi-transparent any more.
-	local postY = gridPosition.Y + BORDER_POST_HEIGHT / 2
-	local postSize = padSize(0.7, BORDER_POST_HEIGHT)
-	local corners = {
-		Vector3.new(halfWidth, postY, halfDepth),
-		Vector3.new(halfWidth, postY, -halfDepth),
-		Vector3.new(-halfWidth, postY, halfDepth),
-		Vector3.new(-halfWidth, postY, -halfDepth),
-	}
-	for i, corner in corners do
-		local post = createCylinder(
-			"BorderPost_" .. i,
+	-- Posts march along every side, not just the corners.
+	local postSize = Vector3.new(FENCE_POST_WIDTH, FENCE_POST_HEIGHT, FENCE_POST_WIDTH)
+	local postY = gridPosition.Y + FENCE_POST_HEIGHT / 2
+	local postIndex = 0
+
+	local function addPost(x: number, z: number)
+		postIndex += 1
+		local post = newTimber(
+			"BorderPost_" .. postIndex,
 			postSize,
-			BORDER_POST_COLOR,
-			Enum.Material.Neon,
-			0,
-			CFrame.new(gridPosition + corner) * UPRIGHT_CYLINDER,
-			false
+			TIMBER_DARK,
+			Vector3.new(gridPosition.X + x, postY, gridPosition.Z + z)
 		)
+		post.CanCollide = true
+		setCollisionGroup(post)
 		post.Parent = plotModel
+	end
+
+	local widthPosts = math.floor(PLOT_WIDTH / FENCE_POST_SPACING)
+	local depthPosts = math.floor(PLOT_DEPTH / FENCE_POST_SPACING)
+
+	for i = 0, widthPosts do
+		local x = -halfWidth + i * (PLOT_WIDTH / widthPosts)
+		addPost(x, halfDepth)
+		-- Front (-Z) side leaves a gap for the claim gateway, which stands in
+		-- this fence line. Without this a collidable fence post sits squarely in
+		-- the middle of the doorway the player is meant to walk through.
+		if math.abs(x) > GATE_CLEAR_HALF_WIDTH then
+			addPost(x, -halfDepth)
+		end
+	end
+
+	for i = 1, depthPosts - 1 do
+		local z = -halfDepth + i * (PLOT_DEPTH / depthPosts)
+		addPost(halfWidth, z)
+		addPost(-halfWidth, z)
 	end
 end
 
@@ -445,19 +370,23 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 	slotModel.Parent = plotModel
 
 	local isVisible = slotIndex <= VISIBLE_HALL_SLOTS
-	local GLOW_BLUE = Color3.fromRGB(120, 190, 255)
-	-- Default/empty color for TopGlow and Ring (HallClient.client.lua tweens
-	-- to this on unslot, and to the emotion color on slot -- must match its
+	-- Stone-and-timber planter, restyled from the neon pedestal the void theme
+	-- used. Part NAMES are unchanged on purpose: HallClient.client.lua tweens
+	-- TopGlow/Ring/Crystal, and MonsterVisuals.lua stands each monster on
+	-- "Base", so renaming them would silently break slotting.
+	local PLANTER_STONE = Color3.fromRGB(138, 133, 124)
+	-- Default/empty colour for TopGlow and Ring (HallClient.client.lua tweens
+	-- to this on unslot, and to the emotion colour on slot -- must match its
 	-- own DIM_PURPLE or an empty pedestal looks different fresh vs. after a
 	-- slot/unslot cycle).
-	local DIM_PURPLE = Color3.fromRGB(40, 30, 80)
+	local DIM_PURPLE = Color3.fromRGB(104, 78, 52)
 
 	-- Sits on the ground (bottom at groundY), top face at groundY + 6.
 	local base = createCylinder(
 		"Base",
-		padSize(3, 6),
-		Color3.fromRGB(18, 14, 32),
-		Enum.Material.Metal,
+		padSize(3.4, 6),
+		PLANTER_STONE,
+		Enum.Material.Slate,
 		isVisible and 0 or 1,
 		padCFrame(groundY + 3),
 		isVisible
@@ -465,29 +394,32 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 	setCollisionGroup(base)
 	base.Parent = slotModel
 
-	local VEIN_COLOR = Color3.fromRGB(80, 50, 140)
-	local VEIN_OFFSET = 1.4
-	for i = 1, 4 do
-		local angle = math.rad((i - 1) * 90)
+	-- Vertical timber staves banding the planter, where glowing veins used to run.
+	local VEIN_COLOR = TIMBER_DARK
+	local VEIN_OFFSET = 1.68
+	for i = 1, 8 do
+		local angle = math.rad((i - 1) * 45)
 
 		local vein = Instance.new("Part")
 		vein.Name = "Vein_" .. i
 		vein.Anchored = true
 		vein.CanCollide = false
-		vein.Material = Enum.Material.Neon
+		vein.Material = Enum.Material.Wood
 		vein.Color = VEIN_COLOR
 		vein.Transparency = isVisible and 0 or 1
-		vein.Size = Vector3.new(0.08, 5.8, 0.08)
+		vein.Size = Vector3.new(0.45, 5.9, 0.45)
 		vein.Position =
 			Vector3.new(slotX + VEIN_OFFSET * math.cos(angle), groundY + 3, slotZ + VEIN_OFFSET * math.sin(angle))
 		vein.Parent = slotModel
 	end
 
+	-- Soil surface the monster stands on; HallClient tints this to the
+	-- creature's emotion colour when a slot is filled.
 	local topGlow = createCylinder(
 		"TopGlow",
-		padSize(2.8, 0.15),
+		padSize(3, 0.3),
 		DIM_PURPLE,
-		Enum.Material.Neon,
+		Enum.Material.Ground,
 		isVisible and 0 or 1,
 		padCFrame(groundY + 6.05),
 		false
@@ -496,33 +428,35 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 
 	local ring = createCylinder(
 		"Ring",
-		padSize(3.6, 0.02),
-		DIM_PURPLE,
-		Enum.Material.Neon,
+		padSize(4.6, 0.35),
+		PLANTER_STONE,
+		Enum.Material.Slate,
 		isVisible and 0 or 1,
 		padCFrame(groundY + 0.24),
 		false
 	)
 	ring.Parent = slotModel
 
+	-- Timber hoop around the planter's waist.
 	local midRing = createCylinder(
 		"MidRing",
-		padSize(3.2, 0.15),
-		GLOW_BLUE,
-		Enum.Material.Neon,
+		padSize(3.6, 0.4),
+		TIMBER_LIGHT,
+		Enum.Material.Wood,
 		isVisible and 0 or 1,
 		padCFrame(groundY + 3),
 		false
 	)
 	midRing.Parent = slotModel
 
-	local RUNE_COLOR = Color3.fromRGB(50, 30, 90)
+	local RUNE_COLOR = Color3.fromRGB(150, 144, 132)
 
+	-- Flagstone apron under the planter, replacing the etched rune discs.
 	local rune = createCylinder(
 		"Rune",
-		padSize(7, 0.02),
+		padSize(7, 0.12),
 		RUNE_COLOR,
-		Enum.Material.Neon,
+		Enum.Material.Slate,
 		isVisible and 0 or 1,
 		padCFrame(groundY + 0.08),
 		false
@@ -531,26 +465,27 @@ local function createSlotPad(plotModel: Model, gridPosition: Vector3, slotIndex:
 
 	local runeInner = createCylinder(
 		"RuneInner",
-		padSize(4, 0.02),
-		RUNE_COLOR,
-		Enum.Material.Neon,
+		padSize(5.4, 0.14),
+		Color3.fromRGB(168, 162, 150),
+		Enum.Material.Cobblestone,
 		isVisible and 0 or 1,
-		padCFrame(groundY + 0.14),
+		padCFrame(groundY + 0.16),
 		false
 	)
 	runeInner.Parent = slotModel
 
-	-- Shown only while the slot is empty; HallClient.client.lua hides it
-	-- (Transparency 1) on slot and restores it on unslot.
+	-- A sprout marking an empty planter. Shown only while the slot is empty;
+	-- HallClient.client.lua hides it (Transparency 1) on slot and restores it
+	-- on unslot.
 	local crystal = Instance.new("WedgePart")
 	crystal.Name = "Crystal"
 	crystal.Anchored = true
 	crystal.CanCollide = false
-	crystal.Material = Enum.Material.Neon
-	crystal.Color = Color3.fromRGB(100, 70, 180)
+	crystal.Material = Enum.Material.Grass
+	crystal.Color = Color3.fromRGB(104, 160, 74)
 	crystal.Transparency = isVisible and 0 or 1
-	crystal.Size = Vector3.new(0.6, 1.2, 0.6)
-	crystal.CFrame = CFrame.new(slotX, groundY + 6 + 2, slotZ) * CFrame.Angles(0, math.rad(45), 0)
+	crystal.Size = Vector3.new(0.7, 1.6, 0.7)
+	crystal.CFrame = CFrame.new(slotX, groundY + 6 + 1, slotZ) * CFrame.Angles(0, math.rad(45), 0)
 	crystal.Parent = slotModel
 
 	local slotIndexValue = Instance.new("IntValue")
@@ -571,299 +506,608 @@ local DROPBOX_Z_OFFSET = -30
 local HQ_CENTER_Z = 35
 local WAREHOUSE_WALL_Z = 28
 
+-- Stone path and tilled crop furrows, replacing the neon grid the void theme
+-- drew across every plot floor. The path runs front-to-back so the route from
+-- the fence gate to the farmhouse door is legible, and the furrows give the
+-- open soil some texture instead of leaving it a flat brown rectangle.
+local PATH_COLOR = Color3.fromRGB(150, 144, 132)
+local FURROW_COLOR = Color3.fromRGB(86, 62, 40)
+local DECOR_Y = 0.06
+
 local function createFloorVeins(plotModel: Model, gridPosition: Vector3)
-	local veinYOffset = 0.19
-	local veinColor = Color3.fromRGB(40, 25, 70)
-	local halfWidth = PLOT_WIDTH / 2
 	local halfDepth = PLOT_DEPTH / 2
 
-	for i = 1, 6 do
-		local z = -halfDepth + i * (PLOT_DEPTH / 7)
-
-		local horizontal = Instance.new("Part")
-		horizontal.Name = "FloorVein_H_" .. i
-		horizontal.Anchored = true
-		horizontal.CanCollide = false
-		horizontal.Material = Enum.Material.Neon
-		horizontal.Color = veinColor
-		horizontal.Transparency = 0
-		horizontal.Size = Vector3.new(PLOT_WIDTH, 0.02, 0.08)
-		horizontal.Position = gridPosition + Vector3.new(0, veinYOffset, z)
-		horizontal.Parent = plotModel
+	-- Main path: irregular slabs rather than one long strip, so it reads as
+	-- laid stone.
+	local slabCount = 16
+	for i = 1, slabCount do
+		local z = -halfDepth + 4 + (i - 1) * ((PLOT_DEPTH - 10) / slabCount)
+		local slab = Instance.new("Part")
+		slab.Name = "PathSlab_" .. i
+		slab.Anchored = true
+		slab.CanCollide = false
+		slab.Material = Enum.Material.Slate
+		slab.Color = PATH_COLOR
+		slab.Size = Vector3.new(7 + (i % 3) * 0.6, 0.12, 3.4)
+		slab.Position = gridPosition + Vector3.new((i % 2 == 0) and 0.3 or -0.3, DECOR_Y, z)
+		slab.Parent = plotModel
 	end
 
-	for i = 1, 6 do
-		local x = -halfWidth + i * (PLOT_WIDTH / 7)
-
-		local vertical = Instance.new("Part")
-		vertical.Name = "FloorVein_V_" .. i
-		vertical.Anchored = true
-		vertical.CanCollide = false
-		vertical.Material = Enum.Material.Neon
-		vertical.Color = veinColor
-		vertical.Transparency = 0
-		vertical.Size = Vector3.new(0.08, 0.02, PLOT_DEPTH)
-		vertical.Position = gridPosition + Vector3.new(x, veinYOffset, 0)
-		vertical.Parent = plotModel
+	-- Furrows either side of the path, angled the long way like planted rows.
+	for side, sign in { -1, 1 } do
+		for i = 1, 5 do
+			local furrow = Instance.new("Part")
+			furrow.Name = `Furrow_{side}_{i}`
+			furrow.Anchored = true
+			furrow.CanCollide = false
+			furrow.Material = Enum.Material.Ground
+			furrow.Color = FURROW_COLOR
+			furrow.Size = Vector3.new(1.6, 0.16, PLOT_DEPTH - 22)
+			furrow.Position = gridPosition + Vector3.new(sign * (7 + i * 4), DECOR_Y, -6)
+			furrow.Parent = plotModel
+		end
 	end
 end
 
-local function createHeadquarters(plotModel: Model, gridPosition: Vector3)
-	local hqColor = Color3.fromRGB(18, 14, 32)
-	local veinGlowColor = Color3.fromRGB(80, 50, 140)
+-- Farmhouse, replacing the flat dark slab-plus-towers the void theme used.
+-- Built from a stone footing, timber walls with corner posts and a framed
+-- doorway, a real pitched roof made from two WedgeParts, and a chimney -- so
+-- the building has a silhouette instead of being a box with a light on it.
+local STONE_COLOR = Color3.fromRGB(122, 120, 114)
+local WALL_COLOR = Color3.fromRGB(198, 176, 142)
+local ROOF_COLOR = Color3.fromRGB(126, 58, 48)
+local WINDOW_COLOR = Color3.fromRGB(168, 208, 226)
 
+local HQ_WIDTH = 26
+local HQ_DEPTH = 14
+local HQ_WALL_HEIGHT = 10
+local HQ_ROOF_HEIGHT = 6
+
+local function createHeadquarters(plotModel: Model, gridPosition: Vector3)
 	local hqModel = Instance.new("Model")
 	hqModel.Name = "Headquarters"
 	hqModel.Parent = plotModel
 
-	local base = Instance.new("Part")
-	base.Name = "HQBase"
-	base.Anchored = true
-	base.CanCollide = true
-	base.Material = Enum.Material.SmoothPlastic
-	base.Color = hqColor
-	base.Size = Vector3.new(30, 8, 10)
-	base.Position = gridPosition + Vector3.new(0, 4, HQ_CENTER_Z)
-	setCollisionGroup(base)
-	base.Parent = hqModel
+	local center = gridPosition + Vector3.new(0, 0, HQ_CENTER_Z)
 
-	local towerOffsetX = base.Size.X / 2 - 3
-	for _, side in { { name = "L", sign = -1 }, { name = "R", sign = 1 } } do
-		local tower = Instance.new("Part")
-		tower.Name = "HQTower_" .. side.name
-		tower.Anchored = true
-		tower.CanCollide = true
-		tower.Material = Enum.Material.SmoothPlastic
-		tower.Color = hqColor
-		tower.Size = Vector3.new(6, 14, 6)
-		tower.Position = gridPosition + Vector3.new(side.sign * towerOffsetX, 7, HQ_CENTER_Z)
-		setCollisionGroup(tower)
-		tower.Parent = hqModel
+	local function place(
+		name: string,
+		size: Vector3,
+		color: Color3,
+		material: Enum.Material,
+		offset: Vector3,
+		collide: boolean
+	): Part
+		local part = Instance.new("Part")
+		part.Name = name
+		part.Anchored = true
+		part.CanCollide = collide
+		part.Material = material
+		part.Color = color
+		part.Size = size
+		part.Position = center + offset
+		if collide then
+			setCollisionGroup(part)
+		end
+		part.Parent = hqModel
+		return part
+	end
 
-		local towerGlow = createCylinder(
-			"HQTowerGlow_" .. side.name,
-			padSize(6.2, 0.4),
-			veinGlowColor,
-			Enum.Material.Neon,
-			0,
-			CFrame.new(tower.Position + Vector3.new(0, 7.2, 0)) * UPRIGHT_CYLINDER,
+	-- Stone footing, slightly wider than the walls so the building sits into
+	-- the ground rather than balancing on it.
+	local footing = place(
+		"Footing",
+		Vector3.new(HQ_WIDTH + 1.6, 1.4, HQ_DEPTH + 1.6),
+		STONE_COLOR,
+		Enum.Material.Slate,
+		Vector3.new(0, 0.7, 0),
+		true
+	)
+	hqModel.PrimaryPart = footing
+
+	-- Base named for PlotManager/beacon lookups that expect an "HQBase".
+	place(
+		"HQBase",
+		Vector3.new(HQ_WIDTH, HQ_WALL_HEIGHT, HQ_DEPTH),
+		WALL_COLOR,
+		Enum.Material.WoodPlanks,
+		Vector3.new(0, 1.4 + HQ_WALL_HEIGHT / 2, 0),
+		true
+	)
+
+	-- Exposed corner timbers break up the flat wall faces.
+	for i, corner in { Vector3.new(-1, 0, -1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, -1), Vector3.new(1, 0, 1) } do
+		place(
+			"CornerBeam_" .. i,
+			Vector3.new(1.2, HQ_WALL_HEIGHT, 1.2),
+			TIMBER_DARK,
+			Enum.Material.Wood,
+			Vector3.new(corner.X * (HQ_WIDTH / 2 - 0.6), 1.4 + HQ_WALL_HEIGHT / 2, corner.Z * (HQ_DEPTH / 2 - 0.6)),
 			false
 		)
-		towerGlow.Parent = hqModel
 	end
 
-	local antenna = Instance.new("Part")
-	antenna.Name = "Antenna"
-	antenna.Anchored = true
-	antenna.CanCollide = false
-	antenna.Material = Enum.Material.SmoothPlastic
-	antenna.Color = Color3.fromRGB(30, 25, 45)
-	antenna.Size = Vector3.new(0.4, 10, 0.4)
-	antenna.Position = gridPosition + Vector3.new(0, 13, HQ_CENTER_Z)
-	antenna.Parent = hqModel
-
-	local antennaTip = Instance.new("Part")
-	antennaTip.Name = "AntennaTip"
-	antennaTip.Shape = Enum.PartType.Ball
-	antennaTip.Anchored = true
-	antennaTip.CanCollide = false
-	antennaTip.Material = Enum.Material.Neon
-	antennaTip.Color = Color3.fromRGB(140, 80, 255)
-	antennaTip.Size = Vector3.new(1, 1, 1)
-	antennaTip.Position = gridPosition + Vector3.new(0, 18.5, HQ_CENTER_Z)
-	antennaTip.Parent = hqModel
-
-	local windowZ = HQ_CENTER_Z - base.Size.Z / 2 - 0.05
-	for i = 1, 3 do
-		local window = Instance.new("Part")
-		window.Name = "Window_" .. i
-		window.Anchored = true
-		window.CanCollide = false
-		window.Material = Enum.Material.Neon
-		window.Color = Color3.fromRGB(60, 100, 180)
-		window.Transparency = 0
-		window.Size = Vector3.new(3, 3, 0.1)
-		window.Position = gridPosition + Vector3.new((i - 2) * 8, 4, windowZ)
-		window.Parent = hqModel
+	-- Pitched roof: two wedges leaning against each other along the ridge. A
+	-- WedgePart's slope rises toward +Z, so the far half is spun 180 degrees.
+	local roofY = 1.4 + HQ_WALL_HEIGHT + HQ_ROOF_HEIGHT / 2
+	local roofHalfDepth = HQ_DEPTH / 2 + 1.2
+	for _, half in { { name = "L", yaw = 0, sign = -1 }, { name = "R", yaw = 180, sign = 1 } } do
+		local wedge = Instance.new("WedgePart")
+		wedge.Name = "Roof_" .. half.name
+		wedge.Anchored = true
+		wedge.CanCollide = true
+		wedge.Material = Enum.Material.Slate
+		wedge.Color = ROOF_COLOR
+		wedge.Size = Vector3.new(HQ_WIDTH + 2.4, HQ_ROOF_HEIGHT, roofHalfDepth)
+		wedge.CFrame = CFrame.new(center + Vector3.new(0, roofY, half.sign * roofHalfDepth / 2))
+			* CFrame.Angles(0, math.rad(half.yaw), 0)
+		setCollisionGroup(wedge)
+		wedge.Parent = hqModel
 	end
 
+	-- Ridge cap hides the seam where the two wedges meet.
+	place(
+		"RoofRidge",
+		Vector3.new(HQ_WIDTH + 2.8, 0.7, 1),
+		TIMBER_DARK,
+		Enum.Material.Wood,
+		Vector3.new(0, 1.4 + HQ_WALL_HEIGHT + HQ_ROOF_HEIGHT, 0),
+		false
+	)
+
+	local chimney = place(
+		"Chimney",
+		Vector3.new(2.4, 7, 2.4),
+		STONE_COLOR,
+		Enum.Material.Brick,
+		Vector3.new(HQ_WIDTH / 2 - 4, 1.4 + HQ_WALL_HEIGHT + 3.5, 0),
+		false
+	)
+	place(
+		"ChimneyCap",
+		Vector3.new(3, 0.6, 3),
+		Color3.fromRGB(86, 84, 80),
+		Enum.Material.Slate,
+		Vector3.new(HQ_WIDTH / 2 - 4, 1.4 + HQ_WALL_HEIGHT + 7.2, 0),
+		false
+	)
+
+	local smoke = Instance.new("Smoke")
+	smoke.Size = 2.4
+	smoke.RiseVelocity = 4
+	smoke.Opacity = 0.18
+	smoke.Color = Color3.fromRGB(196, 196, 196)
+	smoke.Parent = chimney
+
+	-- Front face (toward the player, -Z) gets a framed door and windows.
+	local frontZ = -(HQ_DEPTH / 2) - 0.2
+
+	place(
+		"DoorFrame",
+		Vector3.new(5.4, 8, 0.5),
+		TIMBER_DARK,
+		Enum.Material.Wood,
+		Vector3.new(0, 1.4 + 4, frontZ),
+		false
+	)
+	place(
+		"Door",
+		Vector3.new(4.4, 7, 0.4),
+		Color3.fromRGB(104, 68, 44),
+		Enum.Material.WoodPlanks,
+		Vector3.new(0, 1.4 + 3.5, frontZ - 0.15),
+		false
+	)
+	place(
+		"DoorHandle",
+		Vector3.new(0.4, 0.4, 0.4),
+		Color3.fromRGB(214, 178, 88),
+		Enum.Material.Metal,
+		Vector3.new(1.5, 1.4 + 3.5, frontZ - 0.4),
+		false
+	)
+
+	for i, side in { -1, 1 } do
+		local windowX = side * 8.5
+		place(
+			"WindowFrame_" .. i,
+			Vector3.new(4.4, 4.4, 0.4),
+			TIMBER_DARK,
+			Enum.Material.Wood,
+			Vector3.new(windowX, 1.4 + 6, frontZ),
+			false
+		)
+		place(
+			"Window_" .. i,
+			Vector3.new(3.6, 3.6, 0.3),
+			WINDOW_COLOR,
+			Enum.Material.Glass,
+			Vector3.new(windowX, 1.4 + 6, frontZ - 0.15),
+			false
+		)
+		-- Flower box under each window.
+		place(
+			"WindowBox_" .. i,
+			Vector3.new(4.4, 0.9, 1.2),
+			TIMBER_DARK,
+			Enum.Material.Wood,
+			Vector3.new(windowX, 1.4 + 3.4, frontZ - 0.5),
+			false
+		)
+		place(
+			"WindowFlowers_" .. i,
+			Vector3.new(4, 0.8, 1),
+			Color3.fromRGB(206, 88, 116),
+			Enum.Material.Grass,
+			Vector3.new(windowX, 1.4 + 4.1, frontZ - 0.5),
+			false
+		)
+	end
+
+	-- Warm interior glow spilling out of the doorway.
 	local light = Instance.new("PointLight")
-	light.Brightness = 2
-	light.Range = 25
-	light.Color = Color3.fromRGB(60, 40, 120)
-	light.Parent = base
+	light.Brightness = 1.4
+	light.Range = 22
+	light.Color = Color3.fromRGB(255, 220, 160)
+	light.Parent = footing
 
 	-- Deliberately no floating "VOID RESEARCH STATION" billboard here. Every
 	-- plot built one, so 10 plots put 10 identical labels in the sky on top of
 	-- their CLAIM PLOT / SELL / WAREHOUSE labels. The plot number now lives on
-	-- the ClaimBeacon label instead, and SELL/WAREHOUSE only appear once a plot
+	-- the ClaimGate sign instead, and SELL/WAREHOUSE only appear once a plot
 	-- is actually claimed (see setPlotPowered in PlotManager.lua).
 end
 
--- Floating "CLAIM PLOT" prompt shown above the Headquarters while a plot is
--- unowned; PlotManager.lua toggles its visibility/ClickDetector on
--- claim/release, and PlotClaimTrigger.server.lua wires the actual click.
--- Beacon Y was 22 with a MaxActivationDistance of 25 -- but it also sits
--- HQ_CENTER_Z (35) studs back from the plot origin, putting it ~41 studs from
--- where a player standing mid-plot actually is, so the claim click silently
--- did nothing anywhere except right at the HQ. Lower it and widen the radius
--- (see BEACON_ACTIVE_DISTANCE in PlotManager.lua, which must match) so the
--- whole plot is a valid place to claim from.
-local BEACON_HEIGHT = 14
-local BEACON_ACTIVATION_DISTANCE = 70
+-- Claim gate: a timber gateway standing in the plot's front fence line. Walking
+-- through the opening claims the plot -- PlotClaimTrigger.server.lua owns the
+-- .Touched wiring, matching how the Dropbox and Warehouse triggers are split
+-- between geometry here and behaviour there.
+--
+-- This replaces a floating neon orb above the farmhouse that had to be clicked
+-- from within range. A gateway sits exactly where a player is already walking
+-- (the hub walkway leads straight into it) and needs no aiming.
+-- Dimensions (GATE_WIDTH/HEIGHT/POST_WIDTH/CLEAR_HALF_WIDTH) are declared near
+-- the fence constants above, since createPlotBorder needs them to leave the
+-- doorway gap in the front fence line.
+local function createClaimGate(plotModel: Model, gridPosition: Vector3, plotIndex: number)
+	local gate = Instance.new("Model")
+	gate.Name = "ClaimGate"
+	gate.Parent = plotModel
 
-local function createClaimBeacon(plotModel: Model, gridPosition: Vector3, plotIndex: number)
-	local beaconColor = Color3.fromRGB(80, 220, 120)
-	local beaconCFrame = CFrame.new(gridPosition + Vector3.new(0, BEACON_HEIGHT, HQ_CENTER_Z))
+	-- Sits in the front fence line (-Z edge), which is the side the spawn
+	-- walkway arrives from.
+	local center = gridPosition + Vector3.new(0, 0, -PLOT_DEPTH / 2)
 
-	local beacon = Instance.new("Part")
-	beacon.Name = "ClaimBeacon"
-	beacon.Shape = Enum.PartType.Ball
-	beacon.Size = Vector3.new(2, 2, 2)
-	beacon.Material = Enum.Material.Neon
-	beacon.Color = beaconColor
-	beacon.Anchored = true
-	beacon.CanCollide = false
-	beacon.CFrame = beaconCFrame
-	beacon.Parent = plotModel
+	local function place(name: string, size: Vector3, color: Color3, material: Enum.Material, offset: Vector3): Part
+		local part = Instance.new("Part")
+		part.Name = name
+		part.Anchored = true
+		part.CanCollide = false
+		part.Material = material
+		part.Color = color
+		part.Size = size
+		part.Position = center + offset
+		part.Parent = gate
+		return part
+	end
 
-	local light = Instance.new("PointLight")
-	light.Brightness = 3
-	light.Range = 30
-	light.Color = beaconColor
-	light.Parent = beacon
+	for _, side in { { name = "L", sign = -1 }, { name = "R", sign = 1 } } do
+		local post = place(
+			"GatePost_" .. side.name,
+			Vector3.new(GATE_POST_WIDTH, GATE_HEIGHT, GATE_POST_WIDTH),
+			TIMBER_DARK,
+			Enum.Material.Wood,
+			Vector3.new(side.sign * (GATE_WIDTH / 2), GATE_HEIGHT / 2, 0)
+		)
+		post.CanCollide = true
+		setCollisionGroup(post)
 
+		-- Cap on each post so the gateway has a finished top.
+		place(
+			"GatePostCap_" .. side.name,
+			Vector3.new(GATE_POST_WIDTH + 0.7, 0.6, GATE_POST_WIDTH + 0.7),
+			TIMBER_LIGHT,
+			Enum.Material.Wood,
+			Vector3.new(side.sign * (GATE_WIDTH / 2), GATE_HEIGHT + 0.3, 0)
+		)
+	end
+
+	-- Crossbeam spanning the posts, with a signboard hung beneath it.
+	place(
+		"GateBeam",
+		Vector3.new(GATE_WIDTH + GATE_POST_WIDTH + 1.6, 1.2, 1.4),
+		TIMBER_LIGHT,
+		Enum.Material.Wood,
+		Vector3.new(0, GATE_HEIGHT + 0.6, 0)
+	)
+
+	local signBoard = place(
+		"GateSign",
+		Vector3.new(GATE_WIDTH - 1, 2.6, 0.4),
+		Color3.fromRGB(146, 104, 66),
+		Enum.Material.WoodPlanks,
+		Vector3.new(0, GATE_HEIGHT - 1.2, 0)
+	)
+
+	-- Kept named ClaimLabel: PlotManager.lua toggles this on claim/release.
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "ClaimLabel"
-	billboard.Size = UDim2.new(0, 130, 0, 30)
-	billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+	billboard.Size = UDim2.new(0, 200, 0, 44)
+	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
 	billboard.AlwaysOnTop = true
-	billboard.Parent = beacon
+	billboard.Parent = signBoard
 
 	local label = Instance.new("TextLabel")
 	label.Name = "Text"
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.Text = "CLAIM PLOT " .. plotIndex
+	label.Text = `PLOT {plotIndex}\nWALK IN TO CLAIM`
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamBold
 	label.Parent = billboard
 
-	local clickDetector = Instance.new("ClickDetector")
-	clickDetector.Name = "ClaimClickDetector"
-	clickDetector.MaxActivationDistance = BEACON_ACTIVATION_DISTANCE
-	clickDetector.Parent = beacon
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.new(0, 0, 0)
+	stroke.Thickness = 2
+	stroke.Parent = label
+
+	-- Warm lamp over the gateway so it reads at night and from a distance.
+	local lampColor = Color3.fromRGB(255, 214, 92)
+	local lamp = place(
+		"GateLamp",
+		Vector3.new(1, 1, 1),
+		lampColor,
+		Enum.Material.Neon,
+		Vector3.new(0, GATE_HEIGHT + 1.4, 0)
+	)
+
+	local light = Instance.new("PointLight")
+	light.Brightness = 2.5
+	light.Range = 26
+	light.Color = lampColor
+	light.Parent = lamp
+
+	-- The claim itself. CanCollide false so the player walks straight through;
+	-- CanTouch is what makes .Touched fire. PlotManager disables CanTouch once
+	-- the plot is owned.
+	local trigger = Instance.new("Part")
+	trigger.Name = "ClaimTrigger"
+	trigger.Anchored = true
+	trigger.CanCollide = false
+	trigger.CanTouch = true
+	trigger.Transparency = 1
+	trigger.Size = Vector3.new(GATE_WIDTH, GATE_HEIGHT - 2, 3)
+	trigger.Position = center + Vector3.new(0, (GATE_HEIGHT - 2) / 2, 0)
+	trigger.Parent = gate
+
+	-- Stored so PlotClaimTrigger.server.lua can resolve the plot without
+	-- re-parsing the model name at touch time.
+	local indexValue = Instance.new("IntValue")
+	indexValue.Name = "PlotIndex"
+	indexValue.Value = plotIndex
+	indexValue.Parent = gate
 end
+
+-- Market stall where produce gets sold, replacing the neon sell platform and
+-- its four glowing pillars. Timber deck, corner posts and a striped awning, so
+-- the sell point reads as somewhere a trader stands.
+local AWNING_COLOR = Color3.fromRGB(196, 76, 68)
+local AWNING_STRIPE = Color3.fromRGB(238, 232, 216)
 
 local function createDropboxPlatform(plotModel: Model, gridPosition: Vector3)
 	local groundY = gridPosition.Y
+	local center = gridPosition + Vector3.new(0, 0, DROPBOX_Z_OFFSET)
 
-	local platform = Instance.new("Part")
-	platform.Name = "SellPlatform"
-	platform.Anchored = true
-	platform.CanCollide = true
-	platform.Material = Enum.Material.SmoothPlastic
-	platform.Color = Color3.fromRGB(15, 20, 15)
-	platform.Size = Vector3.new(14, 0.5, 14)
-	platform.Position = gridPosition + Vector3.new(0, 0.25, DROPBOX_Z_OFFSET)
-	setCollisionGroup(platform)
-	platform.Parent = plotModel
+	local function place(
+		name: string,
+		size: Vector3,
+		color: Color3,
+		material: Enum.Material,
+		offset: Vector3,
+		collide: boolean
+	): Part
+		local part = Instance.new("Part")
+		part.Name = name
+		part.Anchored = true
+		part.CanCollide = collide
+		part.Material = material
+		part.Color = color
+		part.Size = size
+		part.Position = center + offset
+		if collide then
+			setCollisionGroup(part)
+		end
+		part.Parent = plotModel
+		return part
+	end
 
-	local pillarSize = padSize(0.6, 3)
-	local pillarColor = Color3.fromRGB(0, 180, 80)
-	local corners = { { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } }
-	for i, corner in corners do
-		local pillar = createCylinder(
+	place(
+		"SellPlatform",
+		Vector3.new(15, 0.6, 15),
+		Color3.fromRGB(146, 104, 66),
+		Enum.Material.WoodPlanks,
+		Vector3.new(0, groundY + 0.3, 0),
+		true
+	)
+
+	-- Corner posts holding the awning up.
+	local postHeight = 7
+	for i, corner in { Vector3.new(-1, 0, -1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, -1), Vector3.new(1, 0, 1) } do
+		place(
 			"SellPillar_" .. i,
-			pillarSize,
-			pillarColor,
-			Enum.Material.Neon,
-			0,
-			CFrame.new(gridPosition + Vector3.new(corner[1] * 7, groundY + 1.5, DROPBOX_Z_OFFSET + corner[2] * 7))
-				* UPRIGHT_CYLINDER,
+			Vector3.new(0.8, postHeight, 0.8),
+			TIMBER_DARK,
+			Enum.Material.Wood,
+			Vector3.new(corner.X * 6.8, groundY + 0.6 + postHeight / 2, corner.Z * 6.8),
 			false
 		)
-		pillar.Parent = plotModel
+	end
+
+	-- Striped awning: alternating slats rather than one flat sheet.
+	local awningY = groundY + 0.6 + postHeight + 0.4
+	for i = 1, 8 do
+		place(
+			"AwningSlat_" .. i,
+			Vector3.new(15.6, 0.5, 2),
+			(i % 2 == 0) and AWNING_COLOR or AWNING_STRIPE,
+			Enum.Material.Fabric,
+			Vector3.new(0, awningY, -7 + (i - 1) * 2),
+			false
+		)
+	end
+
+	-- Crates stacked at the back of the stall.
+	for i, crate in { Vector3.new(-5, 0, 5.5), Vector3.new(-5, 1.8, 5.5), Vector3.new(5.2, 0, 5.8) } do
+		place(
+			"Crate_" .. i,
+			Vector3.new(2.6, 2.6, 2.6),
+			Color3.fromRGB(158, 118, 74),
+			Enum.Material.WoodPlanks,
+			Vector3.new(crate.X, groundY + 1.9 + crate.Y, crate.Z),
+			false
+		)
 	end
 end
 
--- Two solid wall segments flanking a real DOORWAY_WIDTH walkable gap. This
--- used to be a full-width CanCollide=false backdrop plus two narrower
--- collidable "doors", which left the outer stretches of the wall walk-through
--- -- it looked like a wall but wasn't one. The segments below are the wall:
--- opaque, collidable, and sized so only the doorway is actually open.
+-- Barn, replacing the two flat wall segments the void theme used. Same solid
+-- wall / real doorway arrangement as before -- two collidable segments flanking
+-- a DOORWAY_WIDTH gap -- but with a pitched roof, plank siding and cross-braced
+-- doors so it reads as a building instead of a fence panel.
 local DOORWAY_WIDTH = 10
+local BARN_COLOR = Color3.fromRGB(158, 62, 54)
+local BARN_TRIM = Color3.fromRGB(238, 232, 216)
+local BARN_HEIGHT = 12
+local BARN_ROOF_HEIGHT = 5
 
 local function createWarehouseStructure(plotModel: Model, gridPosition: Vector3)
-	local wallColor = Color3.fromRGB(20, 16, 35)
-	local wallSpan = PLOT_WIDTH - 10 -- total width the wall covers, doorway included
+	local wallSpan = PLOT_WIDTH - 10
 	local segmentWidth = (wallSpan - DOORWAY_WIDTH) / 2
 	local segmentCenterX = DOORWAY_WIDTH / 2 + segmentWidth / 2
+	local center = gridPosition + Vector3.new(0, 0, WAREHOUSE_WALL_Z)
 
-	for _, side in { { name = "L", sign = -1 }, { name = "R", sign = 1 } } do
-		local segment = Instance.new("Part")
-		segment.Name = "WarehouseWall_" .. side.name
-		segment.Anchored = true
-		segment.CanCollide = true
-		segment.Material = Enum.Material.SmoothPlastic
-		segment.Color = wallColor
-		segment.Size = Vector3.new(segmentWidth, 6, 1)
-		segment.Position = gridPosition + Vector3.new(side.sign * segmentCenterX, 3, WAREHOUSE_WALL_Z)
-		setCollisionGroup(segment)
-		segment.Parent = plotModel
+	local function place(
+		name: string,
+		size: Vector3,
+		color: Color3,
+		material: Enum.Material,
+		offset: Vector3,
+		collide: boolean
+	): Part
+		local part = Instance.new("Part")
+		part.Name = name
+		part.Anchored = true
+		part.CanCollide = collide
+		part.Material = material
+		part.Color = color
+		part.Size = size
+		part.Position = center + offset
+		if collide then
+			setCollisionGroup(part)
+		end
+		part.Parent = plotModel
+		return part
 	end
 
-	-- Lintel across the top of the doorway rather than a translucent pane
-	-- filling it. The pane read as a half-visible barrier over an opening the
-	-- player is meant to walk straight through, and semi-transparent parts are
-	-- exactly what makes the plots shimmer when the camera moves.
-	local doorGlow = Instance.new("Part")
-	doorGlow.Name = "WarehouseDoorGlow"
-	doorGlow.Anchored = true
-	doorGlow.CanCollide = false
-	doorGlow.Material = Enum.Material.Neon
-	doorGlow.Color = Color3.fromRGB(80, 50, 140)
-	doorGlow.Size = Vector3.new(DOORWAY_WIDTH + 0.4, 0.6, 1.2)
-	doorGlow.Position = gridPosition + Vector3.new(0, 6.3, WAREHOUSE_WALL_Z)
-	doorGlow.Parent = plotModel
+	for _, side in { { name = "L", sign = -1 }, { name = "R", sign = 1 } } do
+		place(
+			"WarehouseWall_" .. side.name,
+			Vector3.new(segmentWidth, BARN_HEIGHT, 3),
+			BARN_COLOR,
+			Enum.Material.WoodPlanks,
+			Vector3.new(side.sign * segmentCenterX, BARN_HEIGHT / 2, 0),
+			true
+		)
+		-- White corner trim, the detail that makes a red barn read as a barn.
+		place(
+			"BarnTrim_" .. side.name,
+			Vector3.new(1, BARN_HEIGHT, 3.3),
+			BARN_TRIM,
+			Enum.Material.WoodPlanks,
+			Vector3.new(side.sign * (segmentCenterX + segmentWidth / 2 - 0.5), BARN_HEIGHT / 2, 0),
+			false
+		)
+	end
+
+	-- Pitched roof spanning the whole barn front.
+	local roofY = BARN_HEIGHT + BARN_ROOF_HEIGHT / 2
+	local roofDepth = 4.5
+	for _, half in { { name = "L", yaw = 0, sign = -1 }, { name = "R", yaw = 180, sign = 1 } } do
+		local wedge = Instance.new("WedgePart")
+		wedge.Name = "BarnRoof_" .. half.name
+		wedge.Anchored = true
+		wedge.CanCollide = false
+		wedge.Material = Enum.Material.Slate
+		wedge.Color = Color3.fromRGB(88, 84, 88)
+		wedge.Size = Vector3.new(wallSpan + 3, BARN_ROOF_HEIGHT, roofDepth)
+		wedge.CFrame = CFrame.new(center + Vector3.new(0, roofY, half.sign * roofDepth / 2))
+			* CFrame.Angles(0, math.rad(half.yaw), 0)
+		wedge.Parent = plotModel
+	end
+
+	-- Doorway lintel and its cross-braced doors either side of the gap.
+	place(
+		"WarehouseDoorGlow",
+		Vector3.new(DOORWAY_WIDTH + 1.5, 1.1, 3.4),
+		BARN_TRIM,
+		Enum.Material.WoodPlanks,
+		Vector3.new(0, BARN_HEIGHT - 0.55, 0),
+		false
+	)
+
+	for _, side in { { name = "L", sign = -1 }, { name = "R", sign = 1 } } do
+		place(
+			"BarnDoor_" .. side.name,
+			Vector3.new(DOORWAY_WIDTH / 2 - 0.3, BARN_HEIGHT - 1.6, 0.5),
+			Color3.fromRGB(126, 48, 42),
+			Enum.Material.WoodPlanks,
+			Vector3.new(side.sign * (DOORWAY_WIDTH / 4), (BARN_HEIGHT - 1.6) / 2, -1.6),
+			false
+		)
+		place(
+			"BarnDoorBrace_" .. side.name,
+			Vector3.new(DOORWAY_WIDTH / 2 - 0.6, 0.6, 0.3),
+			BARN_TRIM,
+			Enum.Material.WoodPlanks,
+			Vector3.new(side.sign * (DOORWAY_WIDTH / 4), (BARN_HEIGHT - 1.6) / 2, -1.9),
+			false
+		)
+	end
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "WarehouseLabel"
 	billboard.Size = UDim2.new(0, 160, 0, 30)
-	billboard.StudsOffset = Vector3.new(0, 1.5, 0)
+	billboard.StudsOffset = Vector3.new(0, 2.4, 0)
 	-- Off until the plot is claimed; PlotManager.setPlotPowered turns it on.
 	billboard.Enabled = false
-	billboard.Parent = doorGlow
+	billboard.Parent = plotModel:FindFirstChild("WarehouseDoorGlow")
 
 	local label = Instance.new("TextLabel")
 	label.Name = "Text"
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.Text = "WAREHOUSE"
+	label.Text = "BARN"
 	label.TextSize = 16
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.Font = Enum.Font.GothamBold
 	label.Parent = billboard
 
 	-- Invisible trigger in the doorway gap; WarehouseTrigger.server.lua wires
-	-- the actual .Touched -> OPEN_WAREHOUSE firing (same split as Dropbox/vial
-	-- pickup elsewhere: this script only builds geometry, a dedicated script
-	-- owns touch detection + ownership validation).
+	-- the actual .Touched -> OPEN_WAREHOUSE firing.
 	local trigger = Instance.new("Part")
 	trigger.Name = "WarehouseTrigger"
 	trigger.Anchored = true
 	trigger.CanCollide = false
 	trigger.Transparency = 1
 	trigger.Size = Vector3.new(8, 6, 2)
-	trigger.Position = gridPosition + Vector3.new(0, 3, WAREHOUSE_WALL_Z)
+	trigger.Position = center + Vector3.new(0, 3, 0)
 	trigger.Parent = plotModel
 end
 
 local function buildPlotBase(plotModel: Model, origin: Vector3, plotIndex: number)
 	createFloorVeins(plotModel, origin)
 	createHeadquarters(plotModel, origin)
-	createClaimBeacon(plotModel, origin, plotIndex)
+	createClaimGate(plotModel, origin, plotIndex)
 	createDropboxPlatform(plotModel, origin)
 	createWarehouseStructure(plotModel, origin)
 end
@@ -890,13 +1134,17 @@ local function createPlot(index: number, plotsFolder: Folder)
 	setCollisionGroup(origin)
 	origin.Parent = plotModel
 
+	-- Thickened downward, top face still at gridPosition.Y, so the slab reaches
+	-- through the grass surface below (TERRAIN_TOP_Y in TerrainSetup.server.lua)
+	-- instead of floating above it -- while every position on the plot that
+	-- other code derives from gridPosition.Y stays exactly where it was.
 	local ground = Instance.new("Part")
 	ground.Name = "Ground"
 	ground.Anchored = true
-	ground.Size = Vector3.new(PLOT_WIDTH, 1, PLOT_DEPTH)
-	ground.Position = gridPosition + Vector3.new(0, -0.5, 0)
-	ground.Material = Enum.Material.SmoothPlastic
-	ground.Color = Color3.fromRGB(12, 9, 22)
+	ground.Size = Vector3.new(PLOT_WIDTH, GROUND_SLAB_THICKNESS, PLOT_DEPTH)
+	ground.Position = gridPosition + Vector3.new(0, -GROUND_SLAB_THICKNESS / 2, 0)
+	ground.Material = Enum.Material.Ground
+	ground.Color = PLOT_SOIL_COLOR
 	setCollisionGroup(ground)
 	ground.Parent = plotModel
 
@@ -912,7 +1160,7 @@ local function createPlot(index: number, plotsFolder: Folder)
 	groundGlow.CanCollide = false
 	groundGlow.Size = Vector3.new(ground.Size.X, 0.02, ground.Size.Z)
 	groundGlow.Position = gridPosition + Vector3.new(0, 0.03, 0)
-	groundGlow.Material = Enum.Material.SmoothPlastic
+	groundGlow.Material = Enum.Material.Grass
 	groundGlow.Color = GROUND_GLOW_UNPOWERED_COLOR
 	groundGlow.Parent = plotModel
 
@@ -926,8 +1174,8 @@ local function createPlot(index: number, plotsFolder: Folder)
 	local dropbox = createCylinder(
 		"Dropbox",
 		Vector3.new(0.5, 9, 9),
-		Color3.fromRGB(0, 200, 80),
-		Enum.Material.Neon,
+		Color3.fromRGB(196, 150, 84),
+		Enum.Material.WoodPlanks,
 		0,
 		dropboxCFrame,
 		true
@@ -938,8 +1186,8 @@ local function createPlot(index: number, plotsFolder: Folder)
 	local dropboxRing = createCylinder(
 		"DropboxRing",
 		Vector3.new(0.3, 10.5, 10.5),
-		Color3.fromRGB(0, 255, 100),
-		Enum.Material.Neon,
+		Color3.fromRGB(238, 200, 120),
+		Enum.Material.Wood,
 		0,
 		dropboxCFrame,
 		false
@@ -990,10 +1238,32 @@ if not plotsFolder then
 	plotsFolder.Parent = Workspace
 end
 
+-- Per-plot pcall so a fault in one plot's geometry can't wipe out the other
+-- nine, and so the failure is reported by name instead of the world just
+-- silently coming up empty.
+local builtPlots = 0
 for i = 1, PLOT_COUNT do
 	if not plotsFolder:FindFirstChild("Plot_" .. i) then
-		createPlot(i, plotsFolder)
+		local ok, err = pcall(createPlot, i, plotsFolder)
+		if ok then
+			builtPlots += 1
+		else
+			warn(`[PlotSetup] Failed to build Plot_{i}: {err}`)
+		end
+	else
+		builtPlots += 1
 	end
 end
 
-print(`[PlotSetup] Created {PLOT_COUNT} plots`)
+-- Sentinel other setup scripts can WaitForChild on. ScenerySetup.server.lua
+-- needs every plot to exist before it measures their bounding boxes to decide
+-- where scenery may go; watching the folder alone would race, since children
+-- appear one at a time during the loop above.
+if not plotsFolder:FindFirstChild("PlotsReady") then
+	local ready = Instance.new("BoolValue")
+	ready.Name = "PlotsReady"
+	ready.Value = true
+	ready.Parent = plotsFolder
+end
+
+print(`[PlotSetup] Created {builtPlots}/{PLOT_COUNT} plots`)

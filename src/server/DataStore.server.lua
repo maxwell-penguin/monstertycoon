@@ -120,7 +120,7 @@ local function onPlayerAdded(player: Player)
 	-- Plot-bound systems (Hall, Habitats, vial production, Dropbox, Crates) --
 	-- and FTUE, whose starter-monster tutorial depends on the Hall existing --
 	-- are NOT started here. Plots start empty and only load once the player
-	-- claims one via a ClaimBeacon; see PlotClaimManager.lua.
+	-- claims one by walking through its ClaimGate; see PlotClaimManager.lua.
 
 	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 	local remote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PLAYER_DATA_LOADED) :: RemoteEvent

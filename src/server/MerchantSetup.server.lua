@@ -18,9 +18,9 @@ end)
 local HUB_CENTER_X = -70
 local HUB_Z = -90
 
-local STALL_COLOR = Color3.fromRGB(90, 60, 140)
-local ACCENT_COLOR = Color3.fromRGB(140, 100, 220)
-local NPC_COLOR = Color3.fromRGB(200, 170, 255)
+local STALL_COLOR = Color3.fromRGB(126, 88, 56)
+local ACCENT_COLOR = Color3.fromRGB(196, 76, 68)
+local NPC_COLOR = Color3.fromRGB(214, 178, 140)
 
 local function setCollisionGroup(part: BasePart)
 	part.CollisionGroup = COLLISION_GROUP
@@ -44,42 +44,46 @@ local function buildMerchant(): Model
 
 	local base = Vector3.new(HUB_CENTER_X, 0, HUB_Z)
 
-	local platform = newPart("Platform", Vector3.new(20, 1, 16), Color3.fromRGB(20, 16, 35), Enum.Material.SmoothPlastic, CFrame.new(base + Vector3.new(0, 0.5, 0)), true)
+	-- Extends down to Y=-2 (top face unchanged at Y=1) so it meets the grass
+	-- surface set by TERRAIN_TOP_Y in TerrainSetup.server.lua rather than
+	-- hovering above it. Everything else on the stall is positioned relative to
+	-- `base`, so nothing else shifts.
+	local platform = newPart("Platform", Vector3.new(20, 3, 16), Color3.fromRGB(146, 104, 66), Enum.Material.WoodPlanks, CFrame.new(base + Vector3.new(0, -0.5, 0)), true)
 	setCollisionGroup(platform)
 	platform.Parent = model
 	model.PrimaryPart = platform
 
-	local counter = newPart("Counter", Vector3.new(8, 3, 3), STALL_COLOR, Enum.Material.SmoothPlastic, CFrame.new(base + Vector3.new(0, 2.5, -3)), true)
+	local counter = newPart("Counter", Vector3.new(8, 3, 3), STALL_COLOR, Enum.Material.WoodPlanks, CFrame.new(base + Vector3.new(0, 2.5, -3)), true)
 	setCollisionGroup(counter)
 	counter.Parent = model
 
-	local counterTop = newPart("CounterTop", Vector3.new(8.4, 0.3, 3.4), ACCENT_COLOR, Enum.Material.Neon, CFrame.new(base + Vector3.new(0, 4.15, -3)), false)
+	local counterTop = newPart("CounterTop", Vector3.new(8.4, 0.3, 3.4), ACCENT_COLOR, Enum.Material.Wood, CFrame.new(base + Vector3.new(0, 4.15, -3)), false)
 	counterTop.Parent = model
 
-	local roofPost1 = newPart("RoofPost_L", Vector3.new(0.6, 6, 0.6), STALL_COLOR, Enum.Material.SmoothPlastic, CFrame.new(base + Vector3.new(-4, 4, -4.4)), false)
+	local roofPost1 = newPart("RoofPost_L", Vector3.new(0.6, 6, 0.6), STALL_COLOR, Enum.Material.Wood, CFrame.new(base + Vector3.new(-4, 4, -4.4)), false)
 	roofPost1.Parent = model
-	local roofPost2 = newPart("RoofPost_R", Vector3.new(0.6, 6, 0.6), STALL_COLOR, Enum.Material.SmoothPlastic, CFrame.new(base + Vector3.new(4, 4, -4.4)), false)
+	local roofPost2 = newPart("RoofPost_R", Vector3.new(0.6, 6, 0.6), STALL_COLOR, Enum.Material.Wood, CFrame.new(base + Vector3.new(4, 4, -4.4)), false)
 	roofPost2.Parent = model
 
-	local roof = newPart("Roof", Vector3.new(9, 0.6, 4.5), ACCENT_COLOR, Enum.Material.Neon, CFrame.new(base + Vector3.new(0, 7, -4.4)) * CFrame.Angles(math.rad(-10), 0, 0), false)
+	local roof = newPart("Roof", Vector3.new(9, 0.6, 4.5), ACCENT_COLOR, Enum.Material.Fabric, CFrame.new(base + Vector3.new(0, 7, -4.4)) * CFrame.Angles(math.rad(-10), 0, 0), false)
 	roof.Parent = model
 
 	-- Simple blocky NPC standing behind the counter.
-	local torso = newPart("NPCTorso", Vector3.new(2, 2.4, 1.2), NPC_COLOR, Enum.Material.SmoothPlastic, CFrame.new(base + Vector3.new(0, 3.2, -4.2)), false)
+	local torso = newPart("NPCTorso", Vector3.new(2, 2.4, 1.2), NPC_COLOR, Enum.Material.Fabric, CFrame.new(base + Vector3.new(0, 3.2, -4.2)), false)
 	torso.Parent = model
 
 	local head = newPart("NPCHead", Vector3.new(1.4, 1.4, 1.4), NPC_COLOR, Enum.Material.SmoothPlastic, CFrame.new(base + Vector3.new(0, 5, -4.2)), false)
 	head.Parent = model
 
-	local eyeL = newPart("NPCEyeL", Vector3.new(0.3, 0.3, 0.1), Color3.new(1, 1, 1), Enum.Material.Neon, CFrame.new(base + Vector3.new(-0.3, 5.1, -3.5)), false)
+	local eyeL = newPart("NPCEyeL", Vector3.new(0.3, 0.3, 0.1), Color3.fromRGB(38, 32, 28), Enum.Material.SmoothPlastic, CFrame.new(base + Vector3.new(-0.3, 5.1, -3.5)), false)
 	eyeL.Parent = model
-	local eyeR = newPart("NPCEyeR", Vector3.new(0.3, 0.3, 0.1), Color3.new(1, 1, 1), Enum.Material.Neon, CFrame.new(base + Vector3.new(0.3, 5.1, -3.5)), false)
+	local eyeR = newPart("NPCEyeR", Vector3.new(0.3, 0.3, 0.1), Color3.fromRGB(38, 32, 28), Enum.Material.SmoothPlastic, CFrame.new(base + Vector3.new(0.3, 5.1, -3.5)), false)
 	eyeR.Parent = model
 
 	local light = Instance.new("PointLight")
 	light.Brightness = 2
 	light.Range = 20
-	light.Color = ACCENT_COLOR
+	light.Color = Color3.fromRGB(255, 206, 132)
 	light.Parent = counterTop
 
 	local billboard = Instance.new("BillboardGui")
@@ -92,7 +96,7 @@ local function buildMerchant(): Model
 	label.Name = "Text"
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.Text = "HABITAT MERCHANT"
+	label.Text = "HABITAT TRADER"
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamBold
