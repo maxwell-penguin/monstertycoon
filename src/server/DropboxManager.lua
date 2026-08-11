@@ -1,9 +1,9 @@
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Constants = require(ReplicatedStorage.Constants)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
-local PlotManager = require(script.Parent.PlotManager)
 local Economy = require(script.Parent.Economy)
 local BagManager = require(script.Parent.BagManager)
 
@@ -16,16 +16,14 @@ local updateCoinsRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_
 local updateBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.UPDATE_BAG) :: RemoteEvent
 local depositBagRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.DEPOSIT_BAG) :: RemoteEvent
 
+-- The world has a single shared sell point (PlotSetup.server.lua's
+-- createSellPoint), not a per-plot dropbox -- every player deposits at the
+-- same SellGround part.
 function DropboxManager.InitDropbox(player: Player)
-	local plotModel = PlotManager.GetPlayerPlot(player)
-	if not plotModel then
-		warn(`[DropboxManager] No plot found for {player.Name}`)
-		return
-	end
-
-	local dropboxPart = plotModel:FindFirstChild("Dropbox")
+	local sellPoint = Workspace:FindFirstChild("SellPoint")
+	local dropboxPart = sellPoint and sellPoint:FindFirstChild("SellGround")
 	if not dropboxPart or not dropboxPart:IsA("BasePart") then
-		warn(`[DropboxManager] No Dropbox part found in plot for {player.Name}`)
+		warn(`[DropboxManager] No SellGround part found for {player.Name}`)
 		return
 	end
 

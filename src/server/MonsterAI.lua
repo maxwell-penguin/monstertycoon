@@ -37,6 +37,7 @@ local TARGET_REACHED_THRESHOLD = 0.2
 local MonsterAI = {}
 
 local activeMonsters: { [string]: ActiveMonster } = {}
+local playerCountdownLoops: { [number]: boolean } = {}
 
 local monsterModelsFolder = Workspace:FindFirstChild("MonsterModels") :: Folder?
 if not monsterModelsFolder then
@@ -283,8 +284,40 @@ function MonsterAI.CheckVialProduction(key: string)
 		isActive = true,
 	}
 
-	local worldPosition = entry.model:GetPivot().Position + Vector3.new(0, 1, 0)
+	local worldPosition = entry.model.PrimaryPart.Position + Vector3.new(0, 2, 0)
 	VialProducer.SpawnVial(player, slot, worldPosition)
+end
+
+-- Ticks every second per player so the countdown display doesn't wait on the
+-- next roam-target arrival (irregular, RoamLoop-driven) to refresh. Stops
+-- itself once no active, non-cancelled monsters remain for this player.
+local function startCountdownLoop(player: Player)
+	local userId = player.UserId
+	if playerCountdownLoops[userId] then
+		return
+	end
+	playerCountdownLoops[userId] = true
+
+	task.spawn(function()
+		while playerCountdownLoops[userId] do
+			task.wait(1)
+
+			local hasActiveMonster = false
+
+			for _, entry in activeMonsters do
+				if entry.userId == userId and entry.cancellationFlag.active then
+					hasActiveMonster = true
+
+					local secondsRemaining = math.clamp(VIAL_DROP_INTERVAL - (os.time() - entry.lastDropTime), 0, VIAL_DROP_INTERVAL)
+					monsterCountdownRemote:FireClient(player, entry.slotIndex, secondsRemaining)
+				end
+			end
+
+			if not hasActiveMonster then
+				playerCountdownLoops[userId] = nil
+			end
+		end
+	end)
 end
 
 --============================================================
@@ -338,12 +371,6 @@ function MonsterAI.RoamLoop(key: string)
 		if distance <= TARGET_REACHED_THRESHOLD then
 			liveEntry.isMoving = false
 			MonsterAI.CheckVialProduction(key)
-
-			local countdownPlayer = Players:GetPlayerByUserId(liveEntry.userId)
-			if countdownPlayer then
-				local secondsRemaining = VIAL_DROP_INTERVAL - (os.time() - liveEntry.lastDropTime)
-				monsterCountdownRemote:FireClient(countdownPlayer, liveEntry.slotIndex, secondsRemaining)
-			end
 
 			task.delay(IDLE_MIN + math.random() * (IDLE_MAX - IDLE_MIN), function()
 				pickNextTarget(key)
@@ -407,6 +434,7 @@ function MonsterAI.SpawnMonster(player: Player, slotIndex: number, monster: Mons
 	}
 
 	MonsterAI.RoamLoop(key)
+	startCountdownLoop(player)
 
 	return true
 end
