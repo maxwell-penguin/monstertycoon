@@ -1,14 +1,14 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 
 local Constants = require(ReplicatedStorage.Constants)
 local Types = require(ReplicatedStorage.Types)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local BoostState = require(ReplicatedStorage.BoostState)
-local SlotPositioner = require(script.Parent.SlotPositioner)
 local BagManager = require(script.Parent.BagManager)
+local HabitatManager = require(script.Parent.HabitatManager)
+local HabitatVisuals = require(script.Parent.HabitatVisuals)
 
 export type VialData = {
 	vialId: string,
@@ -17,11 +17,23 @@ export type VialData = {
 	element: string,
 	monsterLevel: number,
 	monsterStars: number,
-	slotIndex: number,
+	slotIndex: number?,
+	habitatId: string?,
 	position: Vector3,
 	spawnTime: number,
 }
 
+-- A single thing that can produce vials -- either a roaming slotted monster or
+-- a placed Habitat -- normalized so callers and SpawnVial don't need to know
+-- which source they came from.
+export type ProductionSource = {
+	monster: Types.Monster,
+	position: Vector3,
+	slotIndex: number?,
+	habitatId: string?,
+}
+
+local VIAL_DROP_INTERVAL = 30
 local MAX_XZ_OFFSET = 3
 local Y_OFFSET = 1
 local VIAL_DESPAWN_TIME = 300
@@ -29,29 +41,21 @@ local VIAL_DESPAWN_TIME = 300
 local VialProducer = {}
 
 local activeLoops: { [number]: boolean } = {}
+local slotCooldowns: { [number]: { [string]: number } } = {}
 local playerVials: { [number]: { [string]: VialData } } = {}
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local vialSpawnedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_SPAWNED) :: RemoteEvent
 local vialRemovedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_REMOVED) :: RemoteEvent
 
-function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot, worldPosition: Vector3?): string
-	local monster = slot.monster
-	if not monster then
-		return ""
-	end
+function VialProducer.SpawnVial(player: Player, source: ProductionSource): string
+	local monster = source.monster
 
 	local vialId = HttpService:GenerateGUID(false)
 
-	local position: Vector3
-	if worldPosition then
-		position = worldPosition
-	else
-		local slotPosition = SlotPositioner.GetSlotWorldPosition(player, slot.slotIndex)
-		local offsetX = (math.random() * 2 - 1) * MAX_XZ_OFFSET
-		local offsetZ = (math.random() * 2 - 1) * MAX_XZ_OFFSET
-		position = slotPosition + Vector3.new(offsetX, Y_OFFSET, offsetZ)
-	end
+	local offsetX = (math.random() * 2 - 1) * MAX_XZ_OFFSET
+	local offsetZ = (math.random() * 2 - 1) * MAX_XZ_OFFSET
+	local position = source.position + Vector3.new(offsetX, Y_OFFSET, offsetZ)
 
 	local vialData: VialData = {
 		vialId = vialId,
@@ -60,7 +64,8 @@ function VialProducer.SpawnVial(player: Player, slot: Types.MonsterSlot, worldPo
 		element = monster.element,
 		monsterLevel = monster.level,
 		monsterStars = monster.stars,
-		slotIndex = slot.slotIndex,
+		slotIndex = source.slotIndex,
+		habitatId = source.habitatId,
 		position = position,
 		spawnTime = os.time(),
 	}
@@ -87,16 +92,45 @@ function VialProducer.StartProduction(player: Player)
 	end
 
 	activeLoops[userId] = true
+	slotCooldowns[userId] = {}
 	playerVials[userId] = playerVials[userId] or {}
 
-	-- Production itself is now owned by MonsterAI.CheckVialProduction (it knows
-	-- each monster's actual roaming position); this loop only sweeps stale vials.
+	-- Slotted-monster production is owned by MonsterAI.CheckVialProduction (it
+	-- knows each monster's actual roaming position); this loop drives Habitat
+	-- production and sweeps stale vials.
 	task.spawn(function()
 		while activeLoops[userId] do
-			RunService.Heartbeat:Wait()
+			-- Cooldowns here are 30s (production) and 300s (despawn) -- Heartbeat
+			-- (60/sec) reran this full GetActiveMonsters+iteration+table-alloc
+			-- pass 60x more often than needed, for every plot owner simultaneously,
+			-- which was the main source of server stutter. 1s polling is plenty.
+			task.wait(1)
 
 			if not activeLoops[userId] then
 				break
+			end
+
+			-- Slotted monsters are produced for by MonsterAI.CheckVialProduction
+			-- (it tracks each roaming monster's live position). Habitats have no
+			-- roaming model, so their production still runs here.
+			local now = os.clock()
+			local cooldowns = slotCooldowns[userId]
+
+			for _, active in HabitatManager.GetActiveMonsters(player) do
+				local cooldownKey = "habitat_" .. active.habitatId
+				local lastDrop = cooldowns[cooldownKey]
+				if not lastDrop or (now - lastDrop) >= VIAL_DROP_INTERVAL then
+					local habitat = HabitatManager.GetHabitat(player, active.habitatId)
+					local position = habitat and HabitatVisuals.GetGroundWorldPosition(player, habitat)
+					if position then
+						cooldowns[cooldownKey] = now
+						VialProducer.SpawnVial(player, {
+							monster = active.monster,
+							position = position,
+							habitatId = active.habitatId,
+						})
+					end
+				end
 			end
 
 			local vials = playerVials[userId]
@@ -119,6 +153,7 @@ end
 function VialProducer.StopProduction(player: Player)
 	local userId = player.UserId
 	activeLoops[userId] = nil
+	slotCooldowns[userId] = nil
 	playerVials[userId] = nil
 end
 

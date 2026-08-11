@@ -20,6 +20,20 @@ export type Bag = {
 	currentCount: number,
 }
 
+export type HabitatPlacement = {
+	x: number,
+	z: number,
+	rotationY: number,
+}
+
+export type Habitat = {
+	habitatId: string,
+	biomeType: string,
+	placement: HabitatPlacement,
+	monster: Monster?,
+	isActive: boolean,
+}
+
 export type PlayerData = {
 	coins: number,
 	lifetimeRolls: number,
@@ -39,6 +53,8 @@ export type PlayerData = {
 	hasBoostInsider: boolean,
 	ftueComplete: boolean,
 	eventTokens: number,
+	habitats: { Habitat },
+	habitatInventory: { [string]: number },
 	unlockedBiomes: { string },
 	hasMagnet: boolean,
 	autoPickupExpiry: number,

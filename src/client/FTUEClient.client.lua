@@ -19,7 +19,7 @@ local mergeMonstersRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MERGE
 local vialSpawnedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_SPAWNED) :: RemoteEvent
 
 local ALL_PANEL_NAMES = { "HUD", "WarehousePanel", "RollPanel", "HallPanel", "ShopPanel" }
-local ARROW_BOB_HEIGHT = 0.5
+local ARROW_BOB_HEIGHT = 1
 local ARROW_BOB_PERIOD = 0.8
 
 local currentStep = ""
@@ -56,19 +56,59 @@ local function destroyAllArrows()
 	ftueHighlightTweens = {}
 end
 
-local function createArrow(position: Vector3): WedgePart
+local ARROW_COLOR = Constants.EMOTION_COLORS.Joy
+
+-- labelText rides along on an AlwaysOnTop BillboardGui, so the instruction
+-- stays readable through geometry and at range -- the claim-a-plot target can
+-- be most of the map away when the player is still standing on the spawn hub.
+local function createArrow(position: Vector3, labelText: string?): WedgePart
 	local arrow = Instance.new("WedgePart")
 	arrow.Name = "FTUEArrow"
-	arrow.Size = Vector3.new(2, 1, 4)
+	arrow.Size = Vector3.new(2.5, 3, 2.5)
 	arrow.Material = Enum.Material.Neon
-	arrow.Color = Constants.ELEMENT_COLORS.Thunder
+	arrow.Color = ARROW_COLOR
 	arrow.Anchored = true
 	arrow.CanCollide = false
-	arrow.Position = position
+	arrow.CastShadow = false
+	-- Flipped 180 about X so the wedge's thin edge points down at whatever it
+	-- marks. Unrotated (the previous behaviour) it just sat there as a flat
+	-- slab aimed at nothing, which is not much of an arrow.
+	arrow.CFrame = CFrame.new(position) * CFrame.Angles(math.rad(180), 0, 0)
 	arrow.Parent = Workspace
+
+	local light = Instance.new("PointLight")
+	light.Brightness = 3
+	light.Range = 20
+	light.Color = ARROW_COLOR
+	light.Parent = arrow
+
+	if labelText then
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "ArrowLabel"
+		billboard.Size = UDim2.new(0, 190, 0, 34)
+		billboard.StudsOffset = Vector3.new(0, 3, 0)
+		billboard.AlwaysOnTop = true
+		billboard.Parent = arrow
+
+		local label = Instance.new("TextLabel")
+		label.Name = "Text"
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBold
+		label.TextScaled = true
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.Text = labelText
+		label.Parent = billboard
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.new(0, 0, 0)
+		stroke.Thickness = 2
+		stroke.Parent = label
+	end
 
 	table.insert(ftueArrows, arrow)
 
+	-- Tweening Position (not CFrame) keeps the rotation set above intact.
 	local bobTween = TweenService:Create(
 		arrow,
 		TweenInfo.new(ARROW_BOB_PERIOD, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
@@ -83,7 +123,7 @@ end
 -- fixed 2D screen-space HUD elements with no world position, so there's no exact
 -- world point to place an arrow "at". This places it near the player as a general
 -- "check your UI" cue rather than attempting a screen-to-world projection.
-local function createUIPointerArrow()
+local function createUIPointerArrow(labelText: string?)
 	local character = player.Character
 	local rootPart = character and (character:FindFirstChild("HumanoidRootPart") :: BasePart?)
 	if not rootPart then
@@ -91,7 +131,7 @@ local function createUIPointerArrow()
 	end
 
 	local position = rootPart.Position + rootPart.CFrame.LookVector * 3 + Vector3.new(0, -1, 0)
-	createArrow(position)
+	createArrow(position, labelText)
 end
 
 local function findNearestVial(): BasePart?
@@ -118,6 +158,61 @@ local function findNearestVial(): BasePart?
 	end
 
 	return nearest
+end
+
+-- The plot grid is only reachable on foot from the spawn hub, so the nearest
+-- unclaimed plot is the one the player should be sent to. OwnerId is the same
+-- StringValue PlotManager.ClaimPlot stamps server-side, so this reflects other
+-- players' claims too and won't point at a plot somebody just took.
+local function findNearestUnclaimedBeacon(): BasePart?
+	local plotsFolder = Workspace:FindFirstChild("Plots")
+	if not plotsFolder then
+		return nil
+	end
+
+	local character = player.Character
+	local rootPart = character and (character:FindFirstChild("HumanoidRootPart") :: BasePart?)
+
+	local nearest: BasePart? = nil
+	local nearestDistance = math.huge
+
+	for _, plotModel in plotsFolder:GetChildren() do
+		local ownerId = plotModel:FindFirstChild("OwnerId")
+		local gate = plotModel:FindFirstChild("ClaimGate")
+		-- Aim at the gateway's trigger volume: that is the exact patch of ground
+		-- the player has to walk through, so the arrow marks the doorway rather
+		-- than some point above the building.
+		local trigger = gate and gate:FindFirstChild("ClaimTrigger")
+		if ownerId and ownerId.Value == "" and trigger and trigger:IsA("BasePart") then
+			-- Before the character streams in there's nothing to measure from,
+			-- so just take the first free plot rather than skipping the step.
+			if not rootPart then
+				return trigger
+			end
+
+			local distance = (rootPart.Position - trigger.Position).Magnitude
+			if distance < nearestDistance then
+				nearestDistance = distance
+				nearest = trigger
+			end
+		end
+	end
+
+	return nearest
+end
+
+-- TitleScreenClient.client.lua publishes shared.TitleScreen. Script load order
+-- between two StarterPlayerScripts isn't guaranteed, so wait briefly for it to
+-- appear before assuming there's no title screen to wait on.
+local function waitForTitleScreenDismissed()
+	local deadline = os.clock() + 5
+	while not shared.TitleScreen and os.clock() < deadline do
+		task.wait(0.2)
+	end
+
+	while shared.TitleScreen and not shared.TitleScreen.isDismissed do
+		task.wait(0.2)
+	end
 end
 
 local function findDropbox(): BasePart?
@@ -364,7 +459,47 @@ end
 -- Step dispatch
 --============================================================
 
+-- Fired on join for anyone who hasn't finished the FTUE. Everything else in
+-- this tutorial is gated behind owning a plot (FTUEManager.StartFTUE only runs
+-- once PlotClaimManager claims one), so without this step a brand new player
+-- lands in the world with no instruction to do the one thing that starts the
+-- game.
+local function handleClaimPlot()
+	task.spawn(function()
+		waitForTitleScreenDismissed()
+
+		-- The player may have claimed a plot while the title screen was still
+		-- up -- nothing blocks them from walking off and clicking a beacon.
+		if currentStep ~= "claim_plot" then
+			return
+		end
+
+		setHint("Walk through an open plot gate to claim it and start your farm!")
+
+		-- Plots are built server-side at startup, but on a slow join the folder
+		-- may not have replicated yet. Retry briefly rather than silently
+		-- leaving the player with a hint and no arrow.
+		local beacon: BasePart? = nil
+		for _ = 1, 10 do
+			beacon = findNearestUnclaimedBeacon()
+			if beacon or currentStep ~= "claim_plot" then
+				break
+			end
+			task.wait(0.5)
+		end
+
+		if beacon and currentStep == "claim_plot" then
+			createArrow(beacon.Position + Vector3.new(0, 9, 0), "WALK IN TO CLAIM")
+		end
+	end)
+end
+
 local function handleStart()
+	-- Reached only by claiming a plot, so the claim_plot arrow/hint above have
+	-- served their purpose.
+	destroyAllArrows()
+	clearHint()
+
 	if shared.UIManager then
 		for _, panelName in ALL_PANEL_NAMES do
 			shared.UIManager.HidePanel(panelName)
@@ -404,7 +539,7 @@ local function handleMonstersPlaced()
 
 	local existingVial = findNearestVial()
 	if existingVial then
-		createArrow(existingVial.Position + Vector3.new(0, 3, 0))
+		createArrow(existingVial.Position + Vector3.new(0, 3, 0), "COLLECT")
 	end
 end
 
@@ -418,7 +553,7 @@ local function handleSellNow()
 	if #ftueArrows == 0 then
 		local dropbox = findDropbox()
 		if dropbox then
-			createArrow(dropbox.Position + Vector3.new(0, 3, 0))
+			createArrow(dropbox.Position + Vector3.new(0, 3, 0), "SELL HERE")
 		end
 	end
 end
@@ -427,7 +562,7 @@ local function handleRollNow()
 	setHint("Press ROLL to get a new monster!")
 
 	if #ftueArrows == 0 then
-		createUIPointerArrow()
+		createUIPointerArrow("PRESS ROLL")
 	end
 end
 
@@ -435,7 +570,7 @@ local function handleMergeTutorial()
 	setHint("Open your Warehouse and merge 3 matching monsters!")
 
 	if #ftueArrows == 0 then
-		createUIPointerArrow()
+		createUIPointerArrow("OPEN WAREHOUSE")
 	end
 
 	if shared.UIManager then
@@ -457,6 +592,7 @@ local function handleComplete(payload: any)
 end
 
 local STEP_HANDLERS: { [string]: (any) -> () } = {
+	claim_plot = handleClaimPlot,
 	start = handleStart,
 	monsters_placed = handleMonstersPlaced,
 	sell_now = handleSellNow,
@@ -485,7 +621,7 @@ end)
 
 vialSpawnedRemote.OnClientEvent:Connect(function(_vialId: string, position: Vector3)
 	if currentStep == "monsters_placed" and #ftueArrows == 0 then
-		createArrow(position + Vector3.new(0, 3, 0))
+		createArrow(position + Vector3.new(0, 3, 0), "COLLECT")
 	end
 end)
 
@@ -504,7 +640,7 @@ updateBagRemote.OnClientEvent:Connect(function(bagState: any)
 
 		local dropbox = findDropbox()
 		if dropbox then
-			createArrow(dropbox.Position + Vector3.new(0, 3, 0))
+			createArrow(dropbox.Position + Vector3.new(0, 3, 0), "SELL HERE")
 		end
 	end
 
@@ -517,7 +653,7 @@ depositBagRemote.OnClientEvent:Connect(function(_totalEarned: number, _vialCount
 
 		destroyAllArrows()
 		setHint("You earned coins! Now roll for a monster!")
-		createUIPointerArrow()
+		createUIPointerArrow("PRESS ROLL")
 	end
 end)
 
@@ -527,7 +663,7 @@ eggResultRemote.OnClientEvent:Connect(function(result: any)
 
 		destroyAllArrows()
 		setHint("You got a monster! Now merge 3 of the same type!")
-		createUIPointerArrow()
+		createUIPointerArrow("OPEN WAREHOUSE")
 	end
 end)
 

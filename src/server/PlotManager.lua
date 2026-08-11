@@ -1,13 +1,12 @@
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
 
 local Constants = require(ReplicatedStorage.Constants)
 local Types = require(ReplicatedStorage.Types)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlayerManager = require(script.Parent.PlayerManager)
-
-local PLOT_COUNT = 10
 
 local PlotManager = {}
 
@@ -46,43 +45,154 @@ local function hidePlotExpansions(plotModel: Model)
 	end
 end
 
-function PlotManager.AssignPlot(player: Player): Types.Plot?
+-- The ClaimGate (built by PlotSetup.server.lua) is the gateway a player walks
+-- through to claim a plot. The gateway structure itself always stays -- it is
+-- the plot's entrance either way -- so claiming only switches off the "WALK IN
+-- TO CLAIM" sign, dims its lamp, and stops the trigger listening.
+--
+-- CanTouch = false is what actually closes the claim: .Touched simply stops
+-- firing, so PlotClaimTrigger.server.lua's handler never runs on an owned plot
+-- and there is no need to disconnect or rebuild anything.
+local function setClaimGateActive(plotModel: Model, visible: boolean)
+	local gate = plotModel:FindFirstChild("ClaimGate")
+	if not gate then
+		return
+	end
+
+	local trigger = gate:FindFirstChild("ClaimTrigger")
+	if trigger and trigger:IsA("BasePart") then
+		trigger.CanTouch = visible
+	end
+
+	-- SurfaceGui, not BillboardGui: the plot number is painted on the board's
+	-- face now rather than floating above it. See createClaimGate in
+	-- PlotSetup.server.lua for why.
+	--
+	-- Only the "walk in to claim" hint follows claim state. The number itself
+	-- stays up permanently -- it is how a player finds their own plot again, so
+	-- hiding it on claim would take the signage away from the one person who
+	-- most needs it.
+	local sign = gate:FindFirstChild("GateSign")
+	local claimLabel = sign and sign:FindFirstChild("ClaimLabel")
+	if claimLabel and claimLabel:IsA("SurfaceGui") then
+		local hint = claimLabel:FindFirstChild("Hint")
+		if hint and hint:IsA("TextLabel") then
+			hint.Visible = visible
+		end
+	end
+
+	local lamp = gate:FindFirstChild("GateLamp")
+	if lamp and lamp:IsA("BasePart") then
+		-- Unclaimed gates glow gold to draw players in; a claimed one fades to
+		-- plain timber so only the free plots advertise themselves.
+		lamp.Color = visible and Color3.fromRGB(255, 214, 92) or Color3.fromRGB(120, 104, 72)
+		lamp.Material = visible and Enum.Material.Neon or Enum.Material.Wood
+
+		local light = lamp:FindFirstChildOfClass("PointLight")
+		if light then
+			light.Enabled = visible
+		end
+	end
+end
+
+-- An unclaimed plot sits dim with its SELL/WAREHOUSE billboards switched off,
+-- so the grid reads as a row of dormant, unlabeled lots rather than 10 fully
+-- lit copies of the same base shouting the same labels at once. Claiming
+-- "powers up" that plot: its floor glow and border light come up and its own
+-- station labels switch on.
+local POWER_TWEEN = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+-- Colour, not Transparency. Every one of these parts is opaque now (see the
+-- notes in PlotSetup.server.lua) because semi-transparent parts don't write
+-- depth and visibly re-sort as the camera moves; fading them back in would
+-- reintroduce exactly the shimmer that removing them fixed. GROUND_GLOW.off
+-- must match GROUND_GLOW_UNPOWERED_COLOR in PlotSetup.server.lua.
+-- Natural farm palette. These were the old void purples, which would have
+-- turned a claimed plot's timber fence violet the moment it was claimed. The
+-- "off" values must match what PlotSetup.server.lua builds the parts as
+-- (GROUND_GLOW_UNPOWERED_COLOR, TIMBER_DARK and TIMBER_LIGHT respectively), or
+-- a plot would visibly jump colour on release.
+local GROUND_GLOW_COLOR = {
+	on = Color3.fromRGB(126, 170, 90),
+	off = Color3.fromRGB(96, 132, 72),
+}
+local BORDER_POST_COLOR = {
+	on = Color3.fromRGB(126, 88, 56),
+	off = Color3.fromRGB(92, 63, 40),
+}
+local BORDER_WALL_COLOR = {
+	on = Color3.fromRGB(166, 122, 78),
+	off = Color3.fromRGB(126, 88, 56),
+}
+
+local function tweenColor(part: BasePart?, color: Color3)
+	if part and part:IsA("BasePart") then
+		TweenService:Create(part, POWER_TWEEN, { Color = color }):Play()
+	end
+end
+
+local function setLabelEnabled(parent: Instance?, labelName: string, enabled: boolean)
+	local billboard = parent and parent:FindFirstChild(labelName)
+	if billboard and billboard:IsA("BillboardGui") then
+		billboard.Enabled = enabled
+	end
+end
+
+local function setPlotPowered(plotModel: Model, powered: boolean)
+	local key = powered and "on" or "off"
+
+	tweenColor(plotModel:FindFirstChild("GroundGlow") :: BasePart?, GROUND_GLOW_COLOR[key])
+
+	for i = 1, 4 do
+		tweenColor(plotModel:FindFirstChild("BorderPost_" .. i) :: BasePart?, BORDER_POST_COLOR[key])
+		tweenColor(plotModel:FindFirstChild("BorderWall_" .. i) :: BasePart?, BORDER_WALL_COLOR[key])
+	end
+
+	setLabelEnabled(plotModel:FindFirstChild("Dropbox"), "SellLabel", powered)
+	setLabelEnabled(plotModel:FindFirstChild("WarehouseDoorGlow"), "WarehouseLabel", powered)
+end
+
+-- Plots start empty; a player claims a specific one by walking through its
+-- ClaimGate (see PlotClaimTrigger.server.lua) rather than being auto-assigned
+-- the first free plot on join.
+function PlotManager.ClaimPlot(player: Player, plotIndex: number): Types.Plot?
 	local plotsFolder = Workspace:FindFirstChild("Plots")
 	if not plotsFolder then
 		warn("[PlotManager] Plots folder not found in Workspace")
 		return nil
 	end
 
-	for i = 1, PLOT_COUNT do
-		local plotModel = plotsFolder:FindFirstChild("Plot_" .. i)
-		if plotModel then
-			local isOccupied = plotModel:FindFirstChild("IsOccupied") :: BoolValue
-			if isOccupied and not isOccupied.Value then
-				isOccupied.Value = true
-
-				local ownerId = plotModel:FindFirstChild("OwnerId") :: StringValue
-				ownerId.Value = tostring(player.UserId)
-
-				playerPlots[player.UserId] = plotModel
-
-				local data = PlayerManager.GetData(player.UserId)
-				local hallTier = (data and data.hallTier) or 1
-				local warehouseTier = (data and data.warehouseTier) or 1
-
-				setPlotExpansionTier(plotModel, hallTier)
-
-				return {
-					playerId = player.UserId,
-					hallTier = hallTier,
-					warehouseTier = warehouseTier,
-					plotLevel = hallTier,
-				}
-			end
-		end
+	local plotModel = plotsFolder:FindFirstChild("Plot_" .. plotIndex)
+	if not plotModel then
+		return nil
 	end
 
-	warn(`[PlotManager] No available plots for {player.Name}`)
-	return nil
+	local isOccupied = plotModel:FindFirstChild("IsOccupied") :: BoolValue
+	if not isOccupied or isOccupied.Value then
+		return nil
+	end
+
+	isOccupied.Value = true
+
+	local ownerId = plotModel:FindFirstChild("OwnerId") :: StringValue
+	ownerId.Value = tostring(player.UserId)
+
+	playerPlots[player.UserId] = plotModel
+	setClaimGateActive(plotModel, false)
+	setPlotPowered(plotModel, true)
+
+	local data = PlayerManager.GetData(player.UserId)
+	local hallTier = (data and data.hallTier) or 1
+	local warehouseTier = (data and data.warehouseTier) or 1
+
+	setPlotExpansionTier(plotModel, hallTier)
+
+	return {
+		playerId = player.UserId,
+		hallTier = hallTier,
+		warehouseTier = warehouseTier,
+		plotLevel = hallTier,
+	}
 end
 
 function PlotManager.ReleasePlot(player: Player)
@@ -102,6 +212,8 @@ function PlotManager.ReleasePlot(player: Player)
 	end
 
 	hidePlotExpansions(plotModel)
+	setClaimGateActive(plotModel, true)
+	setPlotPowered(plotModel, false)
 
 	playerPlots[player.UserId] = nil
 end
@@ -137,7 +249,7 @@ function PlotManager.UpgradePlot(player: Player): boolean
 	end
 
 	local currentTier = data.hallTier
-	local maxTier = #Constants.HALL_UPGRADE_COSTS
+	local maxTier = #Constants.ENVIRONMENT_UPGRADE_COSTS
 	if currentTier >= maxTier then
 		return false
 	end

@@ -39,6 +39,14 @@ RemoteEvents.EVENTS = {
 	UPGRADE_BAG = "UpgradeBag",
 	PLOT_UPDATED = "PlotUpdated",
 
+	-- Habitats
+	OPEN_MERCHANT = "OpenMerchant",
+	PURCHASE_HABITAT = "PurchaseHabitat",
+	PLACE_HABITAT = "PlaceHabitat",
+	SLOT_HABITAT_MONSTER = "SlotHabitatMonster",
+	UNSLOT_HABITAT_MONSTER = "UnslotHabitatMonster",
+	UPDATE_HABITATS = "UpdateHabitats",
+
 	-- Session
 	SESSION_REWARD = "SessionReward",
 	PLAYER_DATA_LOADED = "PlayerDataLoaded",

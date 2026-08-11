@@ -123,6 +123,20 @@ Constants.SPECIAL_BOOSTS = {
 
 Constants.WATCHER_BOOST_MULTIPLIER = 50
 
+-- Elements color monsters and vials. Emotions are a separate axis that only
+-- Habitats/biomes use (Constants.HABITAT_TYPES keys off `emotion`), so both
+-- tables have to exist -- one is not a rename of the other.
+Constants.EMOTION_COLORS = {
+	Joy = Color3.fromRGB(250, 199, 80),
+	Sadness = Color3.fromRGB(133, 183, 235),
+	Rage = Color3.fromRGB(240, 149, 149),
+	Dread = Color3.fromRGB(175, 169, 236),
+	Nostalgia = Color3.fromRGB(237, 147, 177),
+	Void = Color3.fromRGB(44, 44, 42),
+	Static = Color3.fromRGB(151, 196, 89),
+	Abyss = Color3.fromRGB(26, 33, 92),
+}
+
 Constants.ELEMENT_COLORS = {
 	Fire = Color3.fromRGB(255, 100, 30),
 	Magma = Color3.fromRGB(180, 50, 10),
@@ -150,6 +164,20 @@ Constants.XP_REWARDS = {
 }
 
 Constants.MAX_TOWN_LEVEL = 50
+
+-- Shown in the title screen's UPDATES panel. No changelog system exists yet,
+-- so this is a plain hardcoded list -- append a new entry at the top for
+-- each future update.
+Constants.UPDATE_NOTES = {
+	{
+		date = "Aug 10, 2026",
+		lines = {
+			"New: Habitat Merchant NPC selling habitats",
+			"Plots widened and centered so they no longer hang off the map",
+			"Fixed daytime lighting and floor flickering",
+		},
+	},
+}
 
 Constants.SESSION_REWARDS = {
 	{ seconds = 60, reward = "coins", amount = 1000 },
@@ -201,6 +229,33 @@ Constants.EVENT_MONSTERS = {
 	{ name = "Corrupted", element = "Void", rarity = "Legendary", tokenCost = 8 },
 	{ name = "Hollow", element = "Void", rarity = "Epic", tokenCost = 3 },
 }
+
+-- One habitat per MergeRules.lua lineage emotion (Static/Abyss are
+-- event-exclusive-only and have no ownable lineage, so no habitat for them).
+Constants.HABITAT_TYPES = {
+	{ biomeType = "Volcano", displayName = "Volcano", emotion = "Rage" },
+	{ biomeType = "Waterfall", displayName = "Waterfall", emotion = "Sadness" },
+	{ biomeType = "Sunfield", displayName = "Sunfield", emotion = "Joy" },
+	{ biomeType = "Crypt", displayName = "Crypt", emotion = "Dread" },
+	{ biomeType = "VoidRift", displayName = "Void Rift", emotion = "Void" },
+	{ biomeType = "MemoryGarden", displayName = "Memory Garden", emotion = "Nostalgia" },
+}
+
+-- Cost of the Nth habitat a player buys (across all biomes combined), same
+-- escalating-threshold shape as ROLL_COST_THRESHOLDS/BAG_TIERS.
+Constants.HABITAT_COST_THRESHOLDS = {
+	{ maxOwned = 1, cost = 1000 },
+	{ maxOwned = 3, cost = 5000 },
+	{ maxOwned = 5, cost = 25000 },
+	{ maxOwned = 7, cost = 100000 },
+	{ maxOwned = math.huge, cost = 400000 },
+}
+
+Constants.HABITAT_MAX_PER_PLOT = 8
+
+-- Fixed footprint (studs) used both for the world model's ground pad size and
+-- for server-side placement overlap/bounds checks.
+Constants.HABITAT_FOOTPRINT = { width = 12, depth = 12 }
 
 Constants.ANTICHEAT = {
 	MAX_COINS_PER_SELL = 1e15,

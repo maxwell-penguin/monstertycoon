@@ -32,7 +32,14 @@ local playerDataLoadedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.PL
 local setMagnetRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SET_MAGNET) :: RemoteEvent
 local setAutoPickupRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.SET_AUTO_PICKUP) :: RemoteEvent
 
-local processedReceiptsStore = DataStoreService:GetDataStore("ProcessedReceipts")
+-- GetDataStore itself (not just GetAsync/SetAsync) throws in an unpublished
+-- place -- isReceiptProcessed/markReceiptProcessed below are already
+-- pcall-wrapped and tolerate a nil store, so only this acquisition needs
+-- guarding.
+local processedReceiptsStoreOk, processedReceiptsStoreResult = pcall(function()
+	return DataStoreService:GetDataStore("ProcessedReceipts")
+end)
+local processedReceiptsStore = processedReceiptsStoreOk and processedReceiptsStoreResult or nil
 
 -- Session-only, not persisted -- matches spec's "timed flag in player state" (the
 -- actual +50% odds effect is a stub for now; only the flag + remote exist here).

@@ -254,14 +254,11 @@ function MonsterAI.CheckVialProduction(key: string)
 		return
 	end
 
-	local slot: Types.MonsterSlot = {
-		slotIndex = entry.slotIndex,
+	VialProducer.SpawnVial(player, {
 		monster = entry.monster,
-		isActive = true,
-	}
-
-	local worldPosition = entry.model:GetPivot().Position + Vector3.new(0, 1, 0)
-	VialProducer.SpawnVial(player, slot, worldPosition)
+		position = entry.model:GetPivot().Position + Vector3.new(0, 1, 0),
+		slotIndex = entry.slotIndex,
+	})
 end
 
 --============================================================
