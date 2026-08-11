@@ -1,7 +1,7 @@
 export type Monster = {
 	id: string,
 	name: string,
-	emotion: string,
+	element: string,
 	rarity: string,
 	level: number,
 	stars: number,
@@ -39,7 +39,7 @@ export type PlayerData = {
 	lifetimeRolls: number,
 	townLevel: number,
 	townXP: number,
-	hallTier: number,
+	environmentTier: number,
 	warehouseTier: number,
 	bagTier: number,
 	totalPlaytime: number,
@@ -55,6 +55,9 @@ export type PlayerData = {
 	eventTokens: number,
 	habitats: { Habitat },
 	habitatInventory: { [string]: number },
+	unlockedBiomes: { string },
+	hasMagnet: boolean,
+	autoPickupExpiry: number,
 }
 
 export type Plot = {
@@ -65,8 +68,8 @@ export type Plot = {
 }
 
 export type BoostState = {
-	emotion: string,
-	emotions: { string }?,
+	element: string,
+	elements: { string }?,
 	multiplier: number,
 	startTime: number,
 	endTime: number,

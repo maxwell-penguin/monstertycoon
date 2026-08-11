@@ -1,5 +1,4 @@
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 
@@ -7,8 +6,6 @@ local Constants = require(ReplicatedStorage.Constants)
 local Types = require(ReplicatedStorage.Types)
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local BoostState = require(ReplicatedStorage.BoostState)
-local HallManager = require(script.Parent.HallManager)
-local SlotPositioner = require(script.Parent.SlotPositioner)
 local BagManager = require(script.Parent.BagManager)
 local HabitatManager = require(script.Parent.HabitatManager)
 local HabitatVisuals = require(script.Parent.HabitatVisuals)
@@ -17,7 +14,7 @@ export type VialData = {
 	vialId: string,
 	playerId: number,
 	rarity: string,
-	emotion: string,
+	element: string,
 	monsterLevel: number,
 	monsterStars: number,
 	slotIndex: number?,
@@ -26,9 +23,9 @@ export type VialData = {
 	spawnTime: number,
 }
 
--- A single thing that can produce vials -- either a Hall pedestal slot or a
--- placed Habitat -- normalized so the production loop and SpawnVial don't
--- need to know which source they came from.
+-- A single thing that can produce vials -- either a roaming slotted monster or
+-- a placed Habitat -- normalized so callers and SpawnVial don't need to know
+-- which source they came from.
 export type ProductionSource = {
 	monster: Types.Monster,
 	position: Vector3,
@@ -38,10 +35,7 @@ export type ProductionSource = {
 
 local VIAL_DROP_INTERVAL = 30
 local MAX_XZ_OFFSET = 3
--- Must match VialClient.client.lua's VIAL_FLOAT_Y (pedestal redesign: the vial
--- now floats up to chest height) so the invisible .Touched trigger this spawns
--- lines up with where the vial actually appears, not down near the old pad.
-local Y_OFFSET = 9
+local Y_OFFSET = 1
 local VIAL_DESPAWN_TIME = 300
 
 local VialProducer = {}
@@ -49,13 +43,6 @@ local VialProducer = {}
 local activeLoops: { [number]: boolean } = {}
 local slotCooldowns: { [number]: { [string]: number } } = {}
 local playerVials: { [number]: { [string]: VialData } } = {}
-
--- Vials only ever existed as a client-rendered visual (VialClient.client.lua) with
--- the server tracking pure data, no Part -- server-side .Touched detection needs
--- an actual server Part to exist. These are invisible, non-colliding "trigger"
--- Parts positioned exactly where each client renders its own visual vial; they
--- exist purely to detect overlap server-side, not to be seen.
-local playerVialTriggers: { [number]: { [string]: BasePart } } = {}
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local vialSpawnedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_SPAWNED) :: RemoteEvent
@@ -74,7 +61,7 @@ function VialProducer.SpawnVial(player: Player, source: ProductionSource): strin
 		vialId = vialId,
 		playerId = player.UserId,
 		rarity = monster.rarity,
-		emotion = monster.emotion,
+		element = monster.element,
 		monsterLevel = monster.level,
 		monsterStars = monster.stars,
 		slotIndex = source.slotIndex,
@@ -90,60 +77,12 @@ function VialProducer.SpawnVial(player: Player, source: ProductionSource): strin
 	end
 	vials[vialId] = vialData
 
-	-- Invisible, non-colliding trigger Part so the server can detect a touch
-	-- directly instead of only trusting the client's PICKUP_VIAL fire. CanCollide
-	-- stays false so it never blocks movement or interferes with the client's own
-	-- visual vial Part; CanTouch (true by default) is what makes .Touched fire.
-	local triggerPart = Instance.new("Part")
-	triggerPart.Name = "VialTrigger_" .. vialId
-	triggerPart.Size = Vector3.new(1.5, 1.5, 1.5)
-	triggerPart.Shape = Enum.PartType.Ball
-	triggerPart.Anchored = true
-	triggerPart.CanCollide = false
-	triggerPart.CanTouch = true
-	triggerPart.Transparency = 1
-	triggerPart.Position = position
-	triggerPart.Parent = Workspace
-
-	local triggers = playerVialTriggers[player.UserId]
-	if not triggers then
-		triggers = {}
-		playerVialTriggers[player.UserId] = triggers
-	end
-	triggers[vialId] = triggerPart
-
-	triggerPart.Touched:Connect(function(hitPart: BasePart)
-		local character = hitPart:FindFirstAncestorOfClass("Model")
-		if not character then
-			return
-		end
-
-		local touchingPlayer = Players:GetPlayerFromCharacter(character)
-		if not touchingPlayer then
-			return
-		end
-
-		-- No separate ownership check needed: CollectVial looks the vialId up in
-		-- *this* player's own table, so a non-owner's touch simply finds nothing
-		-- and is rejected as "not_found" -- there's no cross-player vial to leak.
-		VialProducer.CollectVial(touchingPlayer, vialId)
-	end)
-
 	-- Visual intensity only; actual sale value is resolved fresh (and correctly,
-	-- including Mystery Surge's hidden emotion) by Economy at sell time.
-	local boostMultiplier = BoostState.GetMultiplierForEmotion(monster.emotion)
-	vialSpawnedRemote:FireClient(player, vialId, position, monster.rarity, monster.emotion, boostMultiplier)
+	-- including Mystery Surge's hidden element) by Economy at sell time.
+	local boostMultiplier = BoostState.GetMultiplierForElement(monster.element)
+	vialSpawnedRemote:FireClient(player, vialId, position, monster.rarity, monster.element, boostMultiplier)
 
 	return vialId
-end
-
-local function destroyVialTrigger(userId: number, vialId: string)
-	local triggers = playerVialTriggers[userId]
-	local triggerPart = triggers and triggers[vialId]
-	if triggerPart then
-		triggers[vialId] = nil
-		triggerPart:Destroy()
-	end
 end
 
 function VialProducer.StartProduction(player: Player)
@@ -153,9 +92,12 @@ function VialProducer.StartProduction(player: Player)
 	end
 
 	activeLoops[userId] = true
-	playerVials[userId] = playerVials[userId] or {}
 	slotCooldowns[userId] = {}
+	playerVials[userId] = playerVials[userId] or {}
 
+	-- Slotted-monster production is owned by MonsterAI.CheckVialProduction (it
+	-- knows each monster's actual roaming position); this loop drives Habitat
+	-- production and sweeps stale vials.
 	task.spawn(function()
 		while activeLoops[userId] do
 			-- Cooldowns here are 30s (production) and 300s (despawn) -- Heartbeat
@@ -168,23 +110,11 @@ function VialProducer.StartProduction(player: Player)
 				break
 			end
 
+			-- Slotted monsters are produced for by MonsterAI.CheckVialProduction
+			-- (it tracks each roaming monster's live position). Habitats have no
+			-- roaming model, so their production still runs here.
 			local now = os.clock()
 			local cooldowns = slotCooldowns[userId]
-
-			for _, slot in HallManager.GetActiveMonsters(player) do
-				if slot.monster then
-					local cooldownKey = "hall_" .. slot.slotIndex
-					local lastDrop = cooldowns[cooldownKey]
-					if not lastDrop or (now - lastDrop) >= VIAL_DROP_INTERVAL then
-						cooldowns[cooldownKey] = now
-						VialProducer.SpawnVial(player, {
-							monster = slot.monster,
-							position = SlotPositioner.GetSlotWorldPosition(player, slot.slotIndex),
-							slotIndex = slot.slotIndex,
-						})
-					end
-				end
-			end
 
 			for _, active in HabitatManager.GetActiveMonsters(player) do
 				local cooldownKey = "habitat_" .. active.habitatId
@@ -225,14 +155,6 @@ function VialProducer.StopProduction(player: Player)
 	activeLoops[userId] = nil
 	slotCooldowns[userId] = nil
 	playerVials[userId] = nil
-
-	local triggers = playerVialTriggers[userId]
-	if triggers then
-		for _, triggerPart in triggers do
-			triggerPart:Destroy()
-		end
-		playerVialTriggers[userId] = nil
-	end
 end
 
 function VialProducer.GetVialData(vialId: string): VialData?
@@ -249,7 +171,6 @@ function VialProducer.DespawnVial(vialId: string)
 	for userId, vials in playerVials do
 		if vials[vialId] then
 			vials[vialId] = nil
-			destroyVialTrigger(userId, vialId)
 
 			local player = Players:GetPlayerByUserId(userId)
 			if player then
@@ -299,7 +220,6 @@ function VialProducer.CollectVial(player: Player, vialId: string): (boolean, str
 	end
 
 	vials[vialId] = nil
-	destroyVialTrigger(userId, vialId)
 	vialRemovedRemote:FireClient(player, vialId)
 
 	return true, ""

@@ -28,7 +28,7 @@ local function fisherYatesShuffle(list: { any }): { any }
 	return shuffled
 end
 
-local deck: { { emotion: string, duration: number, multiplier: number } } = {}
+local deck: { { element: string, duration: number, multiplier: number } } = {}
 local deckIndex = 0
 
 local function nextFromDeck()
@@ -50,15 +50,15 @@ local function runStandardBoost()
 	local entry = nextFromDeck()
 
 	fireAll(boostWarningRemote, {
-		nextEmotion = entry.emotion,
+		nextElement = entry.element,
 		nextMultiplier = entry.multiplier,
 		warningDuration = WARNING_DURATION,
 	})
 	task.wait(WARNING_DURATION)
 
-	BoostState.SetBoost(entry.emotion, entry.multiplier, entry.duration)
+	BoostState.SetBoost(entry.element, entry.multiplier, entry.duration)
 	fireAll(boostStartedRemote, {
-		emotion = entry.emotion,
+		element = entry.element,
 		multiplier = entry.multiplier,
 		durationSeconds = entry.duration,
 	})
@@ -72,9 +72,9 @@ end
 local function runVoidStorm()
 	local def = Constants.SPECIAL_BOOSTS.VoidStorm
 
-	BoostState.SetBoost(def.emotion, def.multiplier, def.duration)
+	BoostState.SetBoost(def.element, def.multiplier, def.duration)
 	fireAll(boostStartedRemote, {
-		emotion = def.emotion,
+		element = def.element,
 		multiplier = def.multiplier,
 		durationSeconds = def.duration,
 		displayName = def.displayName,
@@ -89,11 +89,11 @@ end
 local function runDoubleSurge()
 	local def = Constants.SPECIAL_BOOSTS.DoubleSurge
 	local picked = fisherYatesShuffle(Constants.BOOST_ROTATION)
-	local chosenEmotions = { picked[1].emotion, picked[2].emotion }
+	local chosenElements = { picked[1].element, picked[2].element }
 
-	BoostState.SetBoost("", def.multiplier, def.duration, chosenEmotions)
+	BoostState.SetBoost("", def.multiplier, def.duration, chosenElements)
 	fireAll(boostStartedRemote, {
-		emotions = chosenEmotions,
+		elements = chosenElements,
 		multiplier = def.multiplier,
 		durationSeconds = def.duration,
 		displayName = def.displayName,
@@ -108,11 +108,11 @@ end
 local function runMysterySurge()
 	local def = Constants.SPECIAL_BOOSTS.MysterySurge
 	local picked = fisherYatesShuffle(Constants.BOOST_ROTATION)
-	local realEmotion = picked[1].emotion
+	local realElement = picked[1].element
 
-	BoostState.SetBoost("Mystery", def.multiplier, def.duration, nil, realEmotion)
+	BoostState.SetBoost("Mystery", def.multiplier, def.duration, nil, realElement)
 	fireAll(boostStartedRemote, {
-		emotion = "Mystery",
+		element = "Mystery",
 		multiplier = def.multiplier,
 		durationSeconds = def.duration,
 		displayName = def.displayName,

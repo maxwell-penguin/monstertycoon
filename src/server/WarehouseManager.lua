@@ -89,7 +89,7 @@ function WarehouseManager.AddMonster(player: Player, monsterName: string, stars:
 	local monster: Types.Monster = {
 		id = instanceId,
 		name = monsterDef.name,
-		emotion = monsterDef.emotion,
+		element = monsterDef.element,
 		rarity = monsterDef.rarity,
 		level = monsterDef.level,
 		stars = stars or 0,
@@ -129,7 +129,7 @@ function WarehouseManager.GetMergeableGroups(player: Player): { MergeableGroup }
 	local groups: { [string]: MergeableGroup } = {}
 
 	for instanceId, monster in warehouse.monsters do
-		local key = `{monster.emotion}|{monster.rarity}|{monster.level}|{monster.stars}`
+		local key = `{monster.element}|{monster.rarity}|{monster.level}|{monster.stars}`
 		local group = groups[key]
 
 		if not group then

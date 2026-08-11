@@ -48,8 +48,8 @@ function CrateManager.SpawnCrate(player: Player): string
 	end
 
 	local data = PlayerManager.GetData(userId)
-	local hallTier = (data and data.hallTier) or 1
-	local plotSize = Constants.PLOT_SIZES[hallTier] or Constants.PLOT_SIZES[1]
+	local environmentTier = (data and data.environmentTier) or 1
+	local plotSize = Constants.PLOT_SIZES[environmentTier] or Constants.PLOT_SIZES[1]
 
 	local originPosition = origin.Position
 	local offsetX = (math.random() * 2 - 1) * (plotSize.width / 2 - CRATE_EDGE_MARGIN)
@@ -93,8 +93,8 @@ function CrateManager.StartCrateLoop(player: Player)
 	task.spawn(function()
 		while activeLoops[userId] do
 			local data = PlayerManager.GetData(userId)
-			local hallTier = (data and data.hallTier) or 1
-			local cooldown = Constants.CRATE_COOLDOWNS[hallTier] or Constants.CRATE_COOLDOWNS[1]
+			local environmentTier = (data and data.environmentTier) or 1
+			local cooldown = Constants.CRATE_COOLDOWNS[environmentTier] or Constants.CRATE_COOLDOWNS[1]
 
 			task.wait(cooldown)
 

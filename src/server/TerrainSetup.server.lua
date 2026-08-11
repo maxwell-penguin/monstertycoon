@@ -7,7 +7,10 @@ local Workspace = game:GetService("Workspace")
 -- Terrain grass renders as an actual surface and, with Terrain.Decoration on,
 -- grows real 3D grass blades -- which is what makes ground read as a lawn
 -- rather than a green slab.
-local TERRAIN_SIZE = 700
+-- Has to cover the spawn hub at Z=-172, the shared farm world (-110..110), and
+-- both plot grid rows out to Z=380 -- 700 (+/-350) cut the far row off. Update
+-- TERRAIN_HALF in ScenerySetup.server.lua alongside this.
+local TERRAIN_SIZE = 900
 
 -- Grass sits 2 studs below the walking surface of everything built on it.
 --

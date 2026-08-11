@@ -1,3 +1,8 @@
+-- Disabled: warehouse trigger now handled by proximity to SellPoint area
+do
+	return
+end
+
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

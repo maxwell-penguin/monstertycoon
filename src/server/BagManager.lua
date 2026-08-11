@@ -7,7 +7,7 @@ local PlayerManager = require(script.Parent.PlayerManager)
 export type BagVialData = {
 	vialId: string,
 	rarity: string,
-	emotion: string,
+	element: string,
 	monsterLevel: number,
 	monsterStars: number,
 	slotIndex: number,

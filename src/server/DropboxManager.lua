@@ -48,7 +48,7 @@ function DropboxManager.ProcessDeposit(player: Player): (boolean, number)
 	local totalEarned = 0
 
 	for _, vial in bagContents do
-		local success, earned = Economy.ProcessSell(userId, 1, vial.rarity, vial.emotion, vial.monsterLevel, vial.monsterStars)
+		local success, earned = Economy.ProcessSell(userId, 1, vial.rarity, vial.element, vial.monsterLevel, vial.monsterStars)
 
 		if success then
 			totalEarned += earned

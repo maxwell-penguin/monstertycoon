@@ -15,9 +15,9 @@ local Workspace = game:GetService("Workspace")
 -- PlotSetup.server.lua. Semi-transparent props scattered across the whole map
 -- would bring back exactly the sorting shimmer that was just removed.
 
--- Terrain is 700x700 centred on the origin (see TerrainSetup.server.lua); stay
+-- Terrain is 900x900 centred on the origin (see TerrainSetup.server.lua); stay
 -- inside its edge so nothing hangs over into the void.
-local TERRAIN_HALF = 350
+local TERRAIN_HALF = 450
 local SCATTER_LIMIT = TERRAIN_HALF - 15
 -- Must match TERRAIN_TOP_Y in TerrainSetup.server.lua. Terrain surfaces are
 -- smoothed between voxels, so props sink slightly in places -- which reads
@@ -365,6 +365,12 @@ if not Workspace:FindFirstChild("Scenery") then
 	-- stretch where planting actually looks best.
 	addKeepOutForParts(Workspace:WaitForChild("SpawnHub"), STRUCTURE_PADDING)
 	addKeepOutForParts(Workspace:WaitForChild("Merchant"), STRUCTURE_PADDING)
+
+	-- The shared farm world is authored geometry -- its forest is already
+	-- planted by createForestDecorations, and its biomes are the roaming space
+	-- MonsterAI moves monsters through. One box over the whole 220x220 footprint
+	-- keeps random props from landing inside the volcano, pond or sell pad.
+	table.insert(keepOut, { minX = -115, maxX = 115, minZ = -115, maxZ = 115 })
 
 	local placed = buildScenery()
 	print(`[ScenerySetup] Placed {placed} scenery props`)

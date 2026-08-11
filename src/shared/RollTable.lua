@@ -76,7 +76,7 @@ end
 
 local LEGENDARY_INDEX = 5
 
-function RollTable.RollRarity(townLevel: number, userId: number?): string
+function RollTable.RollRarity(townLevel: number): string
 	local probabilities = RollTable.GetProbabilities(townLevel)
 	local roll = math.random()
 	local cumulative = 0
@@ -93,8 +93,7 @@ function RollTable.RollRarity(townLevel: number, userId: number?): string
 	-- Server-only; on a client this pcall just fails closed (no bump) since
 	-- EventManager never replicates there.
 	local ok, isLucky = pcall(function()
-		local eventManager = getEventManager()
-		return eventManager.IsServerLuckActive() or (userId ~= nil and eventManager.IsPersonalLuckActive(userId))
+		return getEventManager().IsServerLuckActive()
 	end)
 
 	if ok and isLucky then
@@ -118,14 +117,14 @@ function RollTable.RollMonsterOfRarity(rarity: string): string
 	end
 
 	if #matches == 0 then
-		return "Weeper"
+		return "Embret"
 	end
 
 	return matches[math.random(1, #matches)]
 end
 
-function RollTable.RollMonster(townLevel: number, userId: number?): (string, string)
-	local rarity = RollTable.RollRarity(townLevel, userId)
+function RollTable.RollMonster(townLevel: number): (string, string)
+	local rarity = RollTable.RollRarity(townLevel)
 	local monsterName = RollTable.RollMonsterOfRarity(rarity)
 	return monsterName, rarity
 end

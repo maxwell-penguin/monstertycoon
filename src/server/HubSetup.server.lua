@@ -7,25 +7,27 @@ pcall(function()
 	PhysicsService:RegisterCollisionGroup(COLLISION_GROUP)
 end)
 
--- Without a SpawnLocation, Roblox drops players at world origin -- which is
--- exactly the center of Plot_3 now that PlotSetup.server.lua centers its grid
--- on X=0. This builds a neutral hub south of the plot grid (negative Z) so
--- players start somewhere that isn't inside somebody's plot, and walk forward
--- (+Z) past the merchant into the grid.
+-- Without a SpawnLocation, Roblox drops players at world origin -- which is now
+-- the middle of the shared farm world PlotSetup.server.lua builds. This builds
+-- a neutral hub south of it so players start outside the farm and walk forward
+-- (+Z) through it, past the merchant, and on into the plot grid beyond.
 --
--- Layout along Z (plot grid row 0 sits at Z=0, spanning -40..40):
+-- Layout along Z:
 --   -172..-128  spawn plaza
---   -128..-45   walkway
---   -90         merchant stall (offset to X=-70, see MerchantSetup.server.lua)
+--   -128..-110  walkway
+--   -110..110   shared farm world (biomes, sell point), entered through the
+--               30-stud gateway in its south border wall at X=0
+--    140        merchant stall (offset to X=-70, see MerchantSetup.server.lua)
+--    170..380   plot grid rows 0 and 1
 local PLAZA_Z = -150
 local PLAZA_WIDTH = 90
 local PLAZA_DEPTH = 44
 local WALKWAY_WIDTH = 14
 local WALKWAY_START_Z = -128
--- Runs right up to the plot row's front edge (Z=-40). It used to stop at -45,
--- leaving a 5-stud strip of grass 2 studs below the path that the player had
--- to drop into and climb back out of on the way to their plot.
-local WALKWAY_END_Z = -40
+-- Runs right up to the farm world's south border wall (Z=-110), whose gateway
+-- the player walks through. It must not stop short: a gap would leave a strip
+-- of grass 2 studs below the path to drop into and climb back out of.
+local WALKWAY_END_Z = -110
 -- Matches GROUND_SLAB_THICKNESS in PlotSetup.server.lua; see TERRAIN_TOP_Y in
 -- TerrainSetup.server.lua for why these slabs extend below their top face.
 local SLAB_THICKNESS = 3

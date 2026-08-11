@@ -8,15 +8,17 @@ pcall(function()
 end)
 
 -- Must stay clear of the plot grid PlotSetup.server.lua builds (5 columns x
--- 110 studs, 2 rows x 130 studs, columns centered on world X=0) -- placed
--- well before row 0 (negative Z) so it never overlaps a plot.
+-- 110 studs, 2 rows x 130 studs from PLOT_GRID_Z_ORIGIN = 210, columns centered
+-- on world X=0) and of the shared farm world it builds across -110..110 on both
+-- axes. That leaves the strip between the farm's north border wall and plot row
+-- 0's front edge (Z 110..170), which is also where every player walks on the
+-- way from the farm to their plot.
 --
--- Offset to -70 on X so the stall sits *beside* HubSetup.server.lua's spawn
--- walkway (14 studs wide, centered on X=0) rather than on top of it -- the
--- counter is CanCollide and would otherwise wall off the path from spawn to
--- the plots.
+-- Offset to -70 on X so the stall sits *beside* the line players walk through
+-- the farm's north gateway (30 studs wide, centered on X=0) rather than on top
+-- of it -- the counter is CanCollide and would otherwise wall off the path.
 local HUB_CENTER_X = -70
-local HUB_Z = -90
+local HUB_Z = 140
 
 local STALL_COLOR = Color3.fromRGB(126, 88, 56)
 local ACCENT_COLOR = Color3.fromRGB(196, 76, 68)

@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local PlotManager = require(script.Parent.PlotManager)
 local HallManager = require(script.Parent.HallManager)
+local MonsterAI = require(script.Parent.MonsterAI)
 local HabitatManager = require(script.Parent.HabitatManager)
 local VialProducer = require(script.Parent.VialProducer)
 local DropboxManager = require(script.Parent.DropboxManager)
@@ -36,7 +37,8 @@ function PlotClaimManager.ClaimPlot(player: Player, plotIndex: number): boolean
 		return false
 	end
 
-	HallManager.InitHall(player)
+	HallManager.InitMonsterEnvironment(player)
+	MonsterAI.SpawnAllMonsters(player)
 	HabitatManager.InitHabitats(player)
 	HabitatManager.LoadHabitatsFromPlayerData(player)
 	VialProducer.StartProduction(player)

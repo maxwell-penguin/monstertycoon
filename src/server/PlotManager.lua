@@ -238,7 +238,7 @@ function PlotManager.UpgradePlot(player: Player): boolean
 	end
 
 	local currentTier = data.hallTier
-	local maxTier = #Constants.HALL_UPGRADE_COSTS
+	local maxTier = #Constants.ENVIRONMENT_UPGRADE_COSTS
 	if currentTier >= maxTier then
 		return false
 	end

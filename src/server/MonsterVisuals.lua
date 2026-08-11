@@ -231,6 +231,10 @@ function MonsterVisuals.StartIdleAnimation(monsterModel: Model, emotion: string)
 end
 
 function MonsterVisuals.SpawnMonsterOnPad(player: Player, slotIndex: number, monsterName: string, emotion: string, rarity: string)
+	if true then
+		return
+	end -- Disabled: monsters now roam freely, MonsterAI handles placement
+
 	local plotModel = PlotManager.GetPlayerPlot(player)
 	if not plotModel then
 		return
@@ -263,6 +267,10 @@ function MonsterVisuals.SpawnMonsterOnPad(player: Player, slotIndex: number, mon
 end
 
 function MonsterVisuals.RemoveMonsterFromPad(player: Player, slotIndex: number)
+	if true then
+		return
+	end -- Disabled: monsters now roam freely, MonsterAI handles placement
+
 	local key = blobKey(player.UserId, slotIndex)
 	local blob = activeBlobs[key]
 	if not blob then

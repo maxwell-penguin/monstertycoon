@@ -1,7 +1,7 @@
 local Constants = {}
 
 Constants.PLOT_MAX_PLAYERS = 10
-Constants.VIAL_PICKUP_RADIUS = 15 -- TODO: temporarily widened from 8 for testing tolerance; dial back down once SlotPositioner spacing is confirmed comfortable
+Constants.VIAL_PICKUP_RADIUS = 8
 Constants.DROPBOX_RADIUS = 10
 Constants.WAREHOUSE_BASE_CAPACITY = 30
 Constants.HALL_BASE_SLOTS = 9
@@ -27,7 +27,7 @@ Constants.ROLL_COST_THRESHOLDS = {
 	{ maxRolls = math.huge, cost = 80000 },
 }
 
-Constants.HALL_UPGRADE_COSTS = {
+Constants.ENVIRONMENT_UPGRADE_COSTS = {
 	[1] = 0,
 	[2] = 50000,
 	[3] = 5000000,
@@ -35,12 +35,22 @@ Constants.HALL_UPGRADE_COSTS = {
 	[5] = 50000000000,
 }
 
-Constants.HALL_SLOT_COUNTS = {
+Constants.ENVIRONMENT_CAPACITY = {
 	[1] = 9,
 	[2] = 15,
 	[3] = 24,
 	[4] = 36,
 	[5] = 48,
+}
+
+-- Max monsters roaming each biome at once, independent of environment tier --
+-- caps how many of a player's slotted monsters can be assigned to any one
+-- biome (via GetMonstersByBiome), not the total roster size.
+Constants.BIOME_CAPACITY_LIMITS = {
+	Forest = 12,
+	Waterfall = 10,
+	Volcano = 8,
+	Pond = 6,
 }
 
 Constants.WAREHOUSE_UPGRADE_COSTS = {
@@ -95,24 +105,27 @@ Constants.CRATE_COOLDOWNS = {
 }
 
 Constants.BOOST_ROTATION = {
-	{ emotion = "Rage", duration = 480, multiplier = 4 },
-	{ emotion = "Void", duration = 360, multiplier = 5 },
-	{ emotion = "Joy", duration = 600, multiplier = 3 },
-	{ emotion = "Dread", duration = 360, multiplier = 5 },
-	{ emotion = "Sadness", duration = 480, multiplier = 3 },
-	{ emotion = "Nostalgia", duration = 240, multiplier = 8 },
+	{ element = "Fire", duration = 480, multiplier = 4 },
+	{ element = "Water", duration = 360, multiplier = 5 },
+	{ element = "Nature", duration = 600, multiplier = 3 },
+	{ element = "Void", duration = 360, multiplier = 5 },
+	{ element = "Wind", duration = 480, multiplier = 3 },
+	{ element = "Thunder", duration = 240, multiplier = 8 },
 }
 
 Constants.SPECIAL_BOOST_CHANCE = 0.15
 
 Constants.SPECIAL_BOOSTS = {
-	VoidStorm = { emotion = "All", multiplier = 2, duration = 180, displayName = "VOID STORM" },
+	VoidStorm = { element = "All", multiplier = 2, duration = 180, displayName = "VOID STORM" },
 	DoubleSurge = { multiplier = 3, duration = 300, displayName = "DOUBLE SURGE" },
 	MysterySurge = { multiplier = 6, duration = 300, displayName = "??? SURGE" },
 }
 
 Constants.WATCHER_BOOST_MULTIPLIER = 50
 
+-- Elements color monsters and vials. Emotions are a separate axis that only
+-- Habitats/biomes use (Constants.HABITAT_TYPES keys off `emotion`), so both
+-- tables have to exist -- one is not a rename of the other.
 Constants.EMOTION_COLORS = {
 	Joy = Color3.fromRGB(250, 199, 80),
 	Sadness = Color3.fromRGB(133, 183, 235),
@@ -122,6 +135,21 @@ Constants.EMOTION_COLORS = {
 	Void = Color3.fromRGB(44, 44, 42),
 	Static = Color3.fromRGB(151, 196, 89),
 	Abyss = Color3.fromRGB(26, 33, 92),
+}
+
+Constants.ELEMENT_COLORS = {
+	Fire = Color3.fromRGB(255, 100, 30),
+	Magma = Color3.fromRGB(180, 50, 10),
+	Water = Color3.fromRGB(60, 140, 220),
+	Ice = Color3.fromRGB(180, 220, 255),
+	Wind = Color3.fromRGB(200, 220, 240),
+	Thunder = Color3.fromRGB(255, 220, 50),
+	Nature = Color3.fromRGB(60, 160, 60),
+	Poison = Color3.fromRGB(120, 200, 50),
+	Void = Color3.fromRGB(80, 40, 120),
+	Galaxy = Color3.fromRGB(100, 60, 180),
+	Light = Color3.fromRGB(255, 240, 180),
+	Radiance = Color3.fromRGB(255, 200, 80),
 }
 
 Constants.XP_REWARDS = {
@@ -175,8 +203,7 @@ Constants.GAMEPASS_IDS = {
 	Income5x = 0,
 	Income7x = 0,
 	Income10x = 0,
-	AutoMerge = 0,
-	VoidPass = 0,
+	Magnet = 0,
 }
 
 Constants.PRODUCT_IDS = {
@@ -189,17 +216,18 @@ Constants.PRODUCT_IDS = {
 	MythicEgg = 0,
 	StarterPack = 0,
 	VoidPack = 0,
+	AutoPickup = 0,
 }
 
 -- Shared (not an EventStation-local) because the client-built Event Station panel
 -- needs the same names/costs to render BUY buttons -- same reasoning as
 -- GAMEPASS_IDS/PRODUCT_IDS above.
 Constants.EVENT_MONSTERS = {
-	{ name = "Glitchling", emotion = "Static", rarity = "Rare", tokenCost = 1 },
-	{ name = "Voidborn", emotion = "Void", rarity = "Epic", tokenCost = 3 },
-	{ name = "Prismatic", emotion = "Any", rarity = "Legendary", tokenCost = 8 },
-	{ name = "Corrupted", emotion = "Any", rarity = "Legendary", tokenCost = 8 },
-	{ name = "Hollow", emotion = "Sadness", rarity = "Epic", tokenCost = 3 },
+	{ name = "Glitchling", element = "Void", rarity = "Rare", tokenCost = 1 },
+	{ name = "Galaxyborn", element = "Galaxy", rarity = "Epic", tokenCost = 3 },
+	{ name = "Prismatic", element = "Radiance", rarity = "Legendary", tokenCost = 8 },
+	{ name = "Corrupted", element = "Void", rarity = "Legendary", tokenCost = 8 },
+	{ name = "Hollow", element = "Void", rarity = "Epic", tokenCost = 3 },
 }
 
 -- One habitat per MergeRules.lua lineage emotion (Static/Abyss are
