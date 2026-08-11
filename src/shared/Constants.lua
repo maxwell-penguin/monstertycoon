@@ -1,7 +1,7 @@
 local Constants = {}
 
 Constants.PLOT_MAX_PLAYERS = 10
-Constants.VIAL_PICKUP_RADIUS = 8
+Constants.VIAL_PICKUP_RADIUS = 12
 Constants.DROPBOX_RADIUS = 10
 Constants.WAREHOUSE_BASE_CAPACITY = 30
 Constants.HALL_BASE_SLOTS = 9

@@ -24,6 +24,7 @@ local function isValidInstanceId(instanceId: any): boolean
 end
 
 slotMonsterRemote.OnServerEvent:Connect(function(player: Player, slotIndex: any, instanceId: any)
+	print("[EnvironmentRemotes] SLOT_MONSTER received - slotIndex:", slotIndex, "instanceId:", instanceId)
 	local userId = player.UserId
 	RateLimiter.TrackRemoteCall(userId)
 

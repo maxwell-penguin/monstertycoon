@@ -11,6 +11,7 @@ RemoteEvents.EVENTS = {
 	UNSLOT_MONSTER = "UnslotMonster",
 	MERGE_MONSTERS = "MergeMonsters",
 	MONSTER_PRODUCED = "MonsterProduced",
+	MONSTER_COUNTDOWN = "MonsterCountdown",
 	UPDATE_HALL = "UpdateHall",
 	UPDATE_WAREHOUSE = "UpdateWarehouse",
 

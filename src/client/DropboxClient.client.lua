@@ -158,6 +158,10 @@ depositBagRemote.OnClientEvent:Connect(function(totalEarned: number, vialCount: 
 	playCoinBurst(dropbox.Position)
 	showEarnedText(dropbox.Position, totalEarned)
 
+	if shared.UIManager then
+		shared.UIManager.showCoinEarned(totalEarned)
+	end
+
 	if shared.SoundManager then
 		shared.SoundManager.PlaySound("deposit", getDepositSizeCategory(vialCount))
 	end

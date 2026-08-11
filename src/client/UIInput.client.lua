@@ -50,6 +50,7 @@ else
 		if action == "ROLL_EGG" then
 			rollEggRemote:FireServer(payload.count)
 		elseif action == "SLOT_MONSTER" then
+			print("[UIInput] SLOT_MONSTER firing - slotIndex:", payload.slotIndex, "instanceId:", payload.instanceId)
 			slotMonsterRemote:FireServer(payload.slotIndex, payload.instanceId)
 		elseif action == "UNSLOT_MONSTER" then
 			unslotMonsterRemote:FireServer(payload.slotIndex)

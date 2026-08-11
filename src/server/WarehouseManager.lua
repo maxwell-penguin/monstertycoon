@@ -73,6 +73,16 @@ end
 function WarehouseManager.AddMonster(player: Player, monsterName: string, stars: number?): (boolean, string)
 	local warehouse = playerWarehouses[player.UserId]
 	print(
+		"[AddMonster] Called with:",
+		tostring(monsterName),
+		"stars:",
+		tostring(stars),
+		"current count:",
+		tostring(warehouse and countMonsters(warehouse)),
+		"capacity:",
+		tostring(warehouse and warehouse.capacity)
+	)
+	print(
 		"[Warehouse] AddMonster called: "
 			.. tostring(monsterName)
 			.. " capacity: "

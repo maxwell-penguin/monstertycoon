@@ -242,6 +242,29 @@ earnRateLabel.Text = "+0/sec"
 earnRateLabel.Parent = coinFrame
 
 -- Bag indicator (top-right)
+-- Vial counter (top-left)
+local vialCounterFrame = Instance.new("Frame")
+vialCounterFrame.Name = "VialCounter"
+vialCounterFrame.Position = UDim2.new(0, 16, 0, 90)
+vialCounterFrame.Size = UDim2.new(0, 120, 0, 44)
+vialCounterFrame.BackgroundColor3 = PANEL_BG
+vialCounterFrame.BackgroundTransparency = 0.3
+vialCounterFrame.BorderSizePixel = 0
+vialCounterFrame.Parent = hud
+addCorner(vialCounterFrame, 8)
+
+local vialCounterLabel = Instance.new("TextLabel")
+vialCounterLabel.Name = "VialCount"
+vialCounterLabel.Size = UDim2.new(1, -16, 1, 0)
+vialCounterLabel.Position = UDim2.new(0, 8, 0, 0)
+vialCounterLabel.BackgroundTransparency = 1
+vialCounterLabel.Font = Enum.Font.GothamBold
+vialCounterLabel.TextSize = 18
+vialCounterLabel.TextColor3 = WHITE
+vialCounterLabel.TextXAlignment = Enum.TextXAlignment.Left
+vialCounterLabel.Text = "🧪 0/0"
+vialCounterLabel.Parent = vialCounterFrame
+
 local bagFrame = Instance.new("Frame")
 bagFrame.Name = "BagIndicator"
 bagFrame.AnchorPoint = Vector2.new(1, 0)
@@ -1653,6 +1676,54 @@ function UIManagerAPI.showError(message: string)
 end
 
 --============================================================
+-- Coin earned popup (transient, not a toggle panel)
+--============================================================
+
+local COIN_EARNED_GOLD = Color3.fromRGB(255, 210, 50)
+local activeCoinEarnedPopups = 0
+
+function UIManagerAPI.showCoinEarned(amount: number)
+	local stackOffset = activeCoinEarnedPopups * 25
+	activeCoinEarnedPopups += 1
+
+	local label = Instance.new("TextLabel")
+	label.Name = "CoinEarnedPopup"
+	label.AnchorPoint = Vector2.new(0, 0)
+	label.Position = UDim2.new(1, 10, 0, stackOffset)
+	label.Size = UDim2.new(0, 100, 0, 26)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 22
+	label.TextColor3 = COIN_EARNED_GOLD
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextTransparency = 1
+	label.Text = "+" .. NumberFormatter.Format(amount)
+	label.Parent = coinFrame
+
+	TweenService:Create(label, TweenInfo.new(0.15), { TextTransparency = 0 }):Play()
+	TweenService:Create(
+		label,
+		TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Position = UDim2.new(1, 10, 0, stackOffset - 30) }
+	):Play()
+
+	task.delay(0.8, function()
+		TweenService:Create(label, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+	end)
+
+	task.delay(1.3, function()
+		label:Destroy()
+		activeCoinEarnedPopups -= 1
+	end)
+
+	local pulseTween = TweenService:Create(coinScale, TweenInfo.new(0.15), { Scale = 1.15 })
+	pulseTween.Completed:Connect(function()
+		TweenService:Create(coinScale, TweenInfo.new(0.15), { Scale = 1 }):Play()
+	end)
+	pulseTween:Play()
+end
+
+--============================================================
 -- Merge notification (transient, not a toggle panel)
 --============================================================
 
@@ -1744,6 +1815,9 @@ task.spawn(function()
 		local bagState = shared.BagClient
 		if bagState then
 			bagCountLabel.Text = `{NumberFormatter.Format(bagState.count or 0)}/{NumberFormatter.Format(bagState.capacity or 0)}`
+
+			vialCounterLabel.Text = `🧪 {NumberFormatter.Format(bagState.count or 0)}/{NumberFormatter.Format(bagState.capacity or 0)}`
+			vialCounterLabel.TextColor3 = bagState.isFull and GOLD or WHITE
 
 			local fraction = 0
 			if bagState.capacity and bagState.capacity > 0 and bagState.capacity ~= math.huge then

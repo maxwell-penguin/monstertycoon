@@ -12,13 +12,15 @@ local vialSpawnedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_SP
 local vialRemovedRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.VIAL_REMOVED) :: RemoteEvent
 
 vialSpawnedRemote.OnClientEvent:Connect(function(vialId: string, position: Vector3, rarity: string, element: string)
+	local elementColor = Constants.ELEMENT_COLORS[element] or Color3.new(1, 1, 1)
+
 	local part = Instance.new("Part")
 	part.Name = "Vial_" .. vialId
 	part.Size = Vector3.new(1.5, 1.5, 1.5)
 	part.Shape = Enum.PartType.Ball
 	part.Anchored = true
 	part.CanCollide = false
-	part.Color = Constants.ELEMENT_COLORS[element] or Color3.new(1, 1, 1)
+	part.Color = elementColor
 	part.Position = position
 
 	local vialIdValue = Instance.new("StringValue")
@@ -31,12 +33,27 @@ vialSpawnedRemote.OnClientEvent:Connect(function(vialId: string, position: Vecto
 	ownerIdValue.Value = tostring(player.UserId)
 	ownerIdValue.Parent = part
 
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "ElementLabel"
+	billboard.Size = UDim2.new(0, 80, 0, 30)
+	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.Parent = part
+
+	local elementLabel = Instance.new("TextLabel")
+	elementLabel.Size = UDim2.fromScale(1, 1)
+	elementLabel.BackgroundTransparency = 1
+	elementLabel.Font = Enum.Font.Gotham
+	elementLabel.TextSize = 13
+	elementLabel.TextColor3 = elementColor
+	elementLabel.Text = element
+	elementLabel.Parent = billboard
+
 	part.Parent = Workspace
 
 	if shared.ParticleManager then
 		local emitter = shared.ParticleManager.CreateParticleEmitter(part, "vialGlow")
 		if emitter then
-			emitter.Color = ColorSequence.new(Constants.ELEMENT_COLORS[element] or Color3.new(1, 1, 1))
+			emitter.Color = ColorSequence.new(elementColor)
 		end
 	end
 

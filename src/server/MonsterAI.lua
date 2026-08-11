@@ -6,6 +6,7 @@ local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Constants)
 local Types = require(ReplicatedStorage.Types)
+local RemoteEvents = require(ReplicatedStorage.RemoteEvents)
 local BiomeData = require(script.Parent.BiomeData)
 local BiomeManager = require(script.Parent.BiomeManager)
 local HallManager = require(script.Parent.HallManager)
@@ -30,7 +31,7 @@ type ActiveMonster = {
 local MOVE_SPEED = 6 -- studs per second
 local IDLE_MIN = 2
 local IDLE_MAX = 4
-local VIAL_DROP_INTERVAL = 30
+local VIAL_DROP_INTERVAL = 10
 local TARGET_REACHED_THRESHOLD = 0.2
 
 local MonsterAI = {}
@@ -43,6 +44,9 @@ if not monsterModelsFolder then
 	monsterModelsFolder.Name = "MonsterModels"
 	monsterModelsFolder.Parent = Workspace
 end
+
+local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+local monsterCountdownRemote = remotesFolder:WaitForChild(RemoteEvents.EVENTS.MONSTER_COUNTDOWN) :: RemoteEvent
 
 local groundRaycastParams = RaycastParams.new()
 groundRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -233,6 +237,25 @@ local function addNameTag(model: Model, name: string, element: string)
 	label.Parent = billboard
 end
 
+local function addCountdownTag(model: Model)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "CountdownTag"
+	billboard.Size = UDim2.new(0, 80, 0, 20)
+	billboard.StudsOffset = Vector3.new(0, -1, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = model.PrimaryPart
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Text"
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 12
+	label.TextColor3 = Color3.fromRGB(120, 200, 255)
+	label.Text = `💧 {VIAL_DROP_INTERVAL}s`
+	label.Parent = billboard
+end
+
 --============================================================
 -- Vial production
 --============================================================
@@ -316,6 +339,12 @@ function MonsterAI.RoamLoop(key: string)
 			liveEntry.isMoving = false
 			MonsterAI.CheckVialProduction(key)
 
+			local countdownPlayer = Players:GetPlayerByUserId(liveEntry.userId)
+			if countdownPlayer then
+				local secondsRemaining = VIAL_DROP_INTERVAL - (os.time() - liveEntry.lastDropTime)
+				monsterCountdownRemote:FireClient(countdownPlayer, liveEntry.slotIndex, secondsRemaining)
+			end
+
 			task.delay(IDLE_MIN + math.random() * (IDLE_MAX - IDLE_MIN), function()
 				pickNextTarget(key)
 			end)
@@ -359,6 +388,7 @@ function MonsterAI.SpawnMonster(player: Player, slotIndex: number, monster: Mons
 	model.Name = `Monster_{player.UserId}_{slotIndex}`
 	model:PivotTo(CFrame.new(spawnPosition + Vector3.new(0, bodyDiameter / 2, 0)))
 	addNameTag(model, monster.name, monster.element)
+	addCountdownTag(model)
 	model.Parent = monsterModelsFolder
 
 	local key = activeKey(player.UserId, slotIndex)

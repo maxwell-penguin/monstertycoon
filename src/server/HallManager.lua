@@ -47,6 +47,7 @@ function MonsterEnvironment.GetSlots(player: Player): { Types.MonsterSlot }
 end
 
 function MonsterEnvironment.SlotMonster(player: Player, slotIndex: number, instanceId: string): boolean
+	print("[SlotMonster] Called - slotIndex:", slotIndex, "instanceId:", instanceId)
 	local slots = playerSlots[player.UserId]
 	if not slots then
 		return false
@@ -71,8 +72,10 @@ function MonsterEnvironment.SlotMonster(player: Player, slotIndex: number, insta
 	-- it. If the warehouse is full, bail out with nothing changed rather than
 	-- overwriting and losing the existing monster.
 	if slot.monster then
-		local returned = WarehouseManager.AddMonster(player, slot.monster.name, slot.monster.stars)
-		if not returned then
+		print("[SlotMonster] Slot occupied by:", slot.monster.name, "- attempting return to warehouse")
+		local success, reason = WarehouseManager.AddMonster(player, slot.monster.name, slot.monster.stars)
+		print("[SlotMonster] AddMonster result for old monster:", tostring(success), tostring(reason))
+		if not success then
 			return false
 		end
 	end
